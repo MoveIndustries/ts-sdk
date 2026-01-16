@@ -1,4 +1,4 @@
-# TypeScript SDK for Aptos
+# TypeScript SDK for Movement and Aptos
 
 ![License][github-license]
 [![Discord][discord-image]][discord-url]
@@ -7,7 +7,7 @@
 ![NPM bundle size](https://img.shields.io/bundlephobia/min/%40aptos-labs/ts-sdk)
 [![NPM Package Downloads][npm-image-downloads]][npm-url]
 
-The [TypeScript SDK](https://www.npmjs.com/package/@aptos-labs/ts-sdk) allows you to connect, explore, and interact with the Aptos blockchain. You can use it to request data, send transactions, set up test environments, and more!
+The [TypeScript SDK](https://www.npmjs.com/package/@aptos-labs/ts-sdk) allows you to connect, explore, and interact with the Movement and Aptos blockchains. You can use it to request data, send transactions, set up test environments, and more!
 
 ## Learn How To Use The TypeScript SDK
 ### [Quickstart](https://aptos.dev/en/build/sdks/ts-sdk/quickstart)
@@ -22,7 +22,7 @@ The [TypeScript SDK](https://www.npmjs.com/package/@aptos-labs/ts-sdk) allows yo
 Install with your favorite package manager such as npm, yarn, or pnpm:
 
 ```bash
-pnpm install @aptos-labs/ts-sdk
+todo
 ```
 
 ### For use in a browser (<= version 1.9.1 only)
