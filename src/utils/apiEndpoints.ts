@@ -33,7 +33,7 @@ export const NetworkToNodeAPI: Record<string, string> = {
  */
 export const NetworkToFaucetAPI: Record<string, string> = {
   testnet: "https://faucet.testnet.movementnetwork.xyz",
-  devnet: "https://faucet.devnet.aptoslabs.com",
+  devnet: "https://faucet.devnet.movementnetwork.xyz",
   shelbynet: "https://faucet.shelbynet.shelby.xyz",
   netna: "https://faucet-dev-netna-us-central1-410192433417.us-central1.run.app",
   local: "http://127.0.0.1:8081",

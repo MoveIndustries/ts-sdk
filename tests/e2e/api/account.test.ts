@@ -6,6 +6,7 @@ import {
   AccountAddress,
   CommittedTransactionResponse,
   Ed25519PrivateKey,
+  Movement,
   MOVEMENT_COIN,
   MovementConfig,
   MultiEd25519Account,
@@ -395,6 +396,7 @@ describe("account api", () => {
       const config = new MovementConfig({
         network: Network.LOCAL,
       });
+      const movement = new Movement(config);
 
       test("single sender ed25519", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: false });

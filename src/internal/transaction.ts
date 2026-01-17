@@ -310,7 +310,7 @@ export async function waitForIndexer(args: {
 }): Promise<void> {
   const { movementConfig, processorType } = args;
   const minimumLedgerVersion = BigInt(args.minimumLedgerVersion);
-  const timeoutMilliseconds = 3000; // 3 seconds
+  const timeoutMilliseconds = 30000; // 30 seconds
   const startTime = new Date().getTime();
   let indexerVersion = BigInt(-1);
 
