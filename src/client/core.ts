@@ -1,10 +1,10 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AptosConfig } from "../api/aptosConfig";
-import { AptosApiError } from "../errors";
-import { AnyNumber, AptosRequest, AptosResponse, Client, ClientRequest, ClientResponse, MimeType } from "../types";
-import { AptosApiType } from "../utils";
+import { MovementConfig } from "../api/movementConfig";
+import { MovementApiError } from "../errors";
+import { AnyNumber, Client, ClientRequest, ClientResponse, MimeType, MovementRequest, MovementResponse } from "../types";
+import { MovementApiType } from "../utils";
 import { VERSION } from "../version";
 
 /**
@@ -58,25 +58,25 @@ export async function request<Req, Res>(options: ClientRequest<Req>, client: Cli
 }
 
 /**
- * The main function to use when making an API request, returning the response or throwing an AptosApiError on failure.
+ * The main function to use when making an API request, returning the response or throwing an MovementApiError on failure.
  *
- * @param aptosRequestOpts - Options for the Aptos request, including the URL and path.
- * @param aptosConfig - The configuration information for the SDK client instance.
+ * @param movementRequestOpts - Options for the Movement request, including the URL and path.
+ * @param movementConfig - The configuration information for the SDK client instance.
  * @param apiType - The type of API being accessed, which determines how the response is handled.
- * @returns The response from the API request or throws an AptosApiError if the request fails.
+ * @returns The response from the API request or throws an MovementApiError if the request fails.
  * @group Implementation
  * @category Client
  */
 export async function aptosRequest<Req extends {}, Res extends {}>(
-  aptosRequestOpts: AptosRequest,
-  aptosConfig: AptosConfig,
-  apiType: AptosApiType,
-): Promise<AptosResponse<Req, Res>> {
-  const { url, path } = aptosRequestOpts;
+  movementRequestOpts: MovementRequest,
+  movementConfig: MovementConfig,
+  apiType: MovementApiType,
+): Promise<MovementResponse<Req, Res>> {
+  const { url, path } = movementRequestOpts;
   const fullUrl = path ? `${url}/${path}` : url;
-  const clientResponse = await request<Req, Res>({ ...aptosRequestOpts, url: fullUrl }, aptosConfig.client);
+  const clientResponse = await request<Req, Res>({ ...movementRequestOpts, url: fullUrl }, movementConfig.client);
 
-  const aptosResponse: AptosResponse<Req, Res> = {
+  const movementResponse: MovementResponse<Req, Res> = {
     status: clientResponse.status,
     statusText: clientResponse.statusText ?? "No status text provided",
     data: clientResponse.data,
@@ -87,34 +87,34 @@ export async function aptosRequest<Req extends {}, Res extends {}>(
   };
 
   // Handle case for `Unauthorized` error (i.e. API_KEY error)
-  if (aptosResponse.status === 401) {
-    throw new AptosApiError({ apiType, aptosRequest: aptosRequestOpts, aptosResponse });
+  if (movementResponse.status === 401) {
+    throw new MovementApiError({ apiType, aptosRequest: movementRequestOpts, movementResponse });
   }
 
   // to support both fullnode and indexer responses,
   // check if it is an indexer query, and adjust response.data
-  if (apiType === AptosApiType.INDEXER) {
-    const indexerResponse = aptosResponse.data as any;
+  if (apiType === MovementApiType.INDEXER) {
+    const indexerResponse = movementResponse.data as any;
     // Handle Indexer general errors
     if (indexerResponse.errors) {
-      throw new AptosApiError({
+      throw new MovementApiError({
         apiType,
-        aptosRequest: aptosRequestOpts,
-        aptosResponse,
+        aptosRequest: movementRequestOpts,
+        movementResponse,
       });
     }
-    aptosResponse.data = indexerResponse.data as Res;
-  } else if (apiType === AptosApiType.PEPPER || apiType === AptosApiType.PROVER) {
-    if (aptosResponse.status >= 400) {
-      throw new AptosApiError({ apiType, aptosRequest: aptosRequestOpts, aptosResponse });
+    movementResponse.data = indexerResponse.data as Res;
+  } else if (apiType === MovementApiType.PEPPER || apiType === MovementApiType.PROVER) {
+    if (movementResponse.status >= 400) {
+      throw new MovementApiError({ apiType, aptosRequest: movementRequestOpts, movementResponse });
     }
   }
 
-  if (aptosResponse.status >= 200 && aptosResponse.status < 300) {
-    return aptosResponse;
+  if (movementResponse.status >= 200 && movementResponse.status < 300) {
+    return movementResponse;
   }
 
   // We have to explicitly check for all request types, because if the error is a non-indexer error, but
   // comes from an indexer request (e.g. 404), we'll need to mention it appropriately
-  throw new AptosApiError({ apiType, aptosRequest: aptosRequestOpts, aptosResponse });
+  throw new MovementApiError({ apiType, aptosRequest: movementRequestOpts, movementResponse });
 }

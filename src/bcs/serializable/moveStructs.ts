@@ -1,15 +1,15 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Bool, U128, U16, U256, U32, U64, U8 } from "./movePrimitives";
-import { Serializable, Serializer } from "../serializer";
-import { Deserializable, Deserializer } from "../deserializer";
-import { AnyNumber, HexInput, ScriptTransactionArgumentVariants } from "../../types";
 import { Hex } from "../../core/hex";
 import { EntryFunctionArgument, TransactionArgument } from "../../transactions/instances/transactionArgument";
+import { AnyNumber, HexInput, ScriptTransactionArgumentVariants } from "../../types";
+import { Deserializable, Deserializer } from "../deserializer";
+import { Serializable, Serializer } from "../serializer";
+import { Bool, U128, U16, U256, U32, U64, U8 } from "./movePrimitives";
 
 /**
- * This class is the Aptos Typescript SDK representation of a Move `vector<T>`,
+ * This class is the Movement Typescript SDK representation of a Move `vector<T>`,
  * where `T` represents either a primitive type (`bool`, `u8`, `u64`, ...)
  * or a BCS-serializable struct itself.
  *
@@ -49,8 +49,7 @@ import { EntryFunctionArgument, TransactionArgument } from "../../transactions/i
  */
 export class MoveVector<T extends Serializable & EntryFunctionArgument>
   extends Serializable
-  implements TransactionArgument
-{
+  implements TransactionArgument {
   public values: Array<T>;
 
   /**
@@ -411,8 +410,7 @@ export class MoveString extends Serializable implements TransactionArgument {
 
 export class MoveOption<T extends Serializable & EntryFunctionArgument>
   extends Serializable
-  implements EntryFunctionArgument
-{
+  implements EntryFunctionArgument {
   private vec: MoveVector<T>;
 
   public readonly value?: T;

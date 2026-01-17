@@ -1,33 +1,33 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   Account,
   AccountAddress,
   Bool,
+  convertArgument,
+  Ed25519PrivateKey,
+  EntryFunctionArgumentTypes,
+  FunctionABI,
+  isFeePayerSignature,
+  isMultiAgentSignature,
+  isUserTransactionResponse,
+  MoveOption,
+  MoveString,
+  MoveVector,
+  parseTypeTag,
+  SimpleEntryFunctionArgumentTypes,
+  TypeTagBool,
+  TypeTagU16,
+  TypeTagU32,
+  TypeTagU8,
+  TypeTagVector,
   U128,
   U16,
   U256,
   U32,
   U64,
   U8,
-  EntryFunctionArgumentTypes,
-  SimpleEntryFunctionArgumentTypes,
-  Ed25519PrivateKey,
-  parseTypeTag,
-  isMultiAgentSignature,
-  isFeePayerSignature,
-  isUserTransactionResponse,
-  MoveOption,
-  MoveString,
-  MoveVector,
-  convertArgument,
-  FunctionABI,
-  TypeTagBool,
-  TypeTagVector,
-  TypeTagU8,
-  TypeTagU16,
-  TypeTagU32,
 } from "../../../src";
 import {
   MAX_U128_BIG_INT,
@@ -40,12 +40,12 @@ import {
 import { getAptosClient } from "../helper";
 import {
   fundAccounts,
+  MULTI_SIGNER_SCRIPT_ARGUMENT_TEST,
+  publishArgumentTestModule,
+  PUBLISHER_ACCOUNT_ADDRESS,
+  PUBLISHER_ACCOUNT_PK,
   rawTransactionHelper,
   rawTransactionMultiAgentHelper,
-  publishArgumentTestModule,
-  PUBLISHER_ACCOUNT_PK,
-  MULTI_SIGNER_SCRIPT_ARGUMENT_TEST,
-  PUBLISHER_ACCOUNT_ADDRESS,
 } from "./helper";
 
 jest.setTimeout(10000);
@@ -88,7 +88,7 @@ describe("various transaction arguments", () => {
       empty_object_3: { inner: string };
     };
 
-    const setupData = await aptos.getAccountResource<SetupData>({
+    const setupData = await movement.getAccountResource<SetupData>({
       accountAddress: senderAccount.accountAddress,
       resourceType: `${senderAccount.accountAddress}::tx_args_module::SetupData`,
     });
@@ -558,7 +558,7 @@ describe("various transaction arguments", () => {
 
   describe("script transactions", () => {
     it("successfully submits a script transaction with all argument types", async () => {
-      const rawTransaction = await aptos.transaction.build.multiAgent({
+      const rawTransaction = await movement.transaction.build.multiAgent({
         sender: senderAccount.accountAddress,
         data: {
           bytecode: MULTI_SIGNER_SCRIPT_ARGUMENT_TEST,
@@ -580,19 +580,19 @@ describe("various transaction arguments", () => {
         },
         secondarySignerAddresses: secondarySignerAccounts.map((account) => account.accountAddress),
       });
-      const senderAuthenticator = await aptos.transaction.sign({ signer: senderAccount, transaction: rawTransaction });
+      const senderAuthenticator = await movement.transaction.sign({ signer: senderAccount, transaction: rawTransaction });
       const secondaryAuthenticators = secondarySignerAccounts.map((account) =>
-        aptos.transaction.sign({
+        movement.transaction.sign({
           signer: account,
           transaction: rawTransaction,
         }),
       );
-      const transactionResponse = await aptos.transaction.submit.multiAgent({
+      const transactionResponse = await movement.transaction.submit.multiAgent({
         transaction: rawTransaction,
         senderAuthenticator,
         additionalSignersAuthenticators: secondaryAuthenticators,
       });
-      const response = await aptos.waitForTransaction({
+      const response = await movement.waitForTransaction({
         transactionHash: transactionResponse.hash,
       });
       expect(response.success).toBe(true);

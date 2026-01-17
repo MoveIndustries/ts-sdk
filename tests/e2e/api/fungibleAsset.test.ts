@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, APTOS_COIN, APTOS_FA } from "../../../src";
@@ -8,7 +8,7 @@ const { aptos } = getAptosClient();
 
 describe("FungibleAsset", () => {
   test("it should fetch fungible asset metadata", async () => {
-    const data = await aptos.getFungibleAssetMetadata({
+    const data = await movement.getFungibleAssetMetadata({
       options: {
         where: {
           asset_type: { _eq: APTOS_COIN },
@@ -21,27 +21,27 @@ describe("FungibleAsset", () => {
   });
 
   test("it should fetch a specific fungible asset metadata by an asset type", async () => {
-    let data = await aptos.getFungibleAssetMetadataByAssetType({ assetType: APTOS_COIN });
+    let data = await movement.getFungibleAssetMetadataByAssetType({ assetType: APTOS_COIN });
     expect(data.asset_type).toEqual(APTOS_COIN);
 
     // fetch by something that doesn't exist
-    data = await aptos.getFungibleAssetMetadataByAssetType({ assetType: "0x1::aptos_coin::testnotexist" });
+    data = await movement.getFungibleAssetMetadataByAssetType({ assetType: "0x1::aptos_coin::testnotexist" });
     expect(data).toBeUndefined();
   });
 
   test("it should fetch a specific fungible asset metadata by a creator address", async () => {
-    let data = await aptos.getFungibleAssetMetadataByCreatorAddress({
+    let data = await movement.getFungibleAssetMetadataByCreatorAddress({
       creatorAddress: "0x0000000000000000000000000000000000000000000000000000000000000001",
     });
     expect(data[1].asset_type).toEqual(APTOS_FA);
 
     // fetch by something that doesn't exist
-    data = await aptos.getFungibleAssetMetadataByCreatorAddress({ creatorAddress: "0xc" });
+    data = await movement.getFungibleAssetMetadataByCreatorAddress({ creatorAddress: "0xc" });
     expect(data).toEqual([]);
   });
 
   test("it should fetch fungible asset activities with correct number and asset type ", async () => {
-    const data = await aptos.getFungibleAssetActivities({
+    const data = await movement.getFungibleAssetActivities({
       options: {
         limit: 2,
         where: {
@@ -56,10 +56,10 @@ describe("FungibleAsset", () => {
 
   test("it should fetch current fungible asset balance", async () => {
     const userAccount = Account.generate();
-    await aptos.fundAccount({ accountAddress: userAccount.accountAddress, amount: 1_000 });
+    await movement.fundAccount({ accountAddress: userAccount.accountAddress, amount: 1_000 });
 
     const APT_COIN_TYPE = "0x1::aptos_coin::AptosCoin";
-    const data = await aptos.getCurrentFungibleAssetBalances({
+    const data = await movement.getCurrentFungibleAssetBalances({
       options: {
         where: {
           owner_address: { _eq: userAccount.accountAddress.toString() },

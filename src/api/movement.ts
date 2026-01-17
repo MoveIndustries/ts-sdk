@@ -1,48 +1,48 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account } from "./account";
-import { AptosConfig } from "./aptosConfig";
+import { AccountAbstraction } from "./account/abstraction";
+import { ANS } from "./ans";
 import { Coin } from "./coin";
 import { DigitalAsset } from "./digitalAsset";
 import { Faucet } from "./faucet";
 import { FungibleAsset } from "./fungibleAsset";
 import { General } from "./general";
-import { ANS } from "./ans";
-import { Staking } from "./staking";
-import { Transaction } from "./transaction";
-import { Table } from "./table";
 import { Keyless } from "./keyless";
-import { AptosObject } from "./object";
-import { AccountAbstraction } from "./account/abstraction";
+import { MovementConfig } from "./movementConfig";
+import { MovementObject } from "./object";
+import { Staking } from "./staking";
+import { Table } from "./table";
+import { Transaction } from "./transaction";
 
 /**
- * The main entry point for interacting with the Aptos APIs,
+ * The main entry point for interacting with the Movement APIs,
  * providing access to various functionalities organized into
  * distinct namespaces.
  *
- * To utilize the SDK, instantiate a new Aptos object to gain
+ * To utilize the SDK, instantiate a new Movement object to gain
  * access to the complete range of SDK features.
  *
  * @example
  * ```typescript
- * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+ * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
  *
  * async function runExample() {
- *     // Create a configuration for connecting to the Aptos testnet
- *     const config = new AptosConfig({ network: Network.TESTNET });
+ *     // Create a configuration for connecting to the Movement testnet
+ *     const config = new MovementConfig({ network: Network.TESTNET });
  *
- *     // Initialize the Aptos client with the configuration
- *     const aptos = new Aptos(config);
+ *     // Initialize the Movement client with the configuration
+ *     const movement = new Movement(config);
  *
- *     console.log("Aptos client initialized:", aptos);
+ *     console.log("Movement client initialized:", aptos);
  * }
  * runExample().catch(console.error);
  * ```
  * @group Client
  */
-export class Aptos {
-  readonly config: AptosConfig;
+export class Movement {
+  readonly config: MovementConfig;
 
   readonly account: Account;
 
@@ -66,31 +66,31 @@ export class Aptos {
 
   readonly keyless: Keyless;
 
-  readonly object: AptosObject;
+  readonly object: MovementObject;
 
   /**
-   * Initializes a new instance of the Aptos client with the provided configuration settings.
-   * This allows you to interact with various Aptos functionalities such as accounts, transactions, and events.
+   * Initializes a new instance of the Movement client with the provided configuration settings.
+   * This allows you to interact with various Movement functionalities such as accounts, transactions, and events.
    *
-   * @param settings - Configuration settings for the Aptos client.
+   * @param settings - Configuration settings for the Movement client.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a new Aptos client with default settings
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // Specify your own settings if needed
-   *     const aptos = new Aptos(config);
+   *     // Create a new Movement client with default settings
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // Specify your own settings if needed
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Client
    */
-  constructor(config?: AptosConfig) {
-    this.config = config ?? new AptosConfig();
+  constructor(config?: MovementConfig) {
+    this.config = config ?? new MovementConfig();
     this.account = new Account(this.config);
     this.abstraction = new AccountAbstraction(this.config);
     this.ans = new ANS(this.config);
@@ -103,7 +103,7 @@ export class Aptos {
     this.transaction = new Transaction(this.config);
     this.table = new Table(this.config);
     this.keyless = new Keyless(this.config);
-    this.object = new AptosObject(this.config);
+    this.object = new MovementObject(this.config);
   }
 
   setIgnoreTransactionSubmitter(ignore: boolean) {
@@ -111,9 +111,9 @@ export class Aptos {
   }
 }
 
-// extends Aptos interface so all the methods and properties
+// extends Movement interface so all the methods and properties
 // from the other classes will be recognized by typescript.
-export interface Aptos
+export interface Movement
   extends Account,
   ANS,
   Coin,
@@ -125,7 +125,7 @@ export interface Aptos
   Keyless,
   Staking,
   Table,
-  AptosObject,
+  MovementObject,
   Omit<Transaction, "build" | "simulate" | "submit" | "batch"> { }
 
 /**
@@ -134,7 +134,7 @@ Mixins helps us to get around that by creating a partial classes
 that we can combine to form a single class that contains all the methods and properties from the partial classes.
 {@link https://www.typescriptlang.org/docs/handbook/mixins.html#alternative-pattern}
 
-Here, we combine any subclass and the Aptos class.
+Here, we combine any subclass and the Movement class.
  * @group Client
 */
 function applyMixin(targetClass: any, baseClass: any, baseClassProp: string) {
@@ -155,17 +155,17 @@ function applyMixin(targetClass: any, baseClass: any, baseClassProp: string) {
   });
 }
 
-applyMixin(Aptos, Account, "account");
-applyMixin(Aptos, AccountAbstraction, "abstraction");
-applyMixin(Aptos, ANS, "ans");
-applyMixin(Aptos, Coin, "coin");
-applyMixin(Aptos, DigitalAsset, "digitalAsset");
-applyMixin(Aptos, Event, "event");
-applyMixin(Aptos, Faucet, "faucet");
-applyMixin(Aptos, FungibleAsset, "fungibleAsset");
-applyMixin(Aptos, General, "general");
-applyMixin(Aptos, Staking, "staking");
-applyMixin(Aptos, Transaction, "transaction");
-applyMixin(Aptos, Table, "table");
-applyMixin(Aptos, Keyless, "keyless");
-applyMixin(Aptos, AptosObject, "object");
+applyMixin(Movement, Account, "account");
+applyMixin(Movement, AccountAbstraction, "abstraction");
+applyMixin(Movement, ANS, "ans");
+applyMixin(Movement, Coin, "coin");
+applyMixin(Movement, DigitalAsset, "digitalAsset");
+applyMixin(Movement, Event, "event");
+applyMixin(Movement, Faucet, "faucet");
+applyMixin(Movement, FungibleAsset, "fungibleAsset");
+applyMixin(Movement, General, "general");
+applyMixin(Movement, Staking, "staking");
+applyMixin(Movement, Transaction, "transaction");
+applyMixin(Movement, Table, "table");
+applyMixin(Movement, Keyless, "keyless");
+applyMixin(Movement, MovementObject, "object");

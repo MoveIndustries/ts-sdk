@@ -1,23 +1,22 @@
-import express, { Request, Response } from 'express';
 import {
   Account, AccountAuthenticator,
-  Aptos,
-  AptosConfig,
   Deserializer,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
-  SimpleTransaction,
+  SimpleTransaction
 } from '@moveindustries/ts-sdk';
+import express, { Request, Response } from 'express';
 
 const app = express();
 app.use(express.json());
 
 const PORT = 3000;
 
-const APTOS_NETWORK = NetworkToNetworkName[process.env.APTOS_NETWORK || ''] || Network.DEVNET;
+const MOVEMENT_NETWORK = NetworkToNetworkName[process.env.MOVEMENT_NETWORK || ''] || Network.DEVNET;
 
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 const feePayerAccount = Account.generate();
 console.log(`feePayerAccount's address is: ${feePayerAccount.accountAddress}`);
@@ -25,7 +24,7 @@ console.log(`feePayerAccount's address is: ${feePayerAccount.accountAddress}`);
 // Fund the feePayerAccount account
 const fundFeePayerAccount = async () => {
   console.log('\n=== Funding feePayerAccount ===\n');
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: feePayerAccount.accountAddress,
     amount: 100_000_000,
   });
@@ -52,7 +51,7 @@ app.post('/signAndSubmit', async (req: Request, res: Response) => {
     console.log('\n=== Signing Transaction as Sponsor ===\n');
 
     // Sponsor signs the transaction
-    const feePayerAuthenticator = aptos.transaction.signAsFeePayer({
+    const feePayerAuthenticator = movement.transaction.signAsFeePayer({
       signer: feePayerAccount,
       transaction,
     });
@@ -65,8 +64,8 @@ app.post('/signAndSubmit', async (req: Request, res: Response) => {
       senderAuthenticator: deserializedSenderAuth,
       feePayerAuthenticator,
     };
-    let response = await aptos.transaction.submit.simple(signedTxnInput);
-    await aptos.waitForTransaction({ transactionHash: response.hash });
+    let response = await movement.transaction.submit.simple(signedTxnInput);
+    await movement.waitForTransaction({ transactionHash: response.hash });
     console.log('\n=== Transaction Signed by Sponsor ===\n');
 
     return res.status(200).json({ transactionHash: response.hash });

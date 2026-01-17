@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -9,7 +9,7 @@
  * @group Implementation
  */
 
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
 import { postAptosFaucet } from "../client";
 import { AccountAddress, AccountAddressInput } from "../core";
 import { TransactionResponseType, UserTransactionResponse, WaitForTransactionOptions } from "../types";
@@ -17,14 +17,14 @@ import { DEFAULT_TXN_TIMEOUT_SEC } from "../utils/const";
 import { waitForTransaction } from "./transaction";
 
 /**
- * Funds an account with a specified amount of tokens from the Aptos faucet.
+ * Funds an account with a specified amount of tokens from the Movement faucet.
  * This function is useful for quickly providing a new or existing account with tokens to facilitate transactions.
  *
  * Note that only devnet has a publicly accessible faucet. For testnet, you must use
- * the minting page at https://aptos.dev/network/faucet.
+ * the minting page at https://movement.dev/network/faucet.
  *
  * @param args - The arguments for funding the account.
- * @param args.aptosConfig - The configuration settings for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration settings for connecting to the Movement network.
  * @param args.accountAddress - The address of the account to be funded.
  * @param args.amount - The amount of tokens to fund the account with.
  * @param args.options - Optional parameters for the transaction.
@@ -35,15 +35,15 @@ import { waitForTransaction } from "./transaction";
  * @group Implementation
  */
 export async function fundAccount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   amount: number;
   options?: WaitForTransactionOptions;
 }): Promise<UserTransactionResponse> {
-  const { aptosConfig, accountAddress, amount, options } = args;
+  const { movementConfig, accountAddress, amount, options } = args;
   const timeout = options?.timeoutSecs || DEFAULT_TXN_TIMEOUT_SEC;
   const { data } = await postAptosFaucet<any, { txn_hashes: Array<string> }>({
-    aptosConfig,
+    movementConfig,
     path: "fund",
     body: {
       address: AccountAddress.from(accountAddress).toString(),
@@ -55,7 +55,7 @@ export async function fundAccount(args: {
   const txnHash = data.txn_hashes[0];
 
   const res = await waitForTransaction({
-    aptosConfig,
+    movementConfig,
     transactionHash: txnHash,
     options: {
       timeoutSecs: timeout,

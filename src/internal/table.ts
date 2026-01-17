@@ -1,13 +1,13 @@
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
 import { postAptosFullNode } from "../client";
 import {
-  TableItemRequest,
-  LedgerVersionArg,
-  PaginationArgs,
-  WhereArg,
-  OrderByArg,
   GetTableItemsDataResponse,
   GetTableItemsMetadataResponse,
+  LedgerVersionArg,
+  OrderByArg,
+  PaginationArgs,
+  TableItemRequest,
+  WhereArg,
 } from "../types";
 import { GetTableItemsDataQuery, GetTableItemsMetadataQuery } from "../types/generated/operations";
 import { GetTableItemsData, GetTableItemsMetadata } from "../types/generated/queries";
@@ -15,24 +15,24 @@ import { TableItemsBoolExp, TableMetadatasBoolExp } from "../types/generated/typ
 import { queryIndexer } from "./general";
 
 /**
- * Retrieves a specific item from a table in the Aptos blockchain.
+ * Retrieves a specific item from a table in the Movement blockchain.
  *
  * @param args - The arguments for retrieving the table item.
- * @param args.aptosConfig - The configuration for connecting to the Aptos blockchain.
+ * @param args.movementConfig - The configuration for connecting to the Movement blockchain.
  * @param args.handle - The identifier for the table from which to retrieve the item.
  * @param args.data - The request data for the table item.
  * @param args.options - Optional parameters for the request, including ledger version.
  * @group Implementation
  */
 export async function getTableItem<T>(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   handle: string;
   data: TableItemRequest;
   options?: LedgerVersionArg;
 }): Promise<T> {
-  const { aptosConfig, handle, data, options } = args;
+  const { movementConfig, handle, data, options } = args;
   const response = await postAptosFullNode<TableItemRequest, any>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getTableItem",
     path: `tables/${handle}/item`,
     params: { ledger_version: options?.ledgerVersion },
@@ -45,7 +45,7 @@ export async function getTableItem<T>(args: {
  * Retrieves table items data based on specified conditions and pagination options.
  *
  * @param args - The arguments for retrieving table items data.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.options - Optional parameters for pagination and filtering.
  * @param args.options.offset - The number of items to skip before starting to collect the result set.
  * @param args.options.limit - The maximum number of items to return.
@@ -54,10 +54,10 @@ export async function getTableItem<T>(args: {
  * @group Implementation
  */
 export async function getTableItemsData(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   options?: PaginationArgs & WhereArg<TableItemsBoolExp> & OrderByArg<GetTableItemsDataResponse[0]>;
 }) {
-  const { aptosConfig, options } = args;
+  const { movementConfig, options } = args;
 
   const graphqlQuery = {
     query: GetTableItemsData,
@@ -70,7 +70,7 @@ export async function getTableItemsData(args: {
   };
 
   const data = await queryIndexer<GetTableItemsDataQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getTableItemsData",
   });
@@ -82,7 +82,7 @@ export async function getTableItemsData(args: {
  * Retrieves metadata for table items based on specified options.
  *
  * @param args - The arguments for retrieving table items metadata.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.options - Optional parameters for pagination and filtering.
  * @param args.options.offset - The number of items to skip before starting to collect the result set.
  * @param args.options.limit - The maximum number of items to return.
@@ -92,10 +92,10 @@ export async function getTableItemsData(args: {
  * @group Implementation
  */
 export async function getTableItemsMetadata(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   options?: PaginationArgs & WhereArg<TableMetadatasBoolExp> & OrderByArg<GetTableItemsMetadataResponse[0]>;
 }): Promise<GetTableItemsMetadataResponse> {
-  const { aptosConfig, options } = args;
+  const { movementConfig, options } = args;
 
   const graphqlQuery = {
     query: GetTableItemsMetadata,
@@ -108,7 +108,7 @@ export async function getTableItemsMetadata(args: {
   };
 
   const data = await queryIndexer<GetTableItemsMetadataQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getTableItemsMetadata",
   });

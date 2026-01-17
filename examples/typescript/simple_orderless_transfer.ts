@@ -1,15 +1,15 @@
 /* eslint-disable no-console */
 
 /**
- * This example shows how to use the Aptos client to create accounts, fund them, and transfer between them.
+ * This example shows how to use the Movement client to create accounts, fund them, and transfer between them.
  */
 
 import {
   Account,
   AccountAddress,
-  Aptos,
-  AptosConfig,
   InputViewFunctionJsonData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
 } from "@moveindustries/ts-sdk";
@@ -22,7 +22,7 @@ const BOB_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 /**
  * Prints the balance of an account
@@ -32,13 +32,13 @@ const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ??
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Aptos, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await aptos.viewJson<[number]>({ payload: payload });
+  const [balance] = await movement.viewJson<[number]>({ payload: payload });
 
   console.log(`${name}'s balance is: ${balance}`);
   return Number(balance);
@@ -48,8 +48,8 @@ const example = async () => {
   console.log("This example will create two accounts (Alice and Bob), fund them, and transfer between them.");
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   // Create two accounts
   const alice = Account.generate();
@@ -62,13 +62,13 @@ const example = async () => {
   // Fund the accounts
   console.log("\n=== Funding accounts ===\n");
 
-  const aliceFundTxn = await aptos.fundAccount({
+  const aliceFundTxn = await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: ALICE_INITIAL_BALANCE,
   });
   console.log("Alice's fund transaction: ", aliceFundTxn);
 
-  const bobFundTxn = await aptos.fundAccount({
+  const bobFundTxn = await movement.fundAccount({
     accountAddress: bob.accountAddress,
     amount: BOB_INITIAL_BALANCE,
   });
@@ -85,7 +85,7 @@ const example = async () => {
   if (bobBalance !== BOB_INITIAL_BALANCE) throw new Error("Bob's balance is incorrect");
 
   // Transfer between users
-  const txn = await aptos.transaction.build.simple({
+  const txn = await movement.transaction.build.simple({
     sender: alice.accountAddress,
     data: {
       function: "0x1::coin::transfer",
@@ -98,9 +98,9 @@ const example = async () => {
   });
 
   console.log("\n=== Transfer transaction ===\n");
-  const committedTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
+  const committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
 
-  await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  await movement.waitForTransaction({ transactionHash: committedTxn.hash });
   console.log(`Committed transaction: ${committedTxn.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");

@@ -1,26 +1,26 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { LedgerVersionArg, MimeType, MoveValue } from "../types";
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
+import { Serializer } from "../bcs";
+import { postAptosFullNode } from "../client";
 import {
   generateViewFunctionPayload,
   InputViewFunctionData,
   InputViewFunctionJsonData,
   ViewFunctionJsonPayload,
 } from "../transactions";
-import { Serializer } from "../bcs";
-import { postAptosFullNode } from "../client";
+import { LedgerVersionArg, MimeType, MoveValue } from "../types";
 
 export async function view<T extends Array<MoveValue> = Array<MoveValue>>(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   payload: InputViewFunctionData;
   options?: LedgerVersionArg;
 }): Promise<T> {
-  const { aptosConfig, payload, options } = args;
+  const { movementConfig, payload, options } = args;
   const viewFunctionPayload = await generateViewFunctionPayload({
     ...payload,
-    aptosConfig,
+    movementConfig,
   });
 
   const serializer = new Serializer();
@@ -28,7 +28,7 @@ export async function view<T extends Array<MoveValue> = Array<MoveValue>>(args: 
   const bytes = serializer.toUint8Array();
 
   const { data } = await postAptosFullNode<Uint8Array, MoveValue[]>({
-    aptosConfig,
+    movementConfig,
     path: "view",
     originMethod: "view",
     contentType: MimeType.BCS_VIEW_FUNCTION,
@@ -40,13 +40,13 @@ export async function view<T extends Array<MoveValue> = Array<MoveValue>>(args: 
 }
 
 export async function viewJson<T extends Array<MoveValue> = Array<MoveValue>>(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   payload: InputViewFunctionJsonData;
   options?: LedgerVersionArg;
 }): Promise<T> {
-  const { aptosConfig, payload, options } = args;
+  const { movementConfig, payload, options } = args;
   const { data } = await postAptosFullNode<ViewFunctionJsonPayload, MoveValue[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "viewJson",
     path: "view",
     params: { ledger_version: options?.ledgerVersion },

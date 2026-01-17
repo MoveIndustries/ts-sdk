@@ -3,19 +3,18 @@
 import {
   Account,
   AccountAddress,
-  Aptos,
-  AptosConfig,
   Ed25519Account,
+  MovementConfig,
   Network,
-  NetworkToNetworkName,
+  NetworkToNetworkName
 } from "@moveindustries/ts-sdk";
 
 const WIDTH = 16;
 
 // Set up the client
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 function truncate(address: AccountAddress): string {
   return `${address.toString().substring(0, 6)}...${address
@@ -32,8 +31,8 @@ function formatAccountInfo(account: Ed25519Account): string {
   const alice = Account.generate();
   const bob = Account.generate();
 
-  await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: 1000000000 });
-  await aptos.fundAccount({ accountAddress: bob.accountAddress, amount: 1000000000 });
+  await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 1000000000 });
+  await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 1000000000 });
 
   console.log(
     `\n${"Account".padEnd(WIDTH)} ${"Address".padEnd(WIDTH)} ${"Auth Key".padEnd(WIDTH)} ${"Private Key".padEnd(
@@ -46,7 +45,7 @@ function formatAccountInfo(account: Ed25519Account): string {
   console.log("\n...rotating...".padStart(WIDTH));
 
   // Rotate the key!
-  await aptos.rotateAuthKey({ fromAccount: alice, toNewPrivateKey: bob.privateKey });
+  await movement.rotateAuthKey({ fromAccount: alice, toNewPrivateKey: bob.privateKey });
 
   const aliceNew = Account.fromPrivateKey({ privateKey: bob.privateKey, address: alice.accountAddress });
 

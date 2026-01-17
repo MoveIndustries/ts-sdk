@@ -1,6 +1,6 @@
 ---
 name: "\U0001F41B Bug report"
-about: Create a bug report to help improve the Aptos Typescript SDK
+about: Create a bug report to help improve the Movement Typescript SDK
 title: "[Bug] <Bug Title>"
 labels: bug
 assignees: ''

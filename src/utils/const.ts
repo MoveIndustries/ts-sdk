@@ -1,12 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Types of API endpoints used for routing requests in the Aptos network.
+ * Types of API endpoints used for routing requests in the Movement network.
  * @group Implementation
  * @category Utils
  */
-export enum AptosApiType {
+export enum MovementApiType {
   FULLNODE = "Fullnode",
   INDEXER = "Indexer",
   FAUCET = "Faucet",

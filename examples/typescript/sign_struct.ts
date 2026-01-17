@@ -1,13 +1,11 @@
 /* eslint-disable no-console */
-import dotenv from "dotenv";
-dotenv.config();
 import {
   Account,
   AccountAddress,
   AnyNumber,
-  Aptos,
-  AptosConfig,
   InputViewFunctionJsonData,
+  Movement,
+  MovementConfig,
   MoveString,
   Network,
   NetworkToNetworkName,
@@ -16,14 +14,16 @@ import {
   sleep,
   U64,
 } from "@moveindustries/ts-sdk";
+import dotenv from "dotenv";
 import { compilePackage, getPackageBytesToPublish } from "./utils";
+dotenv.config();
 
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100_000_000;
 const TRANSFER_AMOUNT = 10000;
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 /**
  * Prints the balance of an account
@@ -33,13 +33,13 @@ const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ??
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Aptos, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await aptos.viewJson<[number]>({ payload: payload });
+  const [balance] = await movement.viewJson<[number]>({ payload: payload });
 
   console.log(`${name}'s balance is: ${balance}`);
   return Number(balance);
@@ -94,8 +94,8 @@ const example = async () => {
   console.log("This example will publish a contract, and show how to sign a struct and prove it on-chain");
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   // Create two accounts
   const alice = Account.generate();
@@ -108,12 +108,12 @@ const example = async () => {
   // Fund the accounts
   console.log("\n=== Funding accounts ===\n");
 
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: ALICE_INITIAL_BALANCE,
   });
 
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: bob.accountAddress,
     amount: BOB_INITIAL_BALANCE,
   });
@@ -135,17 +135,17 @@ const example = async () => {
   const { metadataBytes, byteCode } = getPackageBytesToPublish("move/claims/claims.json");
 
   console.log("\n===Publishing Claims package===");
-  const transaction = await aptos.publishPackageTransaction({
+  const transaction = await movement.publishPackageTransaction({
     account: alice.accountAddress,
     metadataBytes,
     moduleBytecode: byteCode,
   });
-  const response = await aptos.signAndSubmitTransaction({
+  const response = await movement.signAndSubmitTransaction({
     signer: alice,
     transaction,
   });
   console.log(`Transaction hash: ${response.hash}`);
-  await aptos.waitForTransaction({
+  await movement.waitForTransaction({
     transactionHash: response.hash,
   });
 
@@ -154,19 +154,19 @@ const example = async () => {
   await balance(aptos, "Bob", bob.accountAddress);
 
   // Setup a claim
-  const createClaim = await aptos.transaction.build.simple({
+  const createClaim = await movement.transaction.build.simple({
     sender: alice.accountAddress,
     data: {
       function: `${alice.accountAddress.toString()}::claims::create_claim`,
       functionArguments: [TRANSFER_AMOUNT],
     },
   });
-  const createClaimResponse = await aptos.signAndSubmitTransaction({
+  const createClaimResponse = await movement.signAndSubmitTransaction({
     signer: alice,
     transaction: createClaim,
   });
   console.log(`Create Claim Transaction hash: ${createClaimResponse.hash}`);
-  await aptos.waitForTransaction({
+  await movement.waitForTransaction({
     transactionHash: createClaimResponse.hash,
   });
 
@@ -185,19 +185,19 @@ const example = async () => {
   serializer.serialize(claim);
   const signature = alice.sign(serializer.toUint8Array());
 
-  const claimCoins = await aptos.transaction.build.simple({
+  const claimCoins = await movement.transaction.build.simple({
     sender: bob.accountAddress,
     data: {
       function: `${alice.accountAddress.toString()}::claims::claim`,
       functionArguments: [alice.accountAddress, 0, alice.publicKey.toUint8Array(), signature.toUint8Array()],
     },
   });
-  const claimCoinsResponse = await aptos.signAndSubmitTransaction({
+  const claimCoinsResponse = await movement.signAndSubmitTransaction({
     signer: bob,
     transaction: claimCoins,
   });
   console.log(`Claim Coins Transaction hash: ${claimCoinsResponse.hash}`);
-  await aptos.waitForTransaction({
+  await movement.waitForTransaction({
     transactionHash: claimCoinsResponse.hash,
   });
 

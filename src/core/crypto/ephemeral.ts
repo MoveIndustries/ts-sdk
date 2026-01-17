@@ -1,13 +1,13 @@
-import { Serializer, Deserializer } from "../../bcs";
+import { MovementConfig } from "../../api";
+import { Deserializer, Serializer } from "../../bcs";
 import { EphemeralPublicKeyVariant, EphemeralSignatureVariant, HexInput } from "../../types";
+import { Hex } from "../hex";
+import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
 import { PublicKey } from "./publicKey";
 import { Signature } from "./signature";
-import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
-import { Hex } from "../hex";
-import { AptosConfig } from "../../api";
 
 /**
- * Represents ephemeral public keys for Aptos Keyless accounts.
+ * Represents ephemeral public keys for Movement Keyless accounts.
  *
  * These keys are used only temporarily within Keyless accounts and are not utilized as public keys for account identification.
  * @group Implementation
@@ -66,7 +66,7 @@ export class EphemeralPublicKey extends PublicKey {
   }
 
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: EphemeralSignature;
   }): Promise<boolean> {
@@ -123,7 +123,7 @@ export class EphemeralPublicKey extends PublicKey {
 }
 
 /**
- * Represents ephemeral signatures used in Aptos Keyless accounts.
+ * Represents ephemeral signatures used in Movement Keyless accounts.
  *
  * These signatures are utilized within the KeylessSignature framework.
  * @group Implementation

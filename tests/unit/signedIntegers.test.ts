@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Deserializer, Serializer, I8, I16, I32, I64, I128, I256 } from "../../src";
+import { Deserializer, I128, I16, I256, I32, I64, I8, Serializer } from "../../src";
 
 describe("Signed Integer Types", () => {
   describe("I8", () => {

@@ -17,7 +17,7 @@ type Supply = {
 
 describe("table", () => {
   beforeAll(async () => {
-    resource = await aptos.getAccountResource<Supply>({
+    resource = await movement.getAccountResource<Supply>({
       accountAddress: "0x1",
       resourceType: "0x1::coin::CoinInfo<0x1::aptos_coin::AptosCoin>",
     });
@@ -26,7 +26,7 @@ describe("table", () => {
   test("it fetches table item", async () => {
     const { handle, key } = resource.supply.vec[0].aggregator.vec[0];
 
-    const supply = await aptos.getTableItem<string>({
+    const supply = await movement.getTableItem<string>({
       handle,
       data: {
         key_type: "address",
@@ -41,7 +41,7 @@ describe("table", () => {
   test("it fetches table items data", async () => {
     const { handle } = resource.supply.vec[0].aggregator.vec[0];
 
-    const data = await aptos.getTableItemsData({
+    const data = await movement.getTableItemsData({
       options: { where: { table_handle: { _eq: handle }, transaction_version: { _eq: 0 } } },
     });
 
@@ -53,7 +53,7 @@ describe("table", () => {
   test("it fetches table items metadata data", async () => {
     const { handle } = resource.supply.vec[0].aggregator.vec[0];
 
-    const data = await aptos.getTableItemsMetadata({
+    const data = await movement.getTableItemsMetadata({
       options: { where: { handle: { _eq: handle } } },
     });
 

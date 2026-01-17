@@ -1,22 +1,21 @@
-import {
-  Account,
-  Deserializer,
-  U64,
-  SigningSchemeInput,
-  AccountAuthenticator,
-  AccountAuthenticatorEd25519,
-  AccountAuthenticatorSingleKey,
-  Secp256r1PrivateKey,
-  Secp256r1PublicKey,
-  WebAuthnSignature,
-  AnySignature,
-  AnyPublicKey,
-  generateSigningMessageForTransaction,
-  Hex,
-} from "../../../src";
 import { p256 } from "@noble/curves/nist.js";
 import { sha256 } from "@noble/hashes/sha2";
 import { sha3_256 } from "@noble/hashes/sha3";
+import {
+  Account,
+  AccountAuthenticator,
+  AccountAuthenticatorEd25519,
+  AccountAuthenticatorSingleKey,
+  AnyPublicKey,
+  AnySignature,
+  Deserializer,
+  generateSigningMessageForTransaction,
+  Hex,
+  Secp256r1PrivateKey,
+  SigningSchemeInput,
+  U64,
+  WebAuthnSignature
+} from "../../../src";
 import { longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 import { fundAccounts, publishTransferPackage, singleSignerScriptBytecode } from "./helper";
@@ -47,14 +46,14 @@ describe("sign transaction", () => {
   describe("it returns the current account authenticator", () => {
     describe("Single Sender ED25519", () => {
       test("it signs a script transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -64,14 +63,14 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorSingleKey).toBeTruthy();
       });
       test("it signs an entry function transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -81,7 +80,7 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorSingleKey).toBeTruthy();
       });
       test("it signs a multi sig transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             multisigAddress: secondarySignerAccount.accountAddress,
@@ -89,7 +88,7 @@ describe("sign transaction", () => {
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -101,14 +100,14 @@ describe("sign transaction", () => {
     });
     describe("Single Sender Secp256k1", () => {
       test("it signs a script transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerSecp256k1Account,
           transaction: rawTxn,
         });
@@ -118,14 +117,14 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorSingleKey).toBeTruthy();
       });
       test("it signs an entry function transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerSecp256k1Account,
           transaction: rawTxn,
         });
@@ -135,7 +134,7 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorSingleKey).toBeTruthy();
       });
       test("it signs a multi sig transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             multisigAddress: secondarySignerAccount.accountAddress,
@@ -143,7 +142,7 @@ describe("sign transaction", () => {
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: singleSignerED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -155,14 +154,14 @@ describe("sign transaction", () => {
     });
     describe("Legacy ED25519", () => {
       test("it signs a script transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: legacyED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -172,14 +171,14 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorEd25519).toBeTruthy();
       });
       test("it signs an entry function transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: legacyED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -189,7 +188,7 @@ describe("sign transaction", () => {
         expect(authenticator instanceof AccountAuthenticatorEd25519).toBeTruthy();
       });
       test("it signs a multi sig transaction", async () => {
-        const rawTxn = await aptos.transaction.build.simple({
+        const rawTxn = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             multisigAddress: secondarySignerAccount.accountAddress,
@@ -197,7 +196,7 @@ describe("sign transaction", () => {
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const accountAuthenticator = aptos.transaction.sign({
+        const accountAuthenticator = movement.transaction.sign({
           signer: legacyED25519SenderAccount,
           transaction: rawTxn,
         });
@@ -209,7 +208,7 @@ describe("sign transaction", () => {
     });
     describe("validate fee payer data on sign transaction", () => {
       test("it fails to sign transaction as fee payer if transaction is not a fee payer transaction", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -217,7 +216,7 @@ describe("sign transaction", () => {
           },
         });
         expect(() =>
-          aptos.transaction.signAsFeePayer({
+          movement.transaction.signAsFeePayer({
             transaction,
             signer: legacyED25519SenderAccount,
           }),
@@ -237,7 +236,7 @@ describe("sign transaction", () => {
       const publicKey = privateKey.publicKey();
 
       // Create a simple transaction for signing
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: publicKey.authKey().derivedAddress(),
         data: {
           function: "0x1::aptos_account::transfer",
@@ -295,7 +294,7 @@ describe("sign transaction", () => {
       const privateKey = Secp256r1PrivateKey.generate();
       const publicKey = privateKey.publicKey();
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: publicKey.authKey().derivedAddress(),
         data: {
           function: "0x1::aptos_account::transfer",

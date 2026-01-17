@@ -1,18 +1,18 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { sha3_256 } from "@noble/hashes/sha3";
 import { secp256k1 } from "@noble/curves/secp256k1";
+import { sha3_256 } from "@noble/hashes/sha3";
 import { HDKey } from "@scure/bip32";
-import { Serializable, Deserializer, Serializer } from "../../bcs";
-import { Hex } from "../hex";
+import { MovementConfig } from "../../api";
+import { Deserializer, Serializable, Serializer } from "../../bcs";
 import { HexInput, PrivateKeyVariants } from "../../types";
+import { Hex } from "../hex";
 import { isValidBIP44Path, mnemonicToSeed } from "./hdKey";
 import { PrivateKey } from "./privateKey";
 import { PublicKey } from "./publicKey";
 import { Signature } from "./signature";
 import { convertSigningMessage } from "./utils";
-import { AptosConfig } from "../../api";
 
 /**
  * Represents a Secp256k1 ECDSA public key.
@@ -89,7 +89,7 @@ export class Secp256k1PublicKey extends PublicKey {
    * This function helps ensure the integrity and authenticity of the message by confirming that the signature is valid.
    *
    * @param args - The arguments for signature verification.
-   * @param args.aptosConfig - The configuration object for connecting to the Aptos network
+   * @param args.movementConfig - The configuration object for connecting to the Movement network
    * @param args.message - The message that was signed.
    * @param args.signature - The signature to verify, which must be an instance of Secp256k1Signature.
    * @returns A boolean indicating whether the signature is valid for the given message.
@@ -97,7 +97,7 @@ export class Secp256k1PublicKey extends PublicKey {
    * @category Serialization
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Secp256k1Signature;
   }): Promise<boolean> {

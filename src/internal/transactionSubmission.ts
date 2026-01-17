@@ -6,36 +6,36 @@
  * @group Implementation
  */
 
-import { AptosConfig } from "../api/aptosConfig";
+import { AbstractKeylessAccount, Account, isKeylessSigner } from "../account";
+import { MovementConfig } from "../api/movementConfig";
 import { Deserializer, MoveVector } from "../bcs";
 import { postAptosFullNode } from "../client";
-import { Account, AbstractKeylessAccount, isKeylessSigner } from "../account";
 import { AccountAddress, AccountAddressInput } from "../core/accountAddress";
 import { FederatedKeylessPublicKey, KeylessPublicKey, KeylessSignature } from "../core/crypto";
+import { SignedTransaction, TypeTagVector, generateSigningMessageForTransaction } from "../transactions";
 import { AccountAuthenticator } from "../transactions/authenticator/account";
+import { MultiAgentTransaction } from "../transactions/instances/multiAgentTransaction";
+import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 import {
   buildTransaction,
-  generateTransactionPayload,
-  generateSignedTransactionForSimulation,
   generateSignedTransaction,
+  generateSignedTransactionForSimulation,
+  generateTransactionPayload,
 } from "../transactions/transactionBuilder/transactionBuilder";
 import {
-  InputGenerateTransactionData,
   AnyRawTransaction,
-  InputSimulateTransactionData,
-  InputGenerateTransactionOptions,
-  InputGenerateTransactionPayloadDataWithRemoteABI,
-  InputSubmitTransactionData,
-  InputGenerateMultiAgentRawTransactionData,
-  InputGenerateSingleSignerRawTransactionData,
   AnyTransactionPayloadInstance,
   EntryFunctionABI,
+  InputGenerateMultiAgentRawTransactionData,
+  InputGenerateSingleSignerRawTransactionData,
+  InputGenerateTransactionData,
+  InputGenerateTransactionOptions,
+  InputGenerateTransactionPayloadDataWithRemoteABI,
+  InputSimulateTransactionData,
+  InputSubmitTransactionData,
   InputTransactionPluginData,
 } from "../transactions/types";
-import { UserTransactionResponse, PendingTransactionResponse, MimeType, HexInput } from "../types";
-import { SignedTransaction, TypeTagVector, generateSigningMessageForTransaction } from "../transactions";
-import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
-import { MultiAgentTransaction } from "../transactions/instances/multiAgentTransaction";
+import { HexInput, MimeType, PendingTransactionResponse, UserTransactionResponse } from "../types";
 
 /**
  * We are defining function signatures, each with its specific input and output.
@@ -45,10 +45,10 @@ import { MultiAgentTransaction } from "../transactions/instances/multiAgentTrans
  * @group Implementation
  */
 export async function generateTransaction(
-  args: { aptosConfig: AptosConfig } & InputGenerateSingleSignerRawTransactionData,
+  args: { movementConfig: MovementConfig } & InputGenerateSingleSignerRawTransactionData,
 ): Promise<SimpleTransaction>;
 export async function generateTransaction(
-  args: { aptosConfig: AptosConfig } & InputGenerateMultiAgentRawTransactionData,
+  args: { movementConfig: MovementConfig } & InputGenerateMultiAgentRawTransactionData,
 ): Promise<MultiAgentTransaction>;
 /**
  * Generates any transaction by passing in the required arguments
@@ -92,7 +92,7 @@ export async function generateTransaction(
  * @group Implementation
  */
 export async function generateTransaction(
-  args: { aptosConfig: AptosConfig } & InputGenerateTransactionData,
+  args: { movementConfig: MovementConfig } & InputGenerateTransactionData,
 ): Promise<AnyRawTransaction> {
   const payload = await buildTransactionPayload(args);
   return buildRawTransaction(args, payload);
@@ -100,20 +100,20 @@ export async function generateTransaction(
 
 /**
  * Builds a transaction payload based on the provided configuration and input data.
- * This function is essential for preparing transaction data for execution on the Aptos blockchain.
+ * This function is essential for preparing transaction data for execution on the Movement blockchain.
  *
  * @param args - The arguments for building the transaction payload.
- * @param args.aptosConfig - Configuration settings for the Aptos network.
+ * @param args.movementConfig - Configuration settings for the Movement network.
  * @param args.data - Input data required to generate the transaction payload, which may include bytecode, multisig address,
  * function name, function arguments, type arguments, and ABI.
  * @returns A promise that resolves to the generated transaction payload instance.
  * @group Implementation
  */
 export async function buildTransactionPayload(
-  args: { aptosConfig: AptosConfig } & InputGenerateTransactionData,
+  args: { movementConfig: MovementConfig } & InputGenerateTransactionData,
 ): Promise<AnyTransactionPayloadInstance> {
-  const { aptosConfig, data } = args;
-  // Merge in aptosConfig for remote ABI on non-script payloads
+  const { movementConfig, data } = args;
+  // Merge in movementConfig for remote ABI on non-script payloads
   let generateTransactionPayloadData: InputGenerateTransactionPayloadDataWithRemoteABI;
   let payload: AnyTransactionPayloadInstance;
 
@@ -122,7 +122,7 @@ export async function buildTransactionPayload(
     payload = await generateTransactionPayload(data);
   } else if ("multisigAddress" in data) {
     generateTransactionPayloadData = {
-      aptosConfig,
+      movementConfig,
       multisigAddress: data.multisigAddress,
       function: data.function,
       functionArguments: data.functionArguments,
@@ -132,7 +132,7 @@ export async function buildTransactionPayload(
     payload = await generateTransactionPayload(generateTransactionPayloadData);
   } else {
     generateTransactionPayloadData = {
-      aptosConfig,
+      movementConfig,
       function: data.function,
       functionArguments: data.functionArguments,
       typeArguments: data.typeArguments,
@@ -145,20 +145,20 @@ export async function buildTransactionPayload(
 
 /**
  * Builds a raw transaction based on the provided configuration and payload.
- * This function helps in creating a transaction that can be sent to the Aptos blockchain.
+ * This function helps in creating a transaction that can be sent to the Movement blockchain.
  *
  * @param args - The arguments for generating the transaction.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.sender - The address of the sender of the transaction.
  * @param args.options - Additional options for the transaction.
  * @param payload - The payload of the transaction, which defines the action to be performed.
  * @group Implementation
  */
 export async function buildRawTransaction(
-  args: { aptosConfig: AptosConfig } & InputGenerateTransactionData,
+  args: { movementConfig: MovementConfig } & InputGenerateTransactionData,
   payload: AnyTransactionPayloadInstance,
 ): Promise<AnyRawTransaction> {
-  const { aptosConfig, sender, options } = args;
+  const { movementConfig, sender, options } = args;
 
   let feePayerAddress;
   if (isFeePayerTransactionInput(args)) {
@@ -168,7 +168,7 @@ export async function buildRawTransaction(
   if (isMultiAgentTransactionInput(args)) {
     const { secondarySignerAddresses } = args;
     return buildTransaction({
-      aptosConfig,
+      movementConfig,
       sender,
       payload,
       options,
@@ -178,7 +178,7 @@ export async function buildRawTransaction(
   }
 
   return buildTransaction({
-    aptosConfig,
+    movementConfig,
     sender,
     payload,
     options,
@@ -264,7 +264,7 @@ export function signAsFeePayer(args: { signer: Account; transaction: AnyRawTrans
  * Simulates a transaction before signing it to evaluate its potential outcome.
  *
  * @param args The arguments for simulating the transaction.
- * @param args.aptosConfig The configuration for the Aptos network.
+ * @param args.movementConfig The configuration for the Movement network.
  * @param args.transaction The raw transaction to simulate.
  * @param args.signerPublicKey Optional. The signer public key.
  * @param args.secondarySignersPublicKeys Optional. For when the transaction involves multiple signers.
@@ -276,9 +276,9 @@ export function signAsFeePayer(args: { signer: Account; transaction: AnyRawTrans
  * @group Implementation
  */
 export async function simulateTransaction(
-  args: { aptosConfig: AptosConfig } & InputSimulateTransactionData,
+  args: { movementConfig: MovementConfig } & InputSimulateTransactionData,
 ): Promise<Array<UserTransactionResponse>> {
-  const { aptosConfig, transaction, signerPublicKey, secondarySignersPublicKeys, feePayerPublicKey, options } = args;
+  const { movementConfig, transaction, signerPublicKey, secondarySignersPublicKeys, feePayerPublicKey, options } = args;
 
   const signedTransaction = generateSignedTransactionForSimulation({
     transaction,
@@ -289,7 +289,7 @@ export async function simulateTransaction(
   });
 
   const { data } = await postAptosFullNode<Uint8Array, Array<UserTransactionResponse>>({
-    aptosConfig,
+    movementConfig,
     body: signedTransaction,
     path: "transactions/simulate",
     params: {
@@ -304,11 +304,11 @@ export async function simulateTransaction(
 }
 
 /**
- * Submit a transaction to the Aptos blockchain.
+ * Submit a transaction to the Movement blockchain.
  *
  * @param args - The arguments for submitting the transaction.
- * @param args.aptosConfig - The configuration for connecting to the Aptos network.
- * @param args.transaction - The Aptos transaction data to be submitted.
+ * @param args.movementConfig - The configuration for connecting to the Movement network.
+ * @param args.transaction - The Movement transaction data to be submitted.
  * @param args.senderAuthenticator - The account authenticator of the transaction sender.
  * @param args.secondarySignerAuthenticators - Optional. Authenticators for additional signers in a multi-signer transaction.
  *
@@ -317,19 +317,19 @@ export async function simulateTransaction(
  */
 export async function submitTransaction(
   args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
   } & InputSubmitTransactionData,
 ): Promise<PendingTransactionResponse> {
-  const { aptosConfig, transactionSubmitter } = args;
+  const { movementConfig, transactionSubmitter } = args;
   const maybeTransactionSubmitter =
-    transactionSubmitter === undefined ? aptosConfig.getTransactionSubmitter() : transactionSubmitter;
+    transactionSubmitter === undefined ? movementConfig.getTransactionSubmitter() : transactionSubmitter;
   if (maybeTransactionSubmitter) {
     return maybeTransactionSubmitter.submitTransaction(args);
   }
   const signedTransaction = generateSignedTransaction({ ...args });
   try {
     const { data } = await postAptosFullNode<Uint8Array, PendingTransactionResponse>({
-      aptosConfig,
+      movementConfig,
       body: signedTransaction,
       path: "transactions",
       originMethod: "submitTransaction",
@@ -345,7 +345,7 @@ export async function submitTransaction(
         signedTxn.authenticator.sender.public_key.publicKey instanceof FederatedKeylessPublicKey)
     ) {
       await AbstractKeylessAccount.fetchJWK({
-        aptosConfig,
+        movementConfig,
         publicKey: signedTxn.authenticator.sender.public_key.publicKey,
         kid: (signedTxn.authenticator.sender.signature.signature as KeylessSignature).getJwkKid(),
       });
@@ -361,26 +361,26 @@ export type FeePayerOrFeePayerAuthenticatorOrNeither =
 
 export async function signAndSubmitTransaction(
   args: FeePayerOrFeePayerAuthenticatorOrNeither & {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     signer: Account;
     transaction: AnyRawTransaction;
   } & InputTransactionPluginData,
 ): Promise<PendingTransactionResponse> {
-  const { aptosConfig, signer, feePayer, transaction, ...rest } = args;
+  const { movementConfig, signer, feePayer, transaction, ...rest } = args;
   // If the signer contains a KeylessAccount, await proof fetching in case the proof
   // was fetched asynchronously.
   if (isKeylessSigner(signer)) {
-    await signer.checkKeylessAccountValidity(aptosConfig);
+    await signer.checkKeylessAccountValidity(movementConfig);
   }
   if (isKeylessSigner(feePayer)) {
-    await feePayer.checkKeylessAccountValidity(aptosConfig);
+    await feePayer.checkKeylessAccountValidity(movementConfig);
   }
   const feePayerAuthenticator =
     args.feePayerAuthenticator || (feePayer && signAsFeePayer({ signer: feePayer, transaction }));
 
   const senderAuthenticator = signTransaction({ signer, transaction });
   return submitTransaction({
-    aptosConfig,
+    movementConfig,
     transaction,
     senderAuthenticator,
     feePayerAuthenticator,
@@ -390,22 +390,22 @@ export async function signAndSubmitTransaction(
 
 export async function signAndSubmitAsFeePayer(
   args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     feePayer: Account;
     senderAuthenticator: AccountAuthenticator;
     transaction: AnyRawTransaction;
   } & InputTransactionPluginData,
 ): Promise<PendingTransactionResponse> {
-  const { aptosConfig, senderAuthenticator, feePayer, transaction, ...rest } = args;
+  const { movementConfig, senderAuthenticator, feePayer, transaction, ...rest } = args;
 
   if (isKeylessSigner(feePayer)) {
-    await feePayer.checkKeylessAccountValidity(aptosConfig);
+    await feePayer.checkKeylessAccountValidity(movementConfig);
   }
 
   const feePayerAuthenticator = signAsFeePayer({ signer: feePayer, transaction });
 
   return submitTransaction({
-    aptosConfig,
+    movementConfig,
     transaction,
     senderAuthenticator,
     feePayerAuthenticator,
@@ -419,11 +419,11 @@ const packagePublishAbi: EntryFunctionABI = {
 };
 
 /**
- * Publishes a package transaction to the Aptos blockchain.
+ * Publishes a package transaction to the Movement blockchain.
  * This function allows you to create and send a transaction that publishes a package with the specified metadata and bytecode.
  *
  * @param args - The arguments for the package transaction.
- * @param args.aptosConfig - The configuration settings for the Aptos client.
+ * @param args.movementConfig - The configuration settings for the Movement client.
  * @param args.account - The address of the account sending the transaction.
  * @param args.metadataBytes - The metadata associated with the package, represented as hexadecimal input.
  * @param args.moduleBytecode - An array of module bytecode, each represented as hexadecimal input.
@@ -431,18 +431,18 @@ const packagePublishAbi: EntryFunctionABI = {
  * @group Implementation
  */
 export async function publicPackageTransaction(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   account: AccountAddressInput;
   metadataBytes: HexInput;
   moduleBytecode: Array<HexInput>;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, account, metadataBytes, moduleBytecode, options } = args;
+  const { movementConfig, account, metadataBytes, moduleBytecode, options } = args;
 
   const totalByteCode = moduleBytecode.map((bytecode) => MoveVector.U8(bytecode));
 
   return generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: AccountAddress.from(account),
     data: {
       function: "0x1::code::publish_package_txn",

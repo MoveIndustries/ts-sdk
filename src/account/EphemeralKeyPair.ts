@@ -1,20 +1,20 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { randomBytes } from "@noble/hashes/utils";
 
+import { Deserializer, Serializable, Serializer } from "../bcs";
 import {
   bytesToBigIntLE,
-  padAndPackBytesWithLen,
-  poseidonHash,
   Ed25519PrivateKey,
   EphemeralPublicKey,
   EphemeralSignature,
+  padAndPackBytesWithLen,
+  poseidonHash,
   PrivateKey,
 } from "../core/crypto";
 import { Hex } from "../core/hex";
 import { EphemeralPublicKeyVariant, HexInput } from "../types";
-import { Deserializer, Serializable, Serializer } from "../bcs";
 import { floorToWholeHour, nowInSeconds } from "../utils/helpers";
 
 const TWO_WEEKS_IN_SECONDS = 1_209_600;
@@ -23,7 +23,7 @@ const TWO_WEEKS_IN_SECONDS = 1_209_600;
  * Represents an ephemeral key pair used for signing transactions via the Keyless authentication scheme.
  * This key pair is temporary and includes an expiration time.
  * For more details on how this class is used, refer to the documentation:
- * https://aptos.dev/guides/keyless-accounts/#1-present-the-user-with-a-sign-in-with-idp-button-on-the-ui
+ * https://movement.dev/guides/keyless-accounts/#1-present-the-user-with-a-sign-in-with-idp-button-on-the-ui
  * @group Implementation
  * @category Account (On-Chain Model)
  */

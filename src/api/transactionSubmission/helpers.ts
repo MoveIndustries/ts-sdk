@@ -1,5 +1,5 @@
 import { AccountAuthenticator, AnyRawTransaction, InputTransactionPluginData } from "../../transactions";
-import { AptosConfig } from "../aptosConfig";
+import { MovementConfig } from "../movementConfig";
 
 /**
  * Validates the fee payer data when submitting a transaction to ensure that the fee
@@ -8,15 +8,15 @@ import { AptosConfig } from "../aptosConfig";
  *
  * The validation is skipped if a custom transaction submitter is defined.
  *
- * @param config - The Aptos configuration that may contain a transaction submitter.
+ * @param config - The Movement configuration that may contain a transaction submitter.
  * @param args - The method arguments containing transaction data and optional transaction submitter.
  *
  * @example
  * ```typescript
- * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+ * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
  *
- * const config = new AptosConfig({ network: Network.TESTNET });
- * const aptos = new Aptos(config);
+ * const config = new MovementConfig({ network: Network.TESTNET });
+ * const movement = new Movement(config);
  *
  * class TransactionHandler {
  *   async submitTransaction(methodArgs: { transaction: { feePayerAddress: string }, feePayerAuthenticator?: string }) {
@@ -50,7 +50,7 @@ import { AptosConfig } from "../aptosConfig";
  * @group Implementation
  */
 export function validateFeePayerDataOnSubmission(
-  config: AptosConfig,
+  config: MovementConfig,
   args: {
     transaction: AnyRawTransaction;
     senderAuthenticator: AccountAuthenticator;
@@ -77,10 +77,10 @@ export function validateFeePayerDataOnSubmission(
  *
  * @example
  * ```typescript
- * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+ * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
  *
- * const config = new AptosConfig({ network: Network.TESTNET });
- * const aptos = new Aptos(config);
+ * const config = new MovementConfig({ network: Network.TESTNET });
+ * const movement = new Movement(config);
  *
  * async function runExample() {
  *   const methodArgs = {
@@ -92,7 +92,7 @@ export function validateFeePayerDataOnSubmission(
  *
  *   try {
  *     // This will throw an error due to missing feePayerPublicKey
- *     await aptos.someMethod(methodArgs);
+ *     await movement.someMethod(methodArgs);
  *   } catch (error) {
  *     console.error(error.message); // Output the error message
  *   }

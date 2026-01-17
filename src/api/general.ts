@@ -1,7 +1,6 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AptosConfig } from "./aptosConfig";
 import {
   getChainTopUserTransactions,
   getIndexerLastSuccessVersion,
@@ -11,6 +10,7 @@ import {
 } from "../internal/general";
 import { getBlockByHeight, getBlockByVersion } from "../internal/transaction";
 import { view, viewJson } from "../internal/view";
+import { InputViewFunctionData, InputViewFunctionJsonData } from "../transactions";
 import {
   AnyNumber,
   Block,
@@ -22,62 +22,62 @@ import {
   MoveValue,
 } from "../types";
 import { ProcessorType } from "../utils/const";
-import { InputViewFunctionData, InputViewFunctionJsonData } from "../transactions";
+import { MovementConfig } from "./movementConfig";
 
 /**
- * A class to query various Aptos-related information and perform operations on the Aptos blockchain.
+ * A class to query various Movement-related information and perform operations on the Movement blockchain.
  * @group General
  */
 export class General {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Initializes a new instance of the Aptos client with the specified configuration.
-   * This allows users to interact with the Aptos blockchain using the provided settings.
+   * Initializes a new instance of the Movement client with the specified configuration.
+   * This allows users to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., TESTNET, MAINNET).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({
    *         network: Network.TESTNET, // specify the network
-   *         nodeUrl: "https://testnet.aptos.dev" // specify the node URL
+   *         nodeUrl: "https://testnet.movement.dev" // specify the node URL
    *     });
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group General
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
   }
 
   /**
-   * Queries for the Aptos ledger information.
+   * Queries for the Movement ledger information.
    *
-   * @returns The Aptos Ledger Info, which includes details such as chain ID, epoch, and ledger version.
+   * @returns The Movement Ledger Info, which includes details such as chain ID, epoch, and ledger version.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching the ledger information
-   *   const ledgerInfo = await aptos.getLedgerInfo();
+   *   const ledgerInfo = await movement.getLedgerInfo();
    *
    *   console.log(ledgerInfo);
    * }
@@ -86,27 +86,27 @@ export class General {
    * @group General
    */
   async getLedgerInfo(): Promise<LedgerInfo> {
-    return getLedgerInfo({ aptosConfig: this.config });
+    return getLedgerInfo({ movementConfig: this.config });
   }
 
   /**
-   * Retrieves the chain ID of the Aptos blockchain.
+   * Retrieves the chain ID of the Movement blockchain.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching the chain ID
-   *   const chainId = await aptos.getChainId();
+   *   const chainId = await movement.getChainId();
    *   console.log("Chain ID:", chainId);
    * }
    * runExample().catch(console.error);
    *
-   * @returns The chain ID of the Aptos blockchain.
+   * @returns The chain ID of the Movement blockchain.
    * ```
    * @group General
    */
@@ -127,14 +127,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve block information for a specific ledger version
-   *   const block = await aptos.getBlockByVersion({ ledgerVersion: 5 });
+   *   const block = await movement.getBlockByVersion({ ledgerVersion: 5 });
    *   console.log(block);
    * }
    * runExample().catch(console.error);
@@ -146,7 +146,7 @@ export class General {
     options?: { withTransactions?: boolean };
   }): Promise<Block> {
     return getBlockByVersion({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -163,14 +163,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve the block at height 5, including transactions
-   *   const block = await aptos.getBlockByHeight({ blockHeight: 5, options: { withTransactions: true } });
+   *   const block = await movement.getBlockByHeight({ blockHeight: 5, options: { withTransactions: true } });
    *   console.log(block);
    * }
    * runExample().catch(console.error);
@@ -178,7 +178,7 @@ export class General {
    * @group General
    */
   async getBlockByHeight(args: { blockHeight: AnyNumber; options?: { withTransactions?: boolean } }): Promise<Block> {
-    return getBlockByHeight({ aptosConfig: this.config, ...args });
+    return getBlockByHeight({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -187,7 +187,7 @@ export class General {
    * @param args.options.ledgerVersion The ledger version to query, if not provided it will get the latest version
    *
    * @example
-   * const data = await aptos.view({
+   * const data = await movement.view({
    *  payload: {
    *   function: "0x1::coin::balance",
    *   typeArguments: ["0x1::aptos_coin::AptosCoin"],
@@ -202,7 +202,7 @@ export class General {
     payload: InputViewFunctionData;
     options?: LedgerVersionArg;
   }): Promise<T> {
-    return view<T>({ aptosConfig: this.config, ...args });
+    return view<T>({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -211,7 +211,7 @@ export class General {
    * @param args.options.ledgerVersion The ledger version to query, if not provided it will get the latest version
    *
    * @example
-   * const data = await aptos.view({
+   * const data = await movement.view({
    *  payload: {
    *   function: "0x1::coin::balance",
    *   typeArguments: ["0x1::aptos_coin::AptosCoin"],
@@ -226,7 +226,7 @@ export class General {
     payload: InputViewFunctionJsonData;
     options?: LedgerVersionArg;
   }): Promise<T> {
-    return viewJson<T>({ aptosConfig: this.config, ...args });
+    return viewJson<T>({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -238,14 +238,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetch the top user transactions with a limit of 5
-   *   const topUserTransactions = await aptos.getChainTopUserTransactions({ limit: 5 });
+   *   const topUserTransactions = await movement.getChainTopUserTransactions({ limit: 5 });
    *
    *   console.log(topUserTransactions);
    * }
@@ -255,14 +255,14 @@ export class General {
    */
   async getChainTopUserTransactions(args: { limit: number }): Promise<GetChainTopUserTransactionsResponse> {
     return getChainTopUserTransactions({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
 
   /**
-   * Retrieves data from the Aptos Indexer using a GraphQL query.
-   * This function allows you to execute complex queries to fetch specific data from the Aptos blockchain.
+   * Retrieves data from the Movement Indexer using a GraphQL query.
+   * This function allows you to execute complex queries to fetch specific data from the Movement blockchain.
    *
    * @param args.query.query - A GraphQL query string.
    * @param args.query.variables - The variables for the query (optional).
@@ -271,14 +271,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
-   *   // Querying the Aptos Indexer for ledger information
-   *   const topUserTransactions = await aptos.queryIndexer({
+   *   // Querying the Movement Indexer for ledger information
+   *   const topUserTransactions = await movement.queryIndexer({
    *     query: { query: `query MyQuery {
    *       ledger_infos {
    *         chain_id
@@ -294,7 +294,7 @@ export class General {
    */
   async queryIndexer<T extends {}>(args: { query: GraphqlQuery }): Promise<T> {
     return queryIndexer<T>({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -305,14 +305,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the last successful indexer version
-   *   const version = await aptos.getIndexerLastSuccessVersion();
+   *   const version = await movement.getIndexerLastSuccessVersion();
    *   console.log(`Last successful indexer version: ${version}`);
    * }
    * runExample().catch(console.error);
@@ -320,7 +320,7 @@ export class General {
    * @group General
    */
   async getIndexerLastSuccessVersion(): Promise<bigint> {
-    return getIndexerLastSuccessVersion({ aptosConfig: this.config });
+    return getIndexerLastSuccessVersion({ movementConfig: this.config });
   }
 
   /**
@@ -331,14 +331,14 @@ export class General {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the processor status for the account transactions processor
-   *   const status = await aptos.getProcessorStatus("account_transactions_processor");
+   *   const status = await movement.getProcessorStatus("account_transactions_processor");
    *   console.log(status);
    * }
    * runExample().catch(console.error);
@@ -346,6 +346,6 @@ export class General {
    * @group General
    */
   async getProcessorStatus(processorType: ProcessorType): Promise<GetProcessorStatusResponse[0]> {
-    return getProcessorStatus({ aptosConfig: this.config, processorType });
+    return getProcessorStatus({ movementConfig: this.config, processorType });
   }
 }

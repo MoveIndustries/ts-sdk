@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -9,9 +9,10 @@
  * @group Implementation
  */
 
-import { AptosConfig } from "../api/aptosConfig";
 import { Account } from "../account";
+import { MovementConfig } from "../api/movementConfig";
 import { AccountAddress, AccountAddressInput } from "../core";
+import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 import { InputGenerateTransactionOptions } from "../transactions/types";
 import { GetANSNameResponse, MoveAddressType, OrderByArg, PaginationArgs, WhereArg } from "../types";
 import { GetNamesQuery } from "../types/generated/operations";
@@ -19,9 +20,8 @@ import { GetNames } from "../types/generated/queries";
 import { CurrentAptosNamesBoolExp } from "../types/generated/types";
 import { Network } from "../utils/apiEndpoints";
 import { queryIndexer } from "./general";
-import { view } from "./view";
 import { generateTransaction } from "./transactionSubmission";
-import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
+import { view } from "./view";
 
 export const VALIDATION_RULES_DESCRIPTION = [
   "A name must be between 3 and 63 characters long,",
@@ -127,17 +127,17 @@ const NetworkToAnsContract: Record<Network, string | null> = {
 };
 
 /**
- * Retrieves the address of the ANS contract based on the specified Aptos network configuration.
+ * Retrieves the address of the ANS contract based on the specified Movement network configuration.
  *
- * @param aptosConfig - The configuration object for the Aptos network.
- * @param aptosConfig.network - The network for which to retrieve the ANS contract address.
+ * @param movementConfig - The configuration object for the Movement network.
+ * @param movementConfig.network - The network for which to retrieve the ANS contract address.
  *
  * @throws Throws an error if the ANS contract is not deployed to the specified network.
  * @group Implementation
  */
-function getRouterAddress(aptosConfig: AptosConfig): string {
-  const address = NetworkToAnsContract[aptosConfig.network];
-  if (!address) throw new Error(`The ANS contract is not deployed to ${aptosConfig.network}`);
+function getRouterAddress(movementConfig: MovementConfig): string {
+  const address = NetworkToAnsContract[movementConfig.network];
+  if (!address) throw new Error(`The ANS contract is not deployed to ${movementConfig.network}`);
   return address;
 }
 
@@ -153,21 +153,21 @@ const unwrapOption = <T>(option: any): T | undefined => {
  * Retrieve the owner address of a specified domain or subdomain.
  *
  * @param args - The arguments for retrieving the owner address.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.name - The name of the domain or subdomain to query.
  * @returns The account address of the owner, or undefined if not found.
  * @group Implementation
  */
 export async function getOwnerAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   name: string;
 }): Promise<AccountAddress | undefined> {
-  const { aptosConfig, name } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, name } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidANSName(name);
 
   const res = await view({
-    aptosConfig,
+    movementConfig,
     payload: {
       function: `${routerAddress}::router::get_owner_addr`,
       functionArguments: [domainName, subdomainName],
@@ -180,9 +180,9 @@ export async function getOwnerAddress(args: {
 }
 
 /**
- * Parameters for registering a name in the Aptos network.
+ * Parameters for registering a name in the Movement network.
  *
- * @param aptosConfig - Configuration settings for the Aptos network.
+ * @param movementConfig - Configuration settings for the Movement network.
  * @param sender - The account initiating the name registration.
  * @param name - The name to be registered.
  * @param expiration - The expiration policy for the name registration.
@@ -192,13 +192,13 @@ export async function getOwnerAddress(args: {
  * @group Implementation
  */
 export interface RegisterNameParameters {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: Account;
   name: string;
   expiration:
-    | { policy: "domain"; years?: 1 }
-    | { policy: "subdomain:follow-domain" }
-    | { policy: "subdomain:independent"; expirationDate: number };
+  | { policy: "domain"; years?: 1 }
+  | { policy: "subdomain:follow-domain" }
+  | { policy: "subdomain:independent"; expirationDate: number };
   transferable?: boolean;
   toAddress?: AccountAddressInput;
   targetAddress?: AccountAddressInput;
@@ -210,7 +210,7 @@ export interface RegisterNameParameters {
  * policies are valid before proceeding with the registration process.
  *
  * @param args - The parameters required for registering a name.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.expiration - The expiration details for the registration.
  * @param args.name - The name to be registered, which can be a domain or subdomain.
  * @param args.sender - The account details of the sender initiating the registration.
@@ -227,8 +227,8 @@ export interface RegisterNameParameters {
  * @group Implementation
  */
 export async function registerName(args: RegisterNameParameters): Promise<SimpleTransaction> {
-  const { aptosConfig, expiration, name, sender, targetAddress, toAddress, options, transferable } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, expiration, name, sender, targetAddress, toAddress, options, transferable } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidANSName(name);
 
   const hasSubdomainPolicy =
@@ -254,7 +254,7 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
     const registrationDuration = years * secondsInYear;
 
     const transaction = await generateTransaction({
-      aptosConfig,
+      movementConfig,
       sender: sender.accountAddress.toString(),
       data: {
         function: `${routerAddress}::router::register_domain`,
@@ -271,7 +271,7 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
     throw new Error(`${expiration.policy} requires a subdomain to be provided.`);
   }
 
-  const tldExpiration = await getExpiration({ aptosConfig, name: domainName });
+  const tldExpiration = await getExpiration({ movementConfig, name: domainName });
   if (!tldExpiration) {
     throw new Error("The domain does not exist");
   }
@@ -284,7 +284,7 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
   }
 
   const transaction = await generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: sender.accountAddress.toString(),
     data: {
       function: `${routerAddress}::router::register_subdomain`,
@@ -308,19 +308,19 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
  * Retrieves the expiration time of a specified domain or subdomain in epoch milliseconds.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.name - The name of the domain or subdomain to check.
  * @returns The expiration time in epoch milliseconds, or undefined if an error occurs.
  * @group Implementation
  */
-export async function getExpiration(args: { aptosConfig: AptosConfig; name: string }): Promise<number | undefined> {
-  const { aptosConfig, name } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+export async function getExpiration(args: { movementConfig: MovementConfig; name: string }): Promise<number | undefined> {
+  const { movementConfig, name } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidANSName(name);
 
   try {
     const res = await view({
-      aptosConfig,
+      movementConfig,
       payload: {
         function: `${routerAddress}::router::get_expiration`,
         functionArguments: [domainName, subdomainName],
@@ -339,20 +339,20 @@ export async function getExpiration(args: { aptosConfig: AptosConfig; name: stri
  * This function helps in obtaining the complete domain name by combining the subdomain and domain names.
  *
  * @param args - The arguments for retrieving the primary name.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.address - The account address for which to retrieve the primary name.
  * @returns The primary name as a string, or undefined if no domain name exists.
  * @group Implementation
  */
 export async function getPrimaryName(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   address: AccountAddressInput;
 }): Promise<string | undefined> {
-  const { aptosConfig, address } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, address } = args;
+  const routerAddress = getRouterAddress(movementConfig);
 
   const res = await view({
-    aptosConfig,
+    movementConfig,
     payload: {
       function: `${routerAddress}::router::get_primary_name`,
       functionArguments: [AccountAddress.from(address).toString()],
@@ -372,7 +372,7 @@ export async function getPrimaryName(args: {
  * If no name is provided, it clears the existing primary name.
  *
  * @param args - The arguments for setting the primary name.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.sender - The account that is sending the transaction.
  * @param args.name - The name to set as the primary name. If omitted, the function will clear the primary name.
  * @param args.options - Optional transaction generation options.
@@ -380,17 +380,17 @@ export async function getPrimaryName(args: {
  * @group Implementation
  */
 export async function setPrimaryName(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: Account;
   name?: string;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, sender, name, options } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, sender, name, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
 
   if (!name) {
     const transaction = await generateTransaction({
-      aptosConfig,
+      movementConfig,
       sender: sender.accountAddress.toString(),
       data: {
         function: `${routerAddress}::router::clear_primary_name`,
@@ -405,7 +405,7 @@ export async function setPrimaryName(args: {
   const { domainName, subdomainName } = isValidANSName(name);
 
   const transaction = await generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: sender.accountAddress.toString(),
     data: {
       function: `${routerAddress}::router::set_primary_name`,
@@ -423,21 +423,21 @@ export async function setPrimaryName(args: {
  * resolves to, which may be different from who owns the name.
  *
  * @param args - The arguments for retrieving the target address.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.name - The name of the domain, which may include a subdomain.
  * @returns The target address as an AccountAddress, or undefined if not found.
  * @group Implementation
  */
 export async function getTargetAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   name: string;
 }): Promise<AccountAddress | undefined> {
-  const { aptosConfig, name } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, name } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidANSName(name);
 
   const res = await view({
-    aptosConfig,
+    movementConfig,
     payload: {
       function: `${routerAddress}::router::get_target_addr`,
       functionArguments: [domainName, subdomainName],
@@ -449,11 +449,11 @@ export async function getTargetAddress(args: {
 }
 
 /**
- * Sets the target address for a specified domain and subdomain in the Aptos network.
+ * Sets the target address for a specified domain and subdomain in the Movement network.
  * This function helps to associate a given address with a domain name, allowing for easier access and management of resources.
  *
  * @param args - The arguments for setting the target address.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.sender - The account that is sending the transaction.
  * @param args.name - The name of the domain or subdomain to be set.
  * @param args.address - The address to be associated with the domain or subdomain.
@@ -463,18 +463,18 @@ export async function getTargetAddress(args: {
  * @group Implementation
  */
 export async function setTargetAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: Account;
   name: string;
   address: AccountAddressInput;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, sender, name, address, options } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, sender, name, address, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidANSName(name);
 
   const transaction = await generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: sender.accountAddress.toString(),
     data: {
       function: `${routerAddress}::router::set_target_addr`,
@@ -487,19 +487,19 @@ export async function setTargetAddress(args: {
 }
 
 /**
- * Retrieves the active Aptos name associated with the specified domain and subdomain.
+ * Retrieves the active Movement name associated with the specified domain and subdomain.
  *
  * @param args - The parameters for the function.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.name - The name to look up, which includes the domain and optional subdomain.
- * @returns The active Aptos name if it exists; otherwise, returns undefined.
+ * @returns The active Movement name if it exists; otherwise, returns undefined.
  * @group Implementation
  */
 export async function getName(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   name: string;
 }): Promise<GetANSNameResponse[0] | undefined> {
-  const { aptosConfig, name } = args;
+  const { movementConfig, name } = args;
   const { domainName, subdomainName = "" } = isValidANSName(name);
 
   const where: CurrentAptosNamesBoolExp = {
@@ -508,7 +508,7 @@ export async function getName(args: {
   };
 
   const data = await queryIndexer<GetNamesQuery>({
-    aptosConfig,
+    movementConfig,
     query: {
       query: GetNames,
       variables: {
@@ -549,11 +549,11 @@ export interface GetAccountNamesArgs extends QueryNamesOptions {
 }
 
 /**
- * Retrieves all the current Aptos names owned by an account. This uses the
+ * Retrieves all the current Movement names owned by an account. This uses the
  * owner_address field, not the registered_address field.
  *
  * @param args - The arguments for retrieving account names.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.options - Optional parameters for querying account names.
  * @param args.options.limit - The maximum number of names to retrieve.
  * @param args.options.offset - The number of names to skip before starting to collect the result set.
@@ -561,18 +561,18 @@ export interface GetAccountNamesArgs extends QueryNamesOptions {
  * @param args.options.where - Additional conditions to filter the results.
  * @param args.accountAddress - The address of the account for which to retrieve names.
  *
- * @returns An array of sanitized Aptos names associated with the specified account address.
+ * @returns An array of sanitized Movement names associated with the specified account address.
  * @group Implementation
  */
 export async function getAccountNames(
-  args: { aptosConfig: AptosConfig } & GetAccountNamesArgs,
+  args: { movementConfig: MovementConfig } & GetAccountNamesArgs,
 ): Promise<GetANSNameResponse> {
-  const { aptosConfig, options, accountAddress } = args;
+  const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ aptosConfig });
+  const expirationDate = await getANSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getAccountNames",
     query: {
       query: GetNames,
@@ -607,7 +607,7 @@ export interface GetAccountDomainsArgs extends QueryNamesOptions {
  * using the owner_address field.
  *
  * @param args - The arguments for retrieving account domains.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.options - Optional parameters for the query.
  * @param args.options.limit - The maximum number of results to return.
  * @param args.options.offset - The number of results to skip before starting to collect the result set.
@@ -621,14 +621,14 @@ export interface GetAccountDomainsArgs extends QueryNamesOptions {
  * @group Implementation
  */
 export async function getAccountDomains(
-  args: { aptosConfig: AptosConfig } & GetAccountDomainsArgs,
+  args: { movementConfig: MovementConfig } & GetAccountDomainsArgs,
 ): Promise<GetANSNameResponse> {
-  const { aptosConfig, options, accountAddress } = args;
+  const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ aptosConfig });
+  const expirationDate = await getANSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getAccountDomains",
     query: {
       query: GetNames,
@@ -664,7 +664,7 @@ export interface GetAccountSubdomainsArgs extends QueryNamesOptions {
  * by the owner_address field.
  *
  * @param args - The arguments for retrieving account subdomains.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.options - Optional parameters for the query.
  * @param args.options.limit - The maximum number of results to return.
  * @param args.options.offset - The number of results to skip before starting to collect the result set.
@@ -677,14 +677,14 @@ export interface GetAccountSubdomainsArgs extends QueryNamesOptions {
  * @group Implementation
  */
 export async function getAccountSubdomains(
-  args: { aptosConfig: AptosConfig } & GetAccountSubdomainsArgs,
+  args: { movementConfig: MovementConfig } & GetAccountSubdomainsArgs,
 ): Promise<GetANSNameResponse> {
-  const { aptosConfig, options, accountAddress } = args;
+  const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ aptosConfig });
+  const expirationDate = await getANSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getAccountSubdomains",
     query: {
       query: GetNames,
@@ -723,7 +723,7 @@ export interface GetDomainSubdomainsArgs extends QueryNamesOptions {
  * all subdomains of a domain even if they're owned by different accounts.
  *
  * @param args - The arguments for retrieving subdomains.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.options - Optional parameters for the query.
  * @param args.options.limit - The maximum number of results to return.
  * @param args.options.offset - The number of results to skip before starting to collect the results.
@@ -735,12 +735,12 @@ export interface GetDomainSubdomainsArgs extends QueryNamesOptions {
  * @group Implementation
  */
 export async function getDomainSubdomains(
-  args: { aptosConfig: AptosConfig } & GetDomainSubdomainsArgs,
+  args: { movementConfig: MovementConfig } & GetDomainSubdomainsArgs,
 ): Promise<GetANSNameResponse> {
-  const { aptosConfig, options, domain } = args;
+  const { movementConfig, options, domain } = args;
 
   const data = await queryIndexer<GetNamesQuery>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getDomainSubdomains",
     query: {
       query: GetNames,
@@ -769,16 +769,16 @@ export async function getDomainSubdomains(
  * contract specified 30 days.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - An AptosConfig object containing the configuration settings.
+ * @param args.movementConfig - An MovementConfig object containing the configuration settings.
  * @returns The expiration date in ISO 8601 format.
  * @group Implementation
  */
-async function getANSExpirationDate(args: { aptosConfig: AptosConfig }): Promise<string> {
-  const { aptosConfig } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+async function getANSExpirationDate(args: { movementConfig: MovementConfig }): Promise<string> {
+  const { movementConfig } = args;
+  const routerAddress = getRouterAddress(movementConfig);
 
   const [gracePeriodInSeconds] = await view<[number]>({
-    aptosConfig,
+    movementConfig,
     payload: {
       function: `${routerAddress}::config::reregistration_grace_sec`,
       functionArguments: [],
@@ -794,7 +794,7 @@ async function getANSExpirationDate(args: { aptosConfig: AptosConfig }): Promise
  * Renews a domain for a specified duration. This function allows you to extend the registration of a domain for one year.
  *
  * @param args - The parameters required to renew the domain.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.sender - The account that is sending the renewal transaction.
  * @param args.name - The name of the domain to renew.
  * @param args.years - The number of years to renew the domain for. Currently, only 1 year renewals are supported. (optional, default is 1)
@@ -803,14 +803,14 @@ async function getANSExpirationDate(args: { aptosConfig: AptosConfig }): Promise
  * @group Implementation
  */
 export async function renewDomain(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: Account;
   name: string;
   years?: 1;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, sender, name, years = 1, options } = args;
-  const routerAddress = getRouterAddress(aptosConfig);
+  const { movementConfig, sender, name, years = 1, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
   const renewalDuration = years * 31536000;
   const { domainName, subdomainName } = isValidANSName(name);
 
@@ -823,7 +823,7 @@ export async function renewDomain(args: {
   }
 
   const transaction = await generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: sender.accountAddress.toString(),
     data: {
       function: `${routerAddress}::router::renew_domain`,

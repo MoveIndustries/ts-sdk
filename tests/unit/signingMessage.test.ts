@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, Ed25519PrivateKey, generateSigningMessageForTransaction } from "../../src";
@@ -14,7 +14,7 @@ describe("generateSigningMessage ", () => {
   });
 
   test("generates the proper message for transaction", async () => {
-    const transaction = await aptos.transaction.build.simple({
+    const transaction = await movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::aptos_account::transfer",
@@ -41,7 +41,7 @@ describe("generateSigningMessage ", () => {
   });
 
   test("generates the proper message for fee payer transaction", async () => {
-    const transaction = await aptos.transaction.build.simple({
+    const transaction = await movement.transaction.build.simple({
       sender: alice.accountAddress,
       withFeePayer: true,
       data: {

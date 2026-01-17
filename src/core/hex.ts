@@ -1,9 +1,9 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
-import { ParsingError, ParsingResult } from "./common";
 import { HexInput } from "../types";
+import { ParsingError, ParsingResult } from "./common";
 
 /**
  * Provides reasons for parsing failures related to hexadecimal values.

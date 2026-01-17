@@ -1,14 +1,13 @@
 import {
   Account,
-  AptosApiType,
   aptosRequest,
   generateSignedTransaction,
   GraphqlQuery,
+  MovementApiType,
   NetworkToIndexerAPI,
   NetworkToNodeAPI,
   U64,
 } from "../../../src";
-import { AptosApiError } from "../../../src/errors";
 import { VERSION } from "../../../src/version";
 import { longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
@@ -28,15 +27,15 @@ describe("aptos request", () => {
       async () => {
         const sender = Account.generate();
         const receiverAccounts = Account.generate();
-        await aptos.fundAccount({ accountAddress: sender.accountAddress, amount: 100_000_000 });
-        const transaction = await aptos.transaction.build.simple({
+        await movement.fundAccount({ accountAddress: sender.accountAddress, amount: 100_000_000 });
+        const transaction = await movement.transaction.build.simple({
           sender: sender.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts.accountAddress],
           },
         });
-        const authenticator = aptos.transaction.sign({
+        const authenticator = movement.transaction.sign({
           signer: sender,
           transaction,
         });
@@ -49,15 +48,15 @@ describe("aptos request", () => {
               path: "transactions",
               body: signedTransaction,
               originMethod: "test request includes all headers",
-              contentType: "application/x.aptos.signed_transaction+bcs",
+              contentType: "application/x.movement.signed_transaction+bcs",
               overrides: { HEADERS: { my: "header" } },
             },
             config,
-            AptosApiType.FULLNODE,
+            MovementApiType.FULLNODE,
           );
           expect(response.config.headers).toHaveProperty("x-aptos-client", `aptos-typescript-sdk/${VERSION}`);
           expect(response.config.headers).toHaveProperty("my", "header");
-          expect(response.config.headers).toHaveProperty("content-type", "application/x.aptos.signed_transaction+bcs");
+          expect(response.config.headers).toHaveProperty("content-type", "application/x.movement.signed_transaction+bcs");
           expect(response.config.headers).toHaveProperty(
             "x-aptos-typescript-sdk-origin-method",
             "test request includes all headers",
@@ -87,7 +86,7 @@ describe("aptos request", () => {
               originMethod: "test when token is set",
             },
             config,
-            AptosApiType.FULLNODE,
+            MovementApiType.FULLNODE,
           );
           expect(response.config.headers).toHaveProperty("authorization", `Bearer ${dummyKey}`);
         } catch (error: any) {
@@ -115,7 +114,7 @@ describe("aptos request", () => {
                 originMethod: "test fullnode 200 status",
               },
               config,
-              AptosApiType.FULLNODE,
+              MovementApiType.FULLNODE,
             );
             expect(response).toHaveProperty("data", {
               sequence_number: "0",
@@ -145,10 +144,10 @@ describe("aptos request", () => {
                 originMethod: "test 400 status",
               },
               config,
-              AptosApiType.FULLNODE,
+              MovementApiType.FULLNODE,
             );
           } catch (error: any) {
-            expect(error).toBeInstanceOf(AptosApiError);
+            expect(error).toBeInstanceOf(MovementApiError);
             expect(error.url).toBe(`${fullnodeUrl}/transactions/by_hash/0x123`);
             expect(error.status).toBe(400);
             expect(error.statusText).toBe("Bad Request");
@@ -181,10 +180,10 @@ describe("aptos request", () => {
                 originMethod: "test 404 status",
               },
               config,
-              AptosApiType.FULLNODE,
+              MovementApiType.FULLNODE,
             );
           } catch (error: any) {
-            expect(error).toBeInstanceOf(AptosApiError);
+            expect(error).toBeInstanceOf(MovementApiError);
             expect(error.url).toBe(
               `${fullnodeUrl}/transactions/by_hash/0x23851af73879128b541bafad4b49d0b6f1ac0d49ed2400632d247135fbca7bea`,
             );
@@ -218,13 +217,13 @@ describe("aptos request", () => {
                 path: "transactions",
                 body: new Uint8Array([1, 2, 3]),
                 originMethod: "test transaction submission error",
-                contentType: "application/x.aptos.signed_transaction+bcs",
+                contentType: "application/x.movement.signed_transaction+bcs",
               },
               config,
-              AptosApiType.FULLNODE,
+              MovementApiType.FULLNODE,
             );
           } catch (error: any) {
-            expect(error).toBeInstanceOf(AptosApiError);
+            expect(error).toBeInstanceOf(MovementApiError);
             expect(error.url).toBe(`${fullnodeUrl}/transactions`);
             expect(error.status).toBe(400);
             expect(error.statusText).toBe("Bad Request");
@@ -239,7 +238,7 @@ describe("aptos request", () => {
               originMethod: "test transaction submission error",
               path: "transactions",
               body: new Uint8Array([1, 2, 3]),
-              contentType: "application/x.aptos.signed_transaction+bcs",
+              contentType: "application/x.movement.signed_transaction+bcs",
             });
           }
         },
@@ -269,7 +268,7 @@ describe("aptos request", () => {
                 originMethod: "test indexer 200 status",
               },
               config,
-              AptosApiType.INDEXER,
+              MovementApiType.INDEXER,
             );
             expect(response).toHaveProperty("data", {
               ledger_infos: [
@@ -306,10 +305,10 @@ describe("aptos request", () => {
                 originMethod: "test indexer 400 status",
               },
               config,
-              AptosApiType.INDEXER,
+              MovementApiType.INDEXER,
             );
           } catch (error: any) {
-            expect(error).toBeInstanceOf(AptosApiError);
+            expect(error).toBeInstanceOf(MovementApiError);
             expect(error.url).toBe(`${indexerUrl}`);
             expect(error.status).toBe(200);
             expect(error.statusText).toBe("OK");

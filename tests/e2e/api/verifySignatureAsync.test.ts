@@ -1,36 +1,35 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   Account,
   AccountAddress,
   Ed25519PrivateKey,
-  Secp256k1PrivateKey,
-  SigningSchemeInput,
-  MultiKey,
-  MultiKeyAccount,
+  Groth16Zkp,
+  KeylessAccount,
   MultiEd25519Account,
   MultiEd25519PublicKey,
-  KeylessAccount,
-  ZkProof,
-  Groth16Zkp,
-  ZkpVariant,
+  MultiKey,
+  MultiKeyAccount,
+  Secp256k1PrivateKey,
+  SigningSchemeInput,
   ZeroKnowledgeSig,
+  ZkProof,
+  ZkpVariant,
 } from "../../../src";
 
 import {
   ed25519,
-  secp256k1TestObject,
-  keylessTestObject,
   EPHEMERAL_KEY_PAIR,
-  singleSignerED25519,
-  EXPIRED_EPHEMERAL_KEY_PAIR,
+  keylessTestObject,
+  secp256k1TestObject,
+  singleSignerED25519
 } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 
 describe("verifySignatureAsync", () => {
   const { aptos } = getAptosClient();
-  const aptosConfig = aptos.config;
+  const movementConfig = movement.config;
 
   it("signs a message with single signer Secp256k1 scheme and verifies successfully", async () => {
     const { privateKey: privateKeyBytes, address, signatureHex, messageEncoded, stringMessage } = secp256k1TestObject;
@@ -41,13 +40,13 @@ describe("verifySignatureAsync", () => {
     const signature1 = secpAccount.sign(messageEncoded);
     expect(signature1.signature.toString()).toEqual(signatureHex);
     expect(
-      await secpAccount.verifySignatureAsync({ aptosConfig, message: messageEncoded, signature: signature1 }),
+      await secpAccount.verifySignatureAsync({ movementConfig, message: messageEncoded, signature: signature1 }),
     ).toBeTruthy();
     // verifies a string message
     const signature2 = secpAccount.sign(stringMessage);
     expect(signature2.signature.toString()).toEqual(signatureHex);
     expect(
-      await secpAccount.verifySignatureAsync({ aptosConfig, message: stringMessage, signature: signature2 }),
+      await secpAccount.verifySignatureAsync({ movementConfig, message: stringMessage, signature: signature2 }),
     ).toBeTruthy();
   });
 
@@ -58,7 +57,7 @@ describe("verifySignatureAsync", () => {
     const edAccount = Account.fromPrivateKey({ privateKey, address: accountAddress, legacy: false });
     const signature = edAccount.sign(messageEncoded);
     expect(signature.signature.toString()).toEqual(signatureHex);
-    expect(await edAccount.verifySignatureAsync({ aptosConfig, message: messageEncoded, signature })).toBeTruthy();
+    expect(await edAccount.verifySignatureAsync({ movementConfig, message: messageEncoded, signature })).toBeTruthy();
   });
   describe("multikey", () => {
     const singleSignerED25519SenderAccount = Account.generate({
@@ -90,7 +89,7 @@ describe("verifySignatureAsync", () => {
       });
       const message = "test message";
       const multiKeySig = account.sign(message);
-      expect(await account.verifySignatureAsync({ aptosConfig, message, signature: multiKeySig })).toEqual(true);
+      expect(await account.verifySignatureAsync({ movementConfig, message, signature: multiKeySig })).toEqual(true);
     });
 
     // Skip b/c it started to fail, and need to separate keyless out
@@ -103,7 +102,7 @@ describe("verifySignatureAsync", () => {
       const multiKeySig = account.sign(message);
       expect(
         await account.verifySignatureAsync({
-          aptosConfig,
+          movementConfig,
           message,
           signature: multiKeySig,
           options: { throwErrorWithReason: true },
@@ -132,7 +131,7 @@ describe("verifySignatureAsync", () => {
       const multiKeySig = account.sign(message);
       await expect(async () =>
         account.verifySignatureAsync({
-          aptosConfig,
+          movementConfig,
           message,
           signature: multiKeySig,
           options: { throwErrorWithReason: true },
@@ -157,7 +156,7 @@ describe("verifySignatureAsync", () => {
         signers: [ed25519PrivateKey1, ed25519PrivateKey3],
       });
       const multiKeySig = account.sign(message);
-      expect(await account.verifySignatureAsync({ aptosConfig, message, signature: multiKeySig })).toEqual(true);
+      expect(await account.verifySignatureAsync({ movementConfig, message, signature: multiKeySig })).toEqual(true);
     });
 
     it("signs a message with a 2 of 3 multiEd25519 scheme and verifies successfully with misordered signers", async () => {
@@ -166,7 +165,7 @@ describe("verifySignatureAsync", () => {
         signers: [ed25519PrivateKey3, ed25519PrivateKey2],
       });
       const multiKeySig = account.sign(message);
-      expect(await account.verifySignatureAsync({ aptosConfig, message, signature: multiKeySig })).toEqual(true);
+      expect(await account.verifySignatureAsync({ movementConfig, message, signature: multiKeySig })).toEqual(true);
     });
 
     test("constructing a multi ed25519 account with insufficient signers fails", async () => {
@@ -183,13 +182,13 @@ describe("verifySignatureAsync", () => {
     const signature1 = legacyEdAccount.sign(messageEncoded);
     expect(signature1.toString()).toEqual(signatureHex);
     expect(
-      await legacyEdAccount.verifySignatureAsync({ aptosConfig, message: messageEncoded, signature: signature1 }),
+      await legacyEdAccount.verifySignatureAsync({ movementConfig, message: messageEncoded, signature: signature1 }),
     ).toBeTruthy();
     // verifies a string message
     const signature2 = legacyEdAccount.sign(stringMessage);
     expect(signature2.toString()).toEqual(signatureHex);
     expect(
-      await legacyEdAccount.verifySignatureAsync({ aptosConfig, message: stringMessage, signature: signature2 }),
+      await legacyEdAccount.verifySignatureAsync({ movementConfig, message: stringMessage, signature: signature2 }),
     ).toBeTruthy();
   });
 });

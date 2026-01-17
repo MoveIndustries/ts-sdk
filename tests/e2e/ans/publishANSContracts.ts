@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import "dotenv";
-import { AccountAddress, Aptos, AptosApiType, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "../../../src";
-import { LOCAL_ANS_ACCOUNT_PK, LOCAL_ANS_ACCOUNT_ADDRESS } from "../../../src/internal/ans";
+import { AccountAddress, Ed25519PrivateKey, Movement, MovementApiType, PrivateKey, PrivateKeyVariants } from "../../../src";
+import { LOCAL_ANS_ACCOUNT_ADDRESS, LOCAL_ANS_ACCOUNT_PK } from "../../../src/internal/ans";
 
 /**
  * TS SDK supports ANS. Since ANS contract is not part of aptos-framework
@@ -29,14 +29,14 @@ function execCmdBuffer(command: string): Buffer {
 }
 
 export async function publishAnsContract(
-  aptos: Aptos,
+  aptos: Movement,
 ): Promise<{ address: AccountAddress; privateKey: Ed25519PrivateKey }> {
   const ret = {
     address: AccountAddress.fromString(LOCAL_ANS_ACCOUNT_ADDRESS),
     privateKey: new Ed25519PrivateKey(LOCAL_ANS_ACCOUNT_PK),
   };
   try {
-    await aptos.account.getAccountModule({
+    await movement.account.getAccountModule({
       accountAddress: LOCAL_ANS_ACCOUNT_ADDRESS,
       moduleName: "domains",
     });
@@ -86,11 +86,11 @@ export async function publishAnsContract(
 
     // 2. Fund ANS account.
     console.log("---funding account---");
-    const fundTxn = await aptos.fundAccount({
+    const fundTxn = await movement.fundAccount({
       accountAddress: LOCAL_ANS_ACCOUNT_ADDRESS.toString(),
       amount: 100_000_000_000,
     });
-    await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
+    await movement.waitForTransaction({ transactionHash: fundTxn.hash });
     console.log(`Test account funded ${LOCAL_ANS_ACCOUNT_ADDRESS}`);
 
     // 3. Publish the ANS modules under the ANS account.
@@ -101,8 +101,8 @@ export async function publishAnsContract(
       // TODO: This is a temporary fix to unblock CI (`--max-gas`), the CLI should handle simulation correctly, and this hack shouldn't be necessary.
       // TODO: Convert back to AIP-80 when CLI is updated.
       execCmdBuffer(
-        `${cliInvocation} move publish --max-gas 100000 --package-dir ${repoDir}/${contract} --assume-yes --private-key=${PrivateKey.parseHexInput(LOCAL_ANS_ACCOUNT_PK, PrivateKeyVariants.Ed25519).toString()} --named-addresses aptos_names=${LOCAL_ANS_ACCOUNT_ADDRESS},router=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_v2_1=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_admin=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_funds=${LOCAL_ANS_ACCOUNT_ADDRESS},router_signer=${ROUTER_SIGNER} --url=${aptos.config.getRequestUrl(
-          AptosApiType.FULLNODE,
+        `${cliInvocation} move publish --max-gas 100000 --package-dir ${repoDir}/${contract} --assume-yes --private-key=${PrivateKey.parseHexInput(LOCAL_ANS_ACCOUNT_PK, PrivateKeyVariants.Ed25519).toString()} --named-addresses aptos_names=${LOCAL_ANS_ACCOUNT_ADDRESS},router=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_v2_1=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_admin=${LOCAL_ANS_ACCOUNT_ADDRESS},aptos_names_funds=${LOCAL_ANS_ACCOUNT_ADDRESS},router_signer=${ROUTER_SIGNER} --url=${movement.config.getRequestUrl(
+          MovementApiType.FULLNODE,
         )}`,
       );
     }

@@ -1,21 +1,13 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AptosConfig } from "../api/aptosConfig";
-import { MoveOption, MoveString, MoveVector } from "../bcs/serializable/moveStructs";
-import { Bool, U128, U16, U256, U32, U64, U8 } from "../bcs/serializable/movePrimitives";
+import { MovementConfig } from "../api/movementConfig";
+import { Serialized } from "../bcs";
 import { FixedBytes } from "../bcs/serializable/fixedBytes";
+import { Bool, U128, U16, U256, U32, U64, U8 } from "../bcs/serializable/movePrimitives";
+import { MoveOption, MoveString, MoveVector } from "../bcs/serializable/moveStructs";
 import { AccountAddress, AccountAddressInput } from "../core";
 import { PublicKey } from "../core/crypto";
-import {
-  MultiAgentRawTransaction,
-  FeePayerRawTransaction,
-  RawTransaction,
-  TransactionPayloadEntryFunction,
-  TransactionPayloadMultiSig,
-  TransactionPayloadScript,
-  TransactionInnerPayload,
-} from "./instances";
 import {
   AnyNumber,
   HexInput,
@@ -25,11 +17,19 @@ import {
   MoveValue,
   TransactionSubmitter,
 } from "../types";
-import { TypeTag } from "./typeTag";
 import { AccountAuthenticator } from "./authenticator/account";
-import { SimpleTransaction } from "./instances/simpleTransaction";
+import {
+  FeePayerRawTransaction,
+  MultiAgentRawTransaction,
+  RawTransaction,
+  TransactionInnerPayload,
+  TransactionPayloadEntryFunction,
+  TransactionPayloadMultiSig,
+  TransactionPayloadScript,
+} from "./instances";
 import { MultiAgentTransaction } from "./instances/multiAgentTransaction";
-import { Serialized } from "../bcs";
+import { SimpleTransaction } from "./instances/simpleTransaction";
+import { TypeTag } from "./typeTag";
 
 /**
  * Entry function arguments for building a raw transaction using remote ABI, supporting various data types including primitives and arrays.
@@ -216,11 +216,11 @@ export type InputMultiSigDataWithABI = {
 } & InputEntryFunctionDataWithABI;
 
 /**
- * Combines input function data with Aptos configuration for remote ABI interactions.
+ * Combines input function data with Movement configuration for remote ABI interactions.
  * @group Implementation
  * @category Transactions
  */
-export type InputEntryFunctionDataWithRemoteABI = InputEntryFunctionData & { aptosConfig: AptosConfig };
+export type InputEntryFunctionDataWithRemoteABI = InputEntryFunctionData & { movementConfig: MovementConfig };
 /**
  * The data needed to generate a Multi Sig payload
  * @group Implementation
@@ -285,11 +285,11 @@ export type ViewFunctionJsonPayload = {
 };
 
 /**
- * Data required to create a view function payload and retrieve the remote ABI, including Aptos configuration.
+ * Data required to create a view function payload and retrieve the remote ABI, including Movement configuration.
  * @group Implementation
  * @category Transactions
  */
-export type InputViewFunctionDataWithRemoteABI = InputViewFunctionData & { aptosConfig: AptosConfig };
+export type InputViewFunctionDataWithRemoteABI = InputViewFunctionData & { movementConfig: MovementConfig };
 
 /**
  * Data needed to generate a view function, including the fetched ABI.
@@ -329,7 +329,7 @@ export type ViewFunctionABI = FunctionABI & {
 /**
  * Arguments for generating a single signer raw transaction, used in the transaction builder flow.
  *
- * @param aptosConfig - Configuration settings for Aptos.
+ * @param movementConfig - Configuration settings for Movement.
  * @param sender - The address of the sender.
  * @param payload - The transaction payload.
  * @param options - Optional transaction generation options.
@@ -338,7 +338,7 @@ export type ViewFunctionABI = FunctionABI & {
  * @category Transactions
  */
 export interface InputGenerateSingleSignerRawTransactionArgs {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: AccountAddressInput;
   payload: AnyTransactionPayloadInstance;
   options?: InputGenerateTransactionOptions;
@@ -348,7 +348,7 @@ export interface InputGenerateSingleSignerRawTransactionArgs {
 /**
  * Arguments for generating a multi-agent transaction, used in the `generateTransaction()` method of the transaction builder flow.
  *
- * @param aptosConfig - Configuration settings for Aptos.
+ * @param movementConfig - Configuration settings for Movement.
  * @param sender - The address of the transaction sender.
  * @param payload - The transaction payload.
  * @param secondarySignerAddresses - List of secondary signer addresses.
@@ -358,7 +358,7 @@ export interface InputGenerateSingleSignerRawTransactionArgs {
  * @category Transactions
  */
 export interface InputGenerateMultiAgentRawTransactionArgs {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: AccountAddressInput;
   payload: AnyTransactionPayloadInstance;
   secondarySignerAddresses: AccountAddressInput[];

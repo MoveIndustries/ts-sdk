@@ -1,17 +1,16 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  Aptos,
-  Network,
   Account,
-  AnyRawTransaction,
-  U8,
-  AptosConfig,
-  GetANSNameResponse,
   AccountAddress,
+  AnyRawTransaction,
+  GetANSNameResponse,
+  MovementConfig,
+  Network,
+  U8
 } from "../../../src";
-import { isValidANSName, isActiveANSName, SubdomainExpirationPolicy } from "../../../src/internal/ans";
+import { isActiveANSName, isValidANSName, SubdomainExpirationPolicy } from "../../../src/internal/ans";
 import { generateTransaction } from "../../../src/internal/transactionSubmission";
 import { getAptosClient } from "../helper";
 import { publishAnsContract } from "./publishANSContracts";
@@ -32,8 +31,8 @@ describe.skip("ANS", () => {
   let changeRouterMode: (mode: 0 | 1) => void;
 
   const signAndSubmit = async (signer: Account, transaction: AnyRawTransaction) => {
-    const pendingTxn = await aptos.signAndSubmitTransaction({ transaction, signer });
-    return aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+    const pendingTxn = await movement.signAndSubmitTransaction({ transaction, signer });
+    return movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   };
 
   const randomString = () => Math.random().toString().slice(2);
@@ -41,7 +40,7 @@ describe.skip("ANS", () => {
   beforeAll(
     async () => {
       const { address: ANS_ADDRESS, privateKey: ANS_PRIVATE_KEY } = await publishAnsContract(aptos);
-      const contractAccount = await aptos.deriveAccountFromPrivateKey({ privateKey: ANS_PRIVATE_KEY });
+      const contractAccount = await movement.deriveAccountFromPrivateKey({ privateKey: ANS_PRIVATE_KEY });
 
       // Publish the contract, should be idempotent
 
@@ -49,7 +48,7 @@ describe.skip("ANS", () => {
       await signAndSubmit(
         contractAccount,
         await generateTransaction({
-          aptosConfig: config,
+          movementConfig: config,
           sender: contractAccount.accountAddress,
           data: {
             function: `${ANS_ADDRESS}::domains::init_reverse_lookup_registry_v1`,
@@ -62,7 +61,7 @@ describe.skip("ANS", () => {
       await signAndSubmit(
         contractAccount,
         await generateTransaction({
-          aptosConfig: config,
+          movementConfig: config,
           sender: contractAccount.accountAddress,
           data: {
             function: `${ANS_ADDRESS}::router::set_mode`,
@@ -84,7 +83,7 @@ describe.skip("ANS", () => {
         signAndSubmit(
           contractAccount,
           await generateTransaction({
-            aptosConfig: config,
+            movementConfig: config,
             sender: contractAccount.accountAddress,
             data: {
               function:
@@ -105,7 +104,7 @@ describe.skip("ANS", () => {
         signAndSubmit(
           contractAccount,
           await generateTransaction({
-            aptosConfig: config,
+            movementConfig: config,
             sender: contractAccount.accountAddress,
             data: {
               function: `${ANS_ADDRESS}::router::set_mode`,
@@ -255,11 +254,11 @@ describe.skip("ANS", () => {
       alice = Account.generate();
       bob = Account.generate();
       await Promise.all([
-        aptos.fundAccount({
+        movement.fundAccount({
           accountAddress: alice.accountAddress,
           amount: 500_000_000,
         }),
-        aptos.fundAccount({
+        movement.fundAccount({
           accountAddress: bob.accountAddress,
           amount: 500_000_000,
         }),
@@ -270,7 +269,7 @@ describe.skip("ANS", () => {
       const name = domainName;
 
       expect(
-        await aptos.registerName({
+        await movement.registerName({
           name,
           sender: alice,
           expiration: { policy: "domain" },
@@ -278,7 +277,7 @@ describe.skip("ANS", () => {
       ).toBeTruthy();
 
       expect(
-        await aptos.registerName({
+        await movement.registerName({
           name,
           sender: alice,
           expiration: { policy: "domain", years: 1 },
@@ -286,7 +285,7 @@ describe.skip("ANS", () => {
       ).toBeTruthy();
 
       await expect(
-        aptos.registerName({
+        movement.registerName({
           sender: alice,
           name,
           // Force the year to be absent
@@ -296,7 +295,7 @@ describe.skip("ANS", () => {
 
       // Testing to make sure that the subdomain policy is enforced
       await expect(
-        aptos.registerName({
+        movement.registerName({
           sender: alice,
           name,
           // Force the year to be absent
@@ -310,14 +309,14 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "domain" },
           sender: alice,
         }),
       );
 
-      const owner = await aptos.getOwnerAddress({ name });
+      const owner = await movement.getOwnerAddress({ name });
       expect(owner?.toString()).toEqual(alice.accountAddress.toString());
     });
 
@@ -326,7 +325,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "domain" },
           sender: alice,
@@ -335,14 +334,14 @@ describe.skip("ANS", () => {
         }),
       );
 
-      const owner = await aptos.getOwnerAddress({ name });
+      const owner = await movement.getOwnerAddress({ name });
       expect(owner?.toString()).toEqual(bob.accountAddress.toString());
     });
 
     test("it mints a subdomain name and gives it to the sender", async () => {
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: domainName,
           expiration: { policy: "domain" },
           sender: alice,
@@ -351,7 +350,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: `${subdomainName}.${domainName}`,
           expiration: { policy: "subdomain:follow-domain" },
           transferable: true,
@@ -359,14 +358,14 @@ describe.skip("ANS", () => {
         }),
       );
 
-      const owner = await aptos.getOwnerAddress({ name: `${subdomainName}.${domainName}` });
+      const owner = await movement.getOwnerAddress({ name: `${subdomainName}.${domainName}` });
       expect(owner?.toString()).toEqual(alice.accountAddress.toString());
     });
 
     test("it mints a subdomain name and gives it to the specified address", async () => {
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: domainName,
           expiration: { policy: "domain" },
           sender: alice,
@@ -375,7 +374,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: `${subdomainName}.${domainName}`,
           expiration: {
             policy: "subdomain:independent",
@@ -389,7 +388,7 @@ describe.skip("ANS", () => {
         }),
       );
 
-      const owner = await aptos.getOwnerAddress({ name: `${subdomainName}.${domainName}` });
+      const owner = await movement.getOwnerAddress({ name: `${subdomainName}.${domainName}` });
       expect(owner?.toString()).toEqual(bob.accountAddress.toString());
     });
   });
@@ -403,13 +402,13 @@ describe.skip("ANS", () => {
 
     beforeEach(async () => {
       alice = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: alice.accountAddress,
         amount: 500_000_000,
       });
 
       bob = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: bob.accountAddress,
         amount: 500_000_000,
       });
@@ -423,7 +422,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "domain" },
           sender: alice,
@@ -432,18 +431,18 @@ describe.skip("ANS", () => {
         }),
       );
 
-      addr = await aptos.getTargetAddress({ name });
+      addr = await movement.getTargetAddress({ name });
       expect(addr?.toString()).toEqual(alice.accountAddress.toString());
 
       await signAndSubmit(
         alice,
-        await aptos.setTargetAddress({
+        await movement.setTargetAddress({
           name,
           address: bob.accountAddress,
           sender: alice,
         }),
       );
-      addr = await aptos.getTargetAddress({ name });
+      addr = await movement.getTargetAddress({ name });
       expect(addr?.toString()).toEqual(bob.accountAddress.toString());
     });
 
@@ -452,7 +451,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: domainName,
           expiration: { policy: "domain" },
           sender: alice,
@@ -461,25 +460,25 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "subdomain:follow-domain" },
           sender: alice,
         }),
       );
 
-      addr = await aptos.getTargetAddress({ name });
+      addr = await movement.getTargetAddress({ name });
       expect(addr?.toString()).toEqual(alice.accountAddress.toString());
 
       await signAndSubmit(
         alice,
-        await aptos.setTargetAddress({
+        await movement.setTargetAddress({
           name,
           address: bob.accountAddress,
           sender: alice,
         }),
       );
-      addr = await aptos.getTargetAddress({ name });
+      addr = await movement.getTargetAddress({ name });
       expect(addr?.toString()).toEqual(bob.accountAddress.toString());
     });
   });
@@ -492,13 +491,13 @@ describe.skip("ANS", () => {
 
     beforeEach(async () => {
       alice = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: alice.accountAddress,
         amount: 500_000_000,
       });
 
       bob = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: bob.accountAddress,
         amount: 500_000_000,
       });
@@ -508,18 +507,18 @@ describe.skip("ANS", () => {
     });
 
     test("it returns null if no primary name is set", async () => {
-      const res = await aptos.getPrimaryName({ address: alice.accountAddress });
+      const res = await movement.getPrimaryName({ address: alice.accountAddress });
       expect(res).toBeFalsy();
     });
 
     test("it sets and gets domain primary names", async () => {
       const name = domainName;
 
-      await signAndSubmit(alice, await aptos.registerName({ name, expiration: { policy: "domain" }, sender: alice }));
+      await signAndSubmit(alice, await movement.registerName({ name, expiration: { policy: "domain" }, sender: alice }));
 
-      await signAndSubmit(alice, await aptos.setPrimaryName({ name, sender: alice }));
+      await signAndSubmit(alice, await movement.setPrimaryName({ name, sender: alice }));
 
-      const res = await aptos.getPrimaryName({ address: alice.accountAddress });
+      const res = await movement.getPrimaryName({ address: alice.accountAddress });
 
       expect(res).toEqual(name);
     });
@@ -530,17 +529,17 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({ name: tld, expiration: { policy: "domain" }, sender: alice }),
+        await movement.registerName({ name: tld, expiration: { policy: "domain" }, sender: alice }),
       );
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({ name, expiration: { policy: "subdomain:follow-domain" }, sender: alice }),
+        await movement.registerName({ name, expiration: { policy: "subdomain:follow-domain" }, sender: alice }),
       );
 
-      await signAndSubmit(alice, await aptos.setPrimaryName({ name, sender: alice }));
+      await signAndSubmit(alice, await movement.setPrimaryName({ name, sender: alice }));
 
-      const res = await aptos.getPrimaryName({ address: alice.accountAddress });
+      const res = await movement.getPrimaryName({ address: alice.accountAddress });
 
       expect(res).toEqual(name);
     });
@@ -554,13 +553,13 @@ describe.skip("ANS", () => {
 
     beforeEach(async () => {
       alice = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: alice.accountAddress,
         amount: 500_000_000,
       });
 
       bob = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: bob.accountAddress,
         amount: 500_000_000,
       });
@@ -576,7 +575,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "domain" },
           sender: alice,
@@ -587,11 +586,11 @@ describe.skip("ANS", () => {
       const newExpirationDate = Math.floor(new Date(Date.now() + 24 * 60 * 60 * 1000).getTime() / 1000);
       await changeExpirationDate(1, newExpirationDate, name);
 
-      await signAndSubmit(alice, await aptos.renewDomain({ name, sender: alice }));
+      await signAndSubmit(alice, await movement.renewDomain({ name, sender: alice }));
 
       // We expect the renewed expiration time to be one year from tomorrow
       const expectedExpirationDate = (newExpirationDate + 365 * 24 * 60 * 60) * 1000;
-      const res = await aptos.getExpiration({ name });
+      const res = await movement.getExpiration({ name });
       expect(res?.toString()).toBe(expectedExpirationDate.toString());
     });
 
@@ -603,7 +602,7 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name: tld,
           expiration: { policy: "domain" },
           sender: alice,
@@ -612,20 +611,20 @@ describe.skip("ANS", () => {
 
       await signAndSubmit(
         alice,
-        await aptos.registerName({
+        await movement.registerName({
           name,
           expiration: { policy: "subdomain:follow-domain" },
           sender: alice,
         }),
       );
 
-      expect(aptos.renewDomain({ name, sender: alice })).rejects.toThrow();
+      expect(movement.renewDomain({ name, sender: alice })).rejects.toThrow();
     });
   });
 
   describe("can get names", () => {
-    const testnet = new Aptos(
-      new AptosConfig({
+    const testnet = new Movement(
+      new MovementConfig({
         network: Network.TESTNET,
       }),
     );
@@ -684,8 +683,8 @@ describe.skip("ANS", () => {
   });
 
   describe("query an individual name", () => {
-    const testnet = new Aptos(
-      new AptosConfig({
+    const testnet = new Movement(
+      new MovementConfig({
         network: Network.TESTNET,
       }),
     );

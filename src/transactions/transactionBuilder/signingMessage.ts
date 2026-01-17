@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -7,17 +7,17 @@
  * @category Transactions
  */
 import { sha3_256 as sha3Hash } from "@noble/hashes/sha3";
+import { Serializable } from "../../bcs";
 import { RAW_TRANSACTION_SALT, RAW_TRANSACTION_WITH_DATA_SALT } from "../../utils/const";
 import { FeePayerRawTransaction, MultiAgentRawTransaction } from "../instances";
 import { AnyRawTransaction, AnyRawTransactionInstance } from "../types";
-import { Serializable } from "../../bcs";
 
 /**
  * Derives the appropriate raw transaction type based on the provided transaction details.
  * This function helps in identifying whether the transaction is a FeePayerRawTransaction,
  * MultiAgentRawTransaction, or a standard RawTransaction.
  *
- * @param transaction - An object representing an Aptos transaction, which may include:
+ * @param transaction - An object representing an Movement transaction, which may include:
  *   - feePayerAddress - The address of the fee payer (optional).
  *   - secondarySignerAddresses - An array of secondary signer addresses (optional).
  *   - rawTransaction - The raw transaction data.

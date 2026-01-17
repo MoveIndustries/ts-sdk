@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Uint8, Uint16, Uint32, Uint64, Uint128, Uint256, Int8, Int16, Int32, Int64, Int128, Int256 } from "../types";
+import { Int128, Int16, Int256, Int32, Int64, Int8, Uint128, Uint16, Uint256, Uint32, Uint64, Uint8 } from "../types";
 
 // Upper bound values for uint8, uint16, uint64 etc.  These are all derived as
 // 2^N - 1, where N is the number of bits in the type.

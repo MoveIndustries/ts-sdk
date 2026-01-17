@@ -1,48 +1,48 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AnyNumber, GetObjectDataQueryResponse, OrderByArg, PaginationArgs } from "../types";
 import { AccountAddressInput } from "../core";
-import { AptosConfig } from "./aptosConfig";
-import { ProcessorType } from "../utils";
-import { waitForIndexerOnVersion } from "./utils";
 import { getObjectDataByObjectAddress } from "../internal/object";
+import { AnyNumber, GetObjectDataQueryResponse, OrderByArg, PaginationArgs } from "../types";
+import { ProcessorType } from "../utils";
+import { MovementConfig } from "./movementConfig";
+import { waitForIndexerOnVersion } from "./utils";
 
 /**
- * A class to query all `Object` related queries on Aptos.
+ * A class to query all `Object` related queries on Movement.
  * @group Object
  */
-export class AptosObject {
+export class MovementObject {
   /**
-   * Creates an instance of the Aptos client with the provided configuration.
-   * This allows interaction with the Aptos blockchain using the specified settings.
+   * Creates an instance of the Movement client with the provided configuration.
+   * This allows interaction with the Movement blockchain using the specified settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., mainnet, testnet).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    * @param config.faucetUrl - The URL of the faucet for funding accounts (optional).
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({
    *         network: Network.TESTNET, // Specify the desired network
-   *         nodeUrl: "https://testnet.aptos.dev", // Replace with your node URL
+   *         nodeUrl: "https://testnet.movement.dev", // Replace with your node URL
    *     });
    *
-   *     // Create an instance of the Aptos client
-   *     const aptos = new Aptos(config);
+   *     // Create an instance of the Movement client
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client created successfully", aptos);
+   *     console.log("Movement client created successfully", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Object
    */
-  constructor(readonly config: AptosConfig) { }
+  constructor(readonly config: MovementConfig) { }
 
   /**
    * Fetches the object data based on the specified object address.
@@ -55,14 +55,14 @@ export class AptosObject {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching object data by object address
-   *   const objectData = await aptos.getObjectDataByObjectAddress({
+   *   const objectData = await movement.getObjectDataByObjectAddress({
    *     objectAddress: "0x1", // replace with a real object address
    *   });
    *
@@ -83,7 +83,7 @@ export class AptosObject {
       processorType: ProcessorType.OBJECT_PROCESSOR,
     });
     return getObjectDataByObjectAddress({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }

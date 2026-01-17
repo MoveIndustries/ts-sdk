@@ -1,12 +1,12 @@
 /**
- * This example shows how to use the Aptos client to create accounts, fund them, and transfer between them.
+ * This example shows how to use the Movement client to create accounts, fund them, and transfer between them.
  */
 const dotenv = require("dotenv");
 dotenv.config();
 const {
   Account,
-  Aptos,
-  AptosConfig,
+  Movement,
+  MovementConfig,
   parseTypeTag,
   NetworkToNetworkName,
   Network,
@@ -18,7 +18,7 @@ const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
-const APTOS_NETWORK = NetworkToNetworkName[process.env.APTOS_NETWORK] || Network.DEVNET;
+const MOVEMENT_NETWORK = NetworkToNetworkName[process.env.MOVEMENT_NETWORK] || Network.DEVNET;
 
 /**
  * Prints the balance of an account
@@ -46,8 +46,8 @@ const example = async () => {
   console.log("This example will create two accounts (Alice and Bob), fund them, and transfer between them.");
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const sdk = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const sdk = new Movement(config);
 
   // Create two accounts
   let alice = Account.generate({ scheme: 0 });

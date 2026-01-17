@@ -1,24 +1,24 @@
-import { AccountAddress, AccountAddressInput } from "../../core/accountAddress";
-import { MoveModuleBytecode, LedgerVersionArg, AccountData } from "../../types/types";
-import { AptosConfig } from "../../api/aptosConfig";
+import { MovementConfig } from "../../api/movementConfig";
 import { getAptosFullNode } from "../../client";
+import { AccountAddress, AccountAddressInput } from "../../core/accountAddress";
+import { AccountData, LedgerVersionArg, MoveModuleBytecode } from "../../types/types";
 import { memoizeAsync } from "../../utils/memoize";
 
 /**
  * Retrieves account information for a specified account address.
  *
  * @param args - The arguments for retrieving account information.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.accountAddress - The address of the account to retrieve information for.
  * @group Implementation
  */
 export async function getInfo(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<AccountData> {
-  const { aptosConfig, accountAddress } = args;
+  const { movementConfig, accountAddress } = args;
   const { data } = await getAptosFullNode<{}, AccountData>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getInfo",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}`,
   });
@@ -30,7 +30,7 @@ export async function getInfo(args: {
  * This function can help you retrieve the module's ABI and other relevant information.
  *
  * @param args - The arguments for retrieving the module.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The account address in hex-encoded 32 byte format.
  * @param args.moduleName - The name of the module to retrieve.
  * @param args.options - Optional parameters for the request.
@@ -39,7 +39,7 @@ export async function getInfo(args: {
  * @group Implementation
  */
 export async function getModule(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   moduleName: string;
   options?: LedgerVersionArg;
@@ -61,7 +61,7 @@ export async function getModule(args: {
  * Retrieves the bytecode of a specified module from a given account address.
  *
  * @param args - The parameters for retrieving the module bytecode.
- * @param args.aptosConfig - The configuration for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration for connecting to the Movement network.
  * @param args.accountAddress - The address of the account from which to retrieve the module.
  * @param args.moduleName - The name of the module to retrieve.
  * @param args.options - Optional parameters for specifying the ledger version.
@@ -69,15 +69,15 @@ export async function getModule(args: {
  * @group Implementation
  */
 async function getModuleInner(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   moduleName: string;
   options?: LedgerVersionArg;
 }): Promise<MoveModuleBytecode> {
-  const { aptosConfig, accountAddress, moduleName, options } = args;
+  const { movementConfig, accountAddress, moduleName, options } = args;
 
   const { data } = await getAptosFullNode<{}, MoveModuleBytecode>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getModule",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/module/${moduleName}`,
     params: { ledger_version: options?.ledgerVersion },

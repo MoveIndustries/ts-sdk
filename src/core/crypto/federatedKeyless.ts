@@ -1,11 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountPublicKey, PublicKey } from "./publicKey";
+import { Signature } from "..";
+import { MovementConfig } from "../../api";
 import { Deserializer, Serializer } from "../../bcs";
-import { HexInput, AnyPublicKeyVariant, SigningScheme } from "../../types";
-import { AuthenticationKey } from "../authenticationKey";
+import { AnyPublicKeyVariant, HexInput, SigningScheme } from "../../types";
 import { AccountAddress, AccountAddressInput } from "../accountAddress";
+import { AuthenticationKey } from "../authenticationKey";
 import {
   KeylessConfiguration,
   KeylessPublicKey,
@@ -14,8 +15,7 @@ import {
   verifyKeylessSignature,
   verifyKeylessSignatureWithJwkAndConfig,
 } from "./keyless";
-import { AptosConfig } from "../../api";
-import { Signature } from "..";
+import { AccountPublicKey, PublicKey } from "./publicKey";
 
 /**
  * Represents the FederatedKeylessPublicKey public key
@@ -106,16 +106,16 @@ export class FederatedKeylessPublicKey extends AccountPublicKey {
 
   /**
    * Verifies a keyless signature for a given message.  It will fetch the keyless configuration and the JWK to
-   * use for verification from the appropriate network as defined by the aptosConfig.
+   * use for verification from the appropriate network as defined by the movementConfig.
    *
-   * @param args.aptosConfig The aptos config to use for fetching the keyless configuration.
+   * @param args.movementConfig The aptos config to use for fetching the keyless configuration.
    * @param args.message The message to verify the signature against.
    * @param args.signature The signature to verify.
    * @param args.options.throwErrorWithReason Whether to throw an error with the reason for the failure instead of returning false.
    * @returns true if the signature is valid
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: KeylessSignature;
     options?: { throwErrorWithReason?: boolean };

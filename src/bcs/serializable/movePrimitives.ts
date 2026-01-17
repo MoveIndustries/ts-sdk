@@ -1,30 +1,30 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
+import { TransactionArgument } from "../../transactions/instances/transactionArgument";
+import { AnyNumber, Int16, Int32, Int8, ScriptTransactionArgumentVariants, Uint16, Uint32, Uint8 } from "../../types";
 import {
+  MAX_I128_BIG_INT,
+  MAX_I16_NUMBER,
+  MAX_I256_BIG_INT,
+  MAX_I32_NUMBER,
+  MAX_I64_BIG_INT,
+  MAX_I8_NUMBER,
   MAX_U128_BIG_INT,
   MAX_U16_NUMBER,
+  MAX_U256_BIG_INT,
   MAX_U32_NUMBER,
   MAX_U64_BIG_INT,
   MAX_U8_NUMBER,
-  MAX_U256_BIG_INT,
-  MIN_I8_NUMBER,
-  MAX_I8_NUMBER,
-  MIN_I16_NUMBER,
-  MAX_I16_NUMBER,
-  MIN_I32_NUMBER,
-  MAX_I32_NUMBER,
-  MIN_I64_BIG_INT,
-  MAX_I64_BIG_INT,
   MIN_I128_BIG_INT,
-  MAX_I128_BIG_INT,
+  MIN_I16_NUMBER,
   MIN_I256_BIG_INT,
-  MAX_I256_BIG_INT,
+  MIN_I32_NUMBER,
+  MIN_I64_BIG_INT,
+  MIN_I8_NUMBER,
 } from "../consts";
 import { Deserializer } from "../deserializer";
 import { Serializable, Serializer, ensureBoolean, validateNumberInRange } from "../serializer";
-import { TransactionArgument } from "../../transactions/instances/transactionArgument";
-import { AnyNumber, Uint16, Uint32, Uint8, Int8, Int16, Int32, ScriptTransactionArgumentVariants } from "../../types";
 
 /**
  * Represents a boolean value that can be serialized and deserialized.

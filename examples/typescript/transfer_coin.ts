@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
 
 /**
- * This example shows how to use the Aptos client to create accounts, fund them, and transfer between them.
+ * This example shows how to use the Movement client to create accounts, fund them, and transfer between them.
  * Similar to ./simple_transfer.ts, but uses transferCoinTransaction to generate the transaction.
  */
 
-import { Account, AccountAddress, Aptos, AptosConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import { Account, AccountAddress, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -14,9 +14,9 @@ const BOB_INITIAL_BALANCE = 0;
 const TRANSFER_AMOUNT = 1_000_000;
 
 // Set up the client
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 /**
  * Prints the balance of an account
@@ -27,7 +27,7 @@ const aptos = new Aptos(config);
  *
  */
 const balance = async (name: string, accountAddress: AccountAddress, versionToWaitFor?: bigint): Promise<number> => {
-  const amount = await aptos.getAccountAPTAmount({
+  const amount = await movement.getAccountAPTAmount({
     accountAddress,
     minimumLedgerVersion: versionToWaitFor,
   });
@@ -52,7 +52,7 @@ const example = async () => {
   console.log("\n=== Funding accounts ===\n");
 
   // Fund alice account
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: ALICE_INITIAL_BALANCE,
   });
@@ -67,13 +67,13 @@ const example = async () => {
 
   // Transfer between users
   console.log(`\n=== Transfer ${TRANSFER_AMOUNT} from Alice to Bob ===\n`);
-  const transaction = await aptos.transferCoinTransaction({
+  const transaction = await movement.transferCoinTransaction({
     sender: alice.accountAddress,
     recipient: bob.accountAddress,
     amount: TRANSFER_AMOUNT,
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log(`Committed transaction: ${response.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");

@@ -1,31 +1,33 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  Account,
-  U64,
-  Deserializer,
-  SigningSchemeInput,
-  MultiKey,
-  MultiKeyAccount,
-  RawTransaction,
-  TransactionPayloadEntryFunction,
-  Bool,
-  MoveString,
-  MultiEd25519PublicKey,
-  Ed25519PrivateKey,
-  Secp256r1PrivateKey,
-  WebAuthnSignature,
-  AnySignature,
-  AnyPublicKey,
-  AccountAuthenticatorSingleKey,
-  generateSigningMessageForTransaction,
-  Hex,
-} from "../../../src";
 import { p256 } from "@noble/curves/nist.js";
 import { sha256 } from "@noble/hashes/sha2";
 import { sha3_256 } from "@noble/hashes/sha3";
+import {
+  Account,
+  AccountAuthenticatorSingleKey,
+  AnyPublicKey,
+  AnySignature,
+  Bool,
+  Deserializer,
+  Ed25519PrivateKey,
+  generateSigningMessageForTransaction,
+  Hex,
+  MoveString,
+  MultiEd25519PublicKey,
+  MultiKey,
+  MultiKeyAccount,
+  RawTransaction,
+  Secp256r1PrivateKey,
+  SigningSchemeInput,
+  TransactionPayloadEntryFunction,
+  U64,
+  WebAuthnSignature,
+} from "../../../src";
+import { MultiEd25519Account } from "../../../src/account/MultiEd25519Account";
 import { MAX_U64_BIG_INT } from "../../../src/bcs/consts";
+import { AccountAuthenticatorNoAccountAuthenticator } from "../../../src/transactions";
 import { longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 import {
@@ -35,8 +37,6 @@ import {
   publishTransferPackage,
   singleSignerScriptBytecode,
 } from "./helper";
-import { AccountAuthenticatorNoAccountAuthenticator } from "../../../src/transactions";
-import { MultiEd25519Account } from "../../../src/account/MultiEd25519Account";
 
 const { aptos } = getAptosClient();
 
@@ -63,37 +63,37 @@ describe("transaction submission", () => {
   describe("Single Sender ED25519", () => {
     describe("single signer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: singleSignerED25519SenderAccount,
           transaction,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
 
         expect(response.signature?.type).toBe("single_sender");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: singleSignerED25519SenderAccount,
           transaction,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("single_sender");
@@ -101,7 +101,7 @@ describe("transaction submission", () => {
     });
     describe("multi agent", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: singleSignerED25519SenderAccount.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -116,16 +116,16 @@ describe("transaction submission", () => {
           },
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("multi_agent_signature");
@@ -134,7 +134,7 @@ describe("transaction submission", () => {
       test(
         "with entry function payload",
         async () => {
-          const transaction = await aptos.transaction.build.multiAgent({
+          const transaction = await movement.transaction.build.multiAgent({
             sender: singleSignerED25519SenderAccount.accountAddress,
             secondarySignerAddresses: [secondarySignerAccount.accountAddress],
             data: {
@@ -143,16 +143,16 @@ describe("transaction submission", () => {
             },
           });
 
-          const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-          const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-          const response = await aptos.transaction.submit.multiAgent({
+          const response = await movement.transaction.submit.multiAgent({
             transaction,
             senderAuthenticator,
             additionalSignersAuthenticators: [secondarySignerAuthenticator],
           });
 
-          await aptos.waitForTransaction({
+          await movement.waitForTransaction({
             transactionHash: response.hash,
           });
           expect(response.signature?.type).toBe("multi_agent_signature");
@@ -162,7 +162,7 @@ describe("transaction submission", () => {
     });
     describe("fee payer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
@@ -171,25 +171,25 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -197,25 +197,25 @@ describe("transaction submission", () => {
           },
           withFeePayer: true,
         });
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with multi agent transaction", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: singleSignerED25519SenderAccount.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -225,21 +225,21 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
@@ -249,35 +249,35 @@ describe("transaction submission", () => {
   describe("Single Sender Secp256k1", () => {
     describe("single signer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: singleSignerSecp256k1Account,
           transaction,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("single_sender");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: singleSignerSecp256k1Account,
           transaction,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("single_sender");
@@ -285,7 +285,7 @@ describe("transaction submission", () => {
     });
     describe("multi agent", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: singleSignerSecp256k1Account.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -300,16 +300,16 @@ describe("transaction submission", () => {
           },
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("multi_agent_signature");
@@ -318,7 +318,7 @@ describe("transaction submission", () => {
       test(
         "with entry function payload",
         async () => {
-          const transaction = await aptos.transaction.build.multiAgent({
+          const transaction = await movement.transaction.build.multiAgent({
             sender: singleSignerSecp256k1Account.accountAddress,
             secondarySignerAddresses: [secondarySignerAccount.accountAddress],
             data: {
@@ -327,16 +327,16 @@ describe("transaction submission", () => {
             },
           });
 
-          const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-          const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
+          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-          const response = await aptos.transaction.submit.multiAgent({
+          const response = await movement.transaction.submit.multiAgent({
             transaction,
             senderAuthenticator,
             additionalSignersAuthenticators: [secondarySignerAuthenticator],
           });
 
-          await aptos.waitForTransaction({
+          await movement.waitForTransaction({
             transactionHash: response.hash,
           });
           expect(response.signature?.type).toBe("multi_agent_signature");
@@ -346,7 +346,7 @@ describe("transaction submission", () => {
     });
     describe("fee payer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
@@ -355,25 +355,25 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: singleSignerSecp256k1Account.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -381,25 +381,25 @@ describe("transaction submission", () => {
           },
           withFeePayer: true,
         });
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with multi agent transaction", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: singleSignerSecp256k1Account.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -409,21 +409,21 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
@@ -433,35 +433,35 @@ describe("transaction submission", () => {
   describe("Legacy ED25519", () => {
     describe("single signer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
             functionArguments: [new U64(1), receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: legacyED25519SenderAccount,
           transaction,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("ed25519_signature");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
             functionArguments: [1, receiverAccounts[0].accountAddress],
           },
         });
-        const response = await aptos.signAndSubmitTransaction({
+        const response = await movement.signAndSubmitTransaction({
           signer: legacyED25519SenderAccount,
           transaction,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("ed25519_signature");
@@ -469,7 +469,7 @@ describe("transaction submission", () => {
     });
     describe("multi agent", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: legacyED25519SenderAccount.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -483,16 +483,16 @@ describe("transaction submission", () => {
             ],
           },
         });
-        const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("multi_agent_signature");
@@ -501,7 +501,7 @@ describe("transaction submission", () => {
       test(
         "with entry function payload",
         async () => {
-          const transaction = await aptos.transaction.build.multiAgent({
+          const transaction = await movement.transaction.build.multiAgent({
             sender: legacyED25519SenderAccount.accountAddress,
             secondarySignerAddresses: [secondarySignerAccount.accountAddress],
             data: {
@@ -510,16 +510,16 @@ describe("transaction submission", () => {
             },
           });
 
-          const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-          const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-          const response = await aptos.transaction.submit.multiAgent({
+          const response = await movement.transaction.submit.multiAgent({
             transaction,
             senderAuthenticator,
             additionalSignersAuthenticators: [secondarySignerAuthenticator],
           });
 
-          await aptos.waitForTransaction({
+          await movement.waitForTransaction({
             transactionHash: response.hash,
           });
           expect(response.signature?.type).toBe("multi_agent_signature");
@@ -529,7 +529,7 @@ describe("transaction submission", () => {
     });
     describe("fee payer", () => {
       test("with script payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             bytecode: singleSignerScriptBytecode,
@@ -537,25 +537,25 @@ describe("transaction submission", () => {
           },
           withFeePayer: true,
         });
-        const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with entry function payload", async () => {
-        const transaction = await aptos.transaction.build.simple({
+        const transaction = await movement.transaction.build.simple({
           sender: legacyED25519SenderAccount.accountAddress,
           data: {
             function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -563,25 +563,25 @@ describe("transaction submission", () => {
           },
           withFeePayer: true,
         });
-        const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
       });
       test("with multi agent transaction", async () => {
-        const transaction = await aptos.transaction.build.multiAgent({
+        const transaction = await movement.transaction.build.multiAgent({
           sender: legacyED25519SenderAccount.accountAddress,
           secondarySignerAddresses: [secondarySignerAccount.accountAddress],
           data: {
@@ -591,21 +591,21 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-        const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
-        const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+        const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+        const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+        const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
         });
 
-        const response = await aptos.transaction.submit.multiAgent({
+        const response = await movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
           feePayerAuthenticator: feePayerSignerAuthenticator,
         });
 
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         expect(response.signature?.type).toBe("fee_payer_signature");
@@ -628,9 +628,9 @@ describe("transaction submission", () => {
         signers: [singleSignerED25519SenderAccount, singleSignerSecp256k1Account],
       });
 
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: account.accountAddress,
         data: {
           function: `0x${contractPublisherAccount.accountAddress.toStringWithoutPrefix()}::transfer::transfer`,
@@ -638,10 +638,10 @@ describe("transaction submission", () => {
         },
       });
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: account, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: account, transaction });
 
-      const response = await aptos.transaction.submit.simple({ transaction, senderAuthenticator });
-      await aptos.waitForTransaction({
+      const response = await movement.transaction.submit.simple({ transaction, senderAuthenticator });
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       expect(response.signature?.type).toBe("single_sender");
@@ -663,9 +663,9 @@ describe("transaction submission", () => {
         signers: [singleSignerSecp256k1Account, singleSignerED25519SenderAccount],
       });
 
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: account.accountAddress,
         data: {
           function: `0x${contractPublisherAccount.accountAddress.toStringWithoutPrefix()}::transfer::transfer`,
@@ -673,10 +673,10 @@ describe("transaction submission", () => {
         },
       });
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: account, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: account, transaction });
 
-      const response = await aptos.transaction.submit.simple({ transaction, senderAuthenticator });
-      await aptos.waitForTransaction({
+      const response = await movement.transaction.submit.simple({ transaction, senderAuthenticator });
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       expect(response.signature?.type).toBe("single_sender");
@@ -709,9 +709,9 @@ describe("transaction submission", () => {
         signers: [ed25519PrivateKey1, ed25519PrivateKey3],
       });
 
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: account.accountAddress,
         data: {
           function: `0x${contractPublisherAccount.accountAddress.toStringWithoutPrefix()}::transfer::transfer`,
@@ -719,10 +719,10 @@ describe("transaction submission", () => {
         },
       });
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: account, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: account, transaction });
 
-      const response = await aptos.transaction.submit.simple({ transaction, senderAuthenticator });
-      await aptos.waitForTransaction({
+      const response = await movement.transaction.submit.simple({ transaction, senderAuthenticator });
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       expect(response.signature?.type).toBe("multi_ed25519_signature");
@@ -735,9 +735,9 @@ describe("transaction submission", () => {
         signers: [ed25519PrivateKey3, ed25519PrivateKey1],
       });
 
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: account.accountAddress,
         data: {
           function: `0x${contractPublisherAccount.accountAddress.toStringWithoutPrefix()}::transfer::transfer`,
@@ -745,10 +745,10 @@ describe("transaction submission", () => {
         },
       });
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: account, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: account, transaction });
 
-      const response = await aptos.transaction.submit.simple({ transaction, senderAuthenticator });
-      await aptos.waitForTransaction({
+      const response = await movement.transaction.submit.simple({ transaction, senderAuthenticator });
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       expect(response.signature?.type).toBe("multi_ed25519_signature");
@@ -762,11 +762,11 @@ describe("transaction submission", () => {
     // eslint-disable-next-line max-len
     const byteCode = `a11ceb0b060000000801000602060a031022043208053a4e0788015208da01400c9a024c000001010102020404010001010508000000000100000302010002060506010002070701010002080901010002090a060100020403040404050403060c03050007060c060c0303050503010b0001080101080102060c03010b0001090002050b00010900030b000108010b000108010b0001080102070b000109000b0001090002070b0001090003087472616e736665720a6170746f735f636f696e04636f696e0a74776f5f62795f74776f04436f696e094170746f73436f696e087769746864726177076465706f736974056d657267650765787472616374${account.accountAddress.toStringWithoutPrefix()}00000000000000000000000000000000000000000000000000000000000000010001040003080b000b0138000c030b020b0338010201010400081a0b000a0238000c070b010a0338000c080d070b0838020d070b020b03160b061738030c090b040b0738010b050b0938010200`;
     beforeAll(async () => {
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100_000_000 });
     });
 
     test("it generates a publish move module transaction successfully", async () => {
-      const transaction = await aptos.publishPackageTransaction({
+      const transaction = await movement.publishPackageTransaction({
         account: account.accountAddress,
         // eslint-disable-next-line max-len
         metadataBytes,
@@ -780,26 +780,26 @@ describe("transaction submission", () => {
     });
 
     test("it submits a publish move module transaction successfully", async () => {
-      const transaction = await aptos.publishPackageTransaction({
+      const transaction = await movement.publishPackageTransaction({
         account: account.accountAddress,
         // eslint-disable-next-line max-len
         metadataBytes,
         moduleBytecode: [byteCode],
       });
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: account,
         transaction,
       });
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
-      const accountModules = await aptos.getAccountModules({ accountAddress: account.accountAddress });
+      const accountModules = await movement.getAccountModules({ accountAddress: account.accountAddress });
       expect(accountModules[0].bytecode).toEqual(`0x${byteCode}`);
     });
   });
   describe("validate fee payer data on transaction submission", () => {
     test("it throws when trying to simluate a fee payer transaction without the feePayerAuthenticator", async () => {
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: legacyED25519SenderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -807,10 +807,10 @@ describe("transaction submission", () => {
         },
         withFeePayer: true,
       });
-      const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
 
       await expect(
-        aptos.transaction.submit.simple({
+        movement.transaction.submit.simple({
           transaction,
           senderAuthenticator,
         }),
@@ -818,7 +818,7 @@ describe("transaction submission", () => {
     });
 
     test("it throws when trying to simluate a multi agent fee payer transaction without the feePayerPublicKey", async () => {
-      const transaction = await aptos.transaction.build.multiAgent({
+      const transaction = await movement.transaction.build.multiAgent({
         sender: legacyED25519SenderAccount.accountAddress,
         secondarySignerAddresses: [secondarySignerAccount.accountAddress],
         data: {
@@ -827,11 +827,11 @@ describe("transaction submission", () => {
         },
         withFeePayer: true,
       });
-      const senderAuthenticator = aptos.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-      const secondarySignerAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
+      const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
       await expect(
-        aptos.transaction.submit.multiAgent({
+        movement.transaction.submit.multiAgent({
           transaction,
           senderAuthenticator,
           additionalSignersAuthenticators: [secondarySignerAuthenticator],
@@ -842,7 +842,7 @@ describe("transaction submission", () => {
   describe("sponsor transactions", () => {
     // TODO add local move entry function to support this test
     const createTransaction = async (uncreatedAccount: Account) =>
-      aptos.transaction.build.simple({
+      movement.transaction.build.simple({
         sender: uncreatedAccount.accountAddress,
         data: {
           function: "0x4::aptos_token::create_collection",
@@ -873,19 +873,19 @@ describe("transaction submission", () => {
 
       const transaction = await createTransaction(uncreatedAccount);
 
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: uncreatedAccount,
         feePayer: feePayerAccount,
         transaction,
       });
 
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       // expect transaction is a sponsored transaction
       expect(response.signature?.type).toBe("fee_payer_signature");
 
-      const uncreatedAccountInfo = await aptos.account.getAccountInfo({
+      const uncreatedAccountInfo = await movement.account.getAccountInfo({
         accountAddress: uncreatedAccount.accountAddress,
       });
       // expect uncreatedAccount' created on chain and sequence number is 1 since there was a transaction
@@ -897,21 +897,21 @@ describe("transaction submission", () => {
 
       const transaction = await createTransaction(uncreatedAccount);
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: uncreatedAccount, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: uncreatedAccount, transaction });
 
-      const response = await aptos.signAndSubmitAsFeePayer({
+      const response = await movement.signAndSubmitAsFeePayer({
         transaction,
         senderAuthenticator,
         feePayer: feePayerAccount,
       });
 
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       // expect transaction is a sponsored transaction
       expect(response.signature?.type).toBe("fee_payer_signature");
 
-      const uncreatedAccountInfo = await aptos.account.getAccountInfo({
+      const uncreatedAccountInfo = await movement.account.getAccountInfo({
         accountAddress: uncreatedAccount.accountAddress,
       });
       // expect uncreatedAccount' created on chain and sequence number is 1 since there was a transaction
@@ -923,23 +923,23 @@ describe("transaction submission", () => {
 
       const transaction = await createTransaction(uncreatedAccount);
 
-      const feePayerSignerAuthenticator = aptos.transaction.signAsFeePayer({
+      const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
         signer: feePayerAccount,
         transaction,
       });
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         transaction,
         signer: uncreatedAccount,
         feePayerAuthenticator: feePayerSignerAuthenticator,
       });
 
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       // expect transaction is a sponsored transaction
       expect(response.signature?.type).toBe("fee_payer_signature");
 
-      const uncreatedAccountInfo = await aptos.account.getAccountInfo({
+      const uncreatedAccountInfo = await movement.account.getAccountInfo({
         accountAddress: uncreatedAccount.accountAddress,
       });
       // expect uncreatedAccount' created on chain and sequence number is 1 since there was a transaction
@@ -949,18 +949,18 @@ describe("transaction submission", () => {
 
   describe("transactions with loose types for SDK v1 compatibility", () => {
     it("submits transactions with loose types successfully", async () => {
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: singleSignerED25519SenderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
           functionArguments: ["1", receiverAccounts[0].accountAddress],
         },
       });
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: singleSignerED25519SenderAccount,
         transaction,
       });
-      const submittedTransaction = await aptos.waitForTransaction({
+      const submittedTransaction = await movement.waitForTransaction({
         transactionHash: response.hash,
       });
 
@@ -970,7 +970,7 @@ describe("transaction submission", () => {
 
   describe("transactions with no account authenticator", () => {
     test("it fails to submit a transaction when authenticator in not provided", async () => {
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: singleSignerED25519SenderAccount.accountAddress,
         data: {
           bytecode: singleSignerScriptBytecode,
@@ -979,11 +979,11 @@ describe("transaction submission", () => {
       });
       const authenticator = new AccountAuthenticatorNoAccountAuthenticator();
       try {
-        const response = await aptos.transaction.submit.simple({
+        const response = await movement.transaction.submit.simple({
           transaction,
           senderAuthenticator: authenticator,
         });
-        await aptos.waitForTransaction({
+        await movement.waitForTransaction({
           transactionHash: response.hash,
         });
         fail("Expected an error to be thrown");
@@ -997,7 +997,7 @@ describe("transaction submission", () => {
   });
   describe("orderless transactions", () => {
     test("it submits a orderless transaction with an entry function payload", async () => {
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: legacyED25519SenderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -1007,18 +1007,18 @@ describe("transaction submission", () => {
           replayProtectionNonce: 0xcafebabedeadbeefn,
         },
       });
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: legacyED25519SenderAccount,
         transaction,
       });
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
       expect(response.signature?.type).toBe("ed25519_signature");
     });
   });
   test("it submits a orderless transaction with a script payload", async () => {
-    const transaction = await aptos.transaction.build.simple({
+    const transaction = await movement.transaction.build.simple({
       sender: legacyED25519SenderAccount.accountAddress,
       data: {
         bytecode: singleSignerScriptBytecode,
@@ -1028,11 +1028,11 @@ describe("transaction submission", () => {
         replayProtectionNonce: 101,
       },
     });
-    const response = await aptos.signAndSubmitTransaction({
+    const response = await movement.signAndSubmitTransaction({
       signer: legacyED25519SenderAccount,
       transaction,
     });
-    await aptos.waitForTransaction({
+    await movement.waitForTransaction({
       transactionHash: response.hash,
     });
     expect(response.signature?.type).toBe("ed25519_signature");
@@ -1046,10 +1046,10 @@ describe("transaction submission", () => {
       const senderAddress = publicKey.authKey().derivedAddress();
 
       // Fund the account
-      await aptos.fundAccount({ accountAddress: senderAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: senderAddress, amount: 1_000_000_000 });
 
       // Build transaction
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAddress,
         data: {
           function: "0x1::aptos_account::transfer",
@@ -1093,13 +1093,13 @@ describe("transaction submission", () => {
       const senderAuthenticator = new AccountAuthenticatorSingleKey(anyPublicKey, anySignature);
 
       // Submit transaction
-      const pendingTransaction = await aptos.transaction.submit.simple({
+      const pendingTransaction = await movement.transaction.submit.simple({
         transaction,
         senderAuthenticator,
       });
 
       // Wait for transaction to be committed
-      const committedTransaction = await aptos.waitForTransaction({
+      const committedTransaction = await movement.waitForTransaction({
         transactionHash: pendingTransaction.hash,
       });
 
@@ -1112,9 +1112,9 @@ describe("transaction submission", () => {
       const publicKey = privateKey.publicKey();
       const senderAddress = publicKey.authKey().derivedAddress();
 
-      await aptos.fundAccount({ accountAddress: senderAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: senderAddress, amount: 1_000_000_000 });
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -1151,12 +1151,12 @@ describe("transaction submission", () => {
       const anyPublicKey = new AnyPublicKey(publicKey);
       const senderAuthenticator = new AccountAuthenticatorSingleKey(anyPublicKey, anySignature);
 
-      const response = await aptos.transaction.submit.simple({
+      const response = await movement.transaction.submit.simple({
         transaction,
         senderAuthenticator,
       });
 
-      await aptos.waitForTransaction({
+      await movement.waitForTransaction({
         transactionHash: response.hash,
       });
 

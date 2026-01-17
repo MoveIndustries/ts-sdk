@@ -1,3 +1,4 @@
+import { MovementConfig } from "../../api";
 import { Deserializer, Serializer } from "../../bcs";
 import {
   AnyPublicKeyVariant,
@@ -7,20 +8,19 @@ import {
 } from "../../types";
 import { AuthenticationKey } from "../authenticationKey";
 import { Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature } from "./ed25519";
+import { FederatedKeylessPublicKey } from "./federatedKeyless";
+import { KeylessPublicKey, KeylessSignature } from "./keyless";
 import { AccountPublicKey, PublicKey } from "./publicKey";
 import { Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature } from "./secp256k1";
-import { KeylessPublicKey, KeylessSignature } from "./keyless";
-import { Signature } from "./signature";
-import { FederatedKeylessPublicKey } from "./federatedKeyless";
-import { AptosConfig } from "../../api";
 import { Secp256r1PublicKey, WebAuthnSignature } from "./secp256r1";
+import { Signature } from "./signature";
 
 export type PrivateKeyInput = Ed25519PrivateKey | Secp256k1PrivateKey;
 
 /**
- * Represents any public key supported by Aptos.
+ * Represents any public key supported by Movement.
  *
- * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263) Aptos supports
+ * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263) Movement supports
  * `Legacy` and `Unified` authentication keys.
  *
  * Any unified authentication key is represented in the SDK as `AnyPublicKey`.
@@ -102,7 +102,7 @@ export class AnyPublicKey extends AccountPublicKey {
    * This function helps ensure the integrity and authenticity of the message by confirming that the signature is valid.
    *
    * @param args - The arguments for signature verification.
-   * @param args.aptosConfig - The configuration object for connecting to the Aptos network
+   * @param args.movementConfig - The configuration object for connecting to the Movement network
    * @param args.message - The message that was signed.
    * @param args.signature - The signature to verify, which must be an instance of AnySignature.
    * @returns A boolean indicating whether the signature is valid for the given message.
@@ -110,7 +110,7 @@ export class AnyPublicKey extends AccountPublicKey {
    * @category Serialization
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Signature;
     options?: { throwErrorWithReason?: boolean };
@@ -302,7 +302,7 @@ export class AnySignature extends Signature {
     // eslint-disable-next-line no-console
     console.warn(
       "[Aptos SDK] Calls to AnySignature.toUint8Array() will soon return the underlying signature bytes. " +
-        "Use AnySignature.bcsToBytes() instead.",
+      "Use AnySignature.bcsToBytes() instead.",
     );
     return this.bcsToBytes();
   }

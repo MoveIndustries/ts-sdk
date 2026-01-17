@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { memoizeAsync, memoize } from "../../src/utils/memoize";
+import { memoize, memoizeAsync } from "../../src/utils/memoize";
 
 describe("memoize", () => {
   describe("memoizeAsync", () => {

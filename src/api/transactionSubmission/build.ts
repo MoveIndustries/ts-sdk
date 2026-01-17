@@ -1,54 +1,53 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountAddressInput } from "../../core";
 import { generateTransaction } from "../../internal/transactionSubmission";
 import {
-  InputGenerateTransactionPayloadData,
   InputGenerateTransactionOptions,
-  InputGenerateOrderlessTransactionOptions,
+  InputGenerateTransactionPayloadData
 } from "../../transactions";
 import { MultiAgentTransaction } from "../../transactions/instances/multiAgentTransaction";
 import { SimpleTransaction } from "../../transactions/instances/simpleTransaction";
-import { AptosConfig } from "../aptosConfig";
+import { MovementConfig } from "../movementConfig";
 
 /**
  * A class to handle all `Build` transaction operations.
  * @group Implementation
  */
 export class Build {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Initializes a new instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Initializes a new instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., TESTNET, MAINNET).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    * @param config.account - The account details for authentication.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({
    *         network: Network.TESTNET, // specify the network
-   *         nodeUrl: "https://testnet.aptos.dev", // specify the node URL
+   *         nodeUrl: "https://testnet.movement.dev", // specify the node URL
    *     });
    *
-   *     // Initialize the Aptos client
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Implementation
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
   }
 
@@ -66,14 +65,14 @@ export class Build {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Build a simple transaction
-   *   const transaction = await aptos.transaction.simple({
+   *   const transaction = await movement.transaction.simple({
    *     sender: "0x1", // replace with a real sender account address
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -97,7 +96,7 @@ export class Build {
     options?: InputGenerateTransactionOptions;
     withFeePayer?: boolean;
   }): Promise<SimpleTransaction> {
-    return generateTransaction({ aptosConfig: this.config, ...args });
+    return generateTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -114,14 +113,14 @@ export class Build {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Build a multi-agent transaction
-   *   const transaction = await aptos.multiAgent({
+   *   const transaction = await movement.multiAgent({
    *     sender: "0x1", // replace with a real sender account address
    *     data: {
    *       // Transaction data structure
@@ -149,6 +148,6 @@ export class Build {
     options?: InputGenerateTransactionOptions;
     withFeePayer?: boolean;
   }): Promise<MultiAgentTransaction> {
-    return generateTransaction({ aptosConfig: this.config, ...args });
+    return generateTransaction({ movementConfig: this.config, ...args });
   }
 }

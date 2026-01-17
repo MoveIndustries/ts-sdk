@@ -1,29 +1,29 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable no-bitwise */
+import { Hex } from "../core/hex";
+import { AnyNumber, Uint16, Uint32, Uint8 } from "../types";
 import {
+  MAX_I128_BIG_INT,
+  MAX_I16_NUMBER,
+  MAX_I256_BIG_INT,
+  MAX_I32_NUMBER,
+  MAX_I64_BIG_INT,
+  MAX_I8_NUMBER,
   MAX_U128_BIG_INT,
   MAX_U16_NUMBER,
+  MAX_U256_BIG_INT,
   MAX_U32_NUMBER,
   MAX_U64_BIG_INT,
   MAX_U8_NUMBER,
-  MAX_U256_BIG_INT,
-  MIN_I8_NUMBER,
-  MAX_I8_NUMBER,
-  MIN_I16_NUMBER,
-  MAX_I16_NUMBER,
-  MIN_I32_NUMBER,
-  MAX_I32_NUMBER,
-  MIN_I64_BIG_INT,
-  MAX_I64_BIG_INT,
   MIN_I128_BIG_INT,
-  MAX_I128_BIG_INT,
+  MIN_I16_NUMBER,
   MIN_I256_BIG_INT,
-  MAX_I256_BIG_INT,
+  MIN_I32_NUMBER,
+  MIN_I64_BIG_INT,
+  MIN_I8_NUMBER,
 } from "./consts";
-import { Hex } from "../core/hex";
-import { AnyNumber, Uint16, Uint32, Uint8 } from "../types";
 
 /**
  * This class serves as a base class for all serializable types. It facilitates

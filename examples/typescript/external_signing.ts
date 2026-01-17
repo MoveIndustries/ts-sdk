@@ -3,24 +3,24 @@
 /**
  * This example shows an example of how one might send transactions elsewhere to be signed outside the SDK.
  */
-import dotenv from "dotenv";
-dotenv.config();
-import { ed25519 } from "@noble/curves/ed25519";
 import {
   Account,
   AccountAddress,
   AccountAuthenticator,
   AccountAuthenticatorEd25519,
-  Aptos,
-  AptosConfig,
   Deserializer,
+  Ed25519Account,
   Ed25519Signature,
+  InputViewFunctionJsonData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
-  Ed25519Account,
   SimpleTransaction,
-  InputViewFunctionJsonData,
 } from "@moveindustries/ts-sdk";
+import { ed25519 } from "@noble/curves/ed25519";
+import dotenv from "dotenv";
+dotenv.config();
 
 const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
 const COLD_INITIAL_BALANCE = 100_000_000;
@@ -28,15 +28,15 @@ const HOT_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
-const balance = async (aptos: Aptos, account: Account, name: string): Promise<any> => {
+const balance = async (aptos: Movement, account: Account, name: string): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [account.accountAddress.toString()],
   };
-  const [balance] = await aptos.viewJson<[number]>({ payload: payload });
+  const [balance] = await movement.viewJson<[number]>({ payload: payload });
 
   console.log(`${name}'s balance is: ${balance}`);
   return Number(balance);
@@ -48,7 +48,7 @@ const balance = async (aptos: Aptos, account: Account, name: string): Promise<an
 class ExternalSigner {
   private account: Ed25519Account;
 
-  private aptos: Aptos;
+  private aptos: Movement;
 
   public name: string;
 
@@ -59,8 +59,8 @@ class ExternalSigner {
   private extractedPrivateKey: Uint8Array;
 
   constructor(name: string, initialBalance: number) {
-    const config = new AptosConfig({ network: APTOS_NETWORK });
-    this.aptos = new Aptos(config);
+    const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+    this.movement = new Movement(config);
     this.account = Account.generate();
     this.name = name;
     this.initialBalance = initialBalance;
@@ -82,7 +82,7 @@ class ExternalSigner {
 
     console.log(`${this.name}'s address is: ${this.account.accountAddress}`);
 
-    const fundTxn = await this.aptos.fundAccount({
+    const fundTxn = await this.movement.fundAccount({
       accountAddress: this.account.accountAddress,
       amount: this.initialBalance,
     });
@@ -106,7 +106,7 @@ class ExternalSigner {
 
     // Some changes to make it signable, this would need more logic for fee payer or additional signers
     // TODO: Make BCS handle any object type?
-    const signingMessage = this.aptos.getSigningMessage({ transaction });
+    const signingMessage = this.movement.getSigningMessage({ transaction });
 
     // Pretend that it's an external signer that only knows bytes using a raw crypto library
     const signature = ed25519.sign(signingMessage, this.extractedPrivateKey);
@@ -122,13 +122,13 @@ const example = async () => {
   console.log("This example will pretend that hot is on a separate server, and never accesses information from it");
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   // Create two accounts
   const cold = new ExternalSigner("Cold", COLD_INITIAL_BALANCE);
   const hot = Account.generate();
-  await aptos.fundAccount({ accountAddress: hot.accountAddress, amount: HOT_INITIAL_BALANCE });
+  await movement.fundAccount({ accountAddress: hot.accountAddress, amount: HOT_INITIAL_BALANCE });
 
   console.log("\n=== Funding accounts ===\n");
   await cold.setup();
@@ -142,7 +142,7 @@ const example = async () => {
   if (hotBalance !== HOT_INITIAL_BALANCE) throw new Error("Hot's balance is incorrect");
 
   // Transfer between users
-  const simpleTransaction = await aptos.transaction.build.simple({
+  const simpleTransaction = await movement.transaction.build.simple({
     sender: cold.address(),
     data: {
       function: "0x1::coin::transfer",
@@ -162,12 +162,12 @@ const example = async () => {
 
   // Combine the transaction and send
   console.log("\n=== Transfer transaction ===\n");
-  const committedTxn = await aptos.transaction.submit.simple({
+  const committedTxn = await movement.transaction.submit.simple({
     transaction: simpleTransaction,
     senderAuthenticator: authenticator,
   });
 
-  await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  await movement.waitForTransaction({ transactionHash: committedTxn.hash });
   console.log(`Committed transaction: ${committedTxn.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");

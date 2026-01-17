@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account } from "../../../src";
@@ -13,23 +13,23 @@ describe("Collection", () => {
   test("it creates a new collection on chain and fetches its data", async () => {
     const creator = Account.generate();
     const creatorAddress = creator.accountAddress;
-    const collectionName = "Aptos Test NFT Collection";
+    const collectionName = "Movement Test NFT Collection";
     const collectionDescription = "My new collection!";
-    const collectionUri = "https://aptos.dev";
+    const collectionUri = "https://movement.dev";
 
-    await aptos.fundAccount({ accountAddress: creatorAddress, amount: FUND_AMOUNT });
+    await movement.fundAccount({ accountAddress: creatorAddress, amount: FUND_AMOUNT });
 
-    const transaction = await aptos.createCollectionTransaction({
+    const transaction = await movement.createCollectionTransaction({
       creator,
       description: collectionDescription,
       name: collectionName,
       uri: collectionUri,
     });
-    const pendingTxn = await aptos.signAndSubmitTransaction({ signer: creator, transaction });
+    const pendingTxn = await movement.signAndSubmitTransaction({ signer: creator, transaction });
 
-    const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+    const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-    const data = await aptos.getCollectionData({
+    const data = await movement.getCollectionData({
       collectionName,
       creatorAddress,
       minimumLedgerVersion: BigInt(response.version),
@@ -51,11 +51,11 @@ describe("Collection", () => {
     expect(data).toHaveProperty("table_handle_v1");
     expect(data).toHaveProperty("total_minted_v2");
 
-    const address = await aptos.getCollectionId({ collectionName, creatorAddress });
+    const address = await movement.getCollectionId({ collectionName, creatorAddress });
     expect(address).toEqual(data.collection_id);
 
     // Query again using the collection id should return the same data
-    const data2 = await aptos.getCollectionDataByCollectionId({
+    const data2 = await movement.getCollectionDataByCollectionId({
       collectionId: address,
       minimumLedgerVersion: BigInt(response.version),
     });

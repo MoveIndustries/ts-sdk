@@ -1,20 +1,20 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { sha3_256 as sha3Hash } from "@noble/hashes/sha3";
+import { Deserializer } from "../bcs/deserializer";
+import { Serializable, Serializer } from "../bcs/serializer";
+import { AuthenticationKeyScheme, HexInput } from "../types";
 import { AccountAddress } from "./accountAddress";
 import type { AccountPublicKey } from "./crypto";
 import { Hex } from "./hex";
-import { AuthenticationKeyScheme, HexInput } from "../types";
-import { Serializable, Serializer } from "../bcs/serializer";
-import { Deserializer } from "../bcs/deserializer";
 
 /**
  * Represents an authentication key used for account management. Each account stores an authentication key that enables account
  * owners to rotate their private key(s) without changing the address that hosts their account. The authentication key is a
  * SHA3-256 hash of data and is always 32 bytes in length.
  *
- * @see {@link https://aptos.dev/concepts/accounts | Account Basics}
+ * @see {@link https://movement.dev/concepts/accounts | Account Basics}
  *
  * Account addresses can be derived from the AuthenticationKey.
  * @group Implementation

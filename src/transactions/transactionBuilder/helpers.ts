@@ -1,6 +1,9 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
+import { Bool, FixedBytes, MoveOption, MoveString, MoveVector, U128, U16, U256, U32, U64, U8 } from "../../bcs";
+import { AccountAddress } from "../../core";
+import { MoveFunction } from "../../types";
 import {
   EntryFunctionArgumentTypes,
   InputGenerateTransactionPayloadData,
@@ -8,9 +11,6 @@ import {
   InputScriptData,
   SimpleEntryFunctionArgumentTypes,
 } from "../types";
-import { Bool, FixedBytes, MoveOption, MoveString, MoveVector, U128, U16, U256, U32, U64, U8 } from "../../bcs";
-import { AccountAddress } from "../../core";
-import { MoveFunction } from "../../types";
 
 /**
  * Determines if the provided argument is of type boolean.

@@ -1,36 +1,18 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account as AccountModule } from "../account";
 import {
   AccountAddress,
   AccountAddressInput,
-  createObjectAddress,
   BaseAccountPublicKey,
+  createObjectAddress,
   PrivateKeyInput,
 } from "../core";
 import {
-  AccountData,
-  AnyNumber,
-  CursorPaginationArgs,
-  GetAccountCoinsDataResponse,
-  GetAccountCollectionsWithOwnedTokenResponse,
-  GetAccountOwnedTokensFromCollectionResponse,
-  GetAccountOwnedTokensQueryResponse,
-  GetObjectDataQueryResponse,
-  LedgerVersionArg,
-  MoveModuleBytecode,
-  MoveResource,
-  MoveStructId,
-  MoveValue,
-  OrderByArg,
-  PaginationArgs,
-  TokenStandardArg,
-  TransactionResponse,
-  WhereArg,
-} from "../types";
-import {
+  AccountInfo,
   deriveAccountFromPrivateKey,
+  deriveOwnedAccountsFromSigner,
   getAccountCoinsCount,
   getAccountCoinsData,
   getAccountCollectionsWithOwnedTokens,
@@ -50,66 +32,83 @@ import {
   getResourcesPage,
   getTransactions,
   lookupOriginalAccountAddress,
-  deriveOwnedAccountsFromSigner,
-  AccountInfo,
 } from "../internal/account";
-import { APTOS_COIN, APTOS_FA, ProcessorType } from "../utils/const";
-import { AptosConfig } from "./aptosConfig";
-import { waitForIndexerOnVersion } from "./utils";
-import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
 import { view } from "../internal/view";
+import {
+  AccountData,
+  AnyNumber,
+  CursorPaginationArgs,
+  GetAccountCoinsDataResponse,
+  GetAccountCollectionsWithOwnedTokenResponse,
+  GetAccountOwnedTokensFromCollectionResponse,
+  GetAccountOwnedTokensQueryResponse,
+  GetObjectDataQueryResponse,
+  LedgerVersionArg,
+  MoveModuleBytecode,
+  MoveResource,
+  MoveStructId,
+  OrderByArg,
+  PaginationArgs,
+  TokenStandardArg,
+  TransactionResponse,
+  WhereArg
+} from "../types";
+import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
 import { isEncodedStruct, parseEncodedStruct } from "../utils";
+import { APTOS_COIN, APTOS_FA, ProcessorType } from "../utils/const";
 import { memoizeAsync } from "../utils/memoize";
 import { AccountAbstraction } from "./account/abstraction";
+import { MovementConfig } from "./movementConfig";
+import { waitForIndexerOnVersion } from "./utils";
 
 /**
- * A class to query all `Account` related queries on Aptos.
+ * A class to query all `Account` related queries on Movement.
  * @group Account
  */
 export class Account {
   abstraction: AccountAbstraction;
 
   /**
-   * Creates an instance of the Aptos client with the provided configuration.
+   * Creates an instance of the Movement client with the provided configuration.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Initialize the Aptos client with testnet configuration
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // specify your own network if needed
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with testnet configuration
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // specify your own network if needed
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Account
    */
-  constructor(readonly config: AptosConfig) {
+  constructor(readonly config: MovementConfig) {
     this.abstraction = new AccountAbstraction(config);
   }
 
   /**
-   * Queries the current state for an Aptos account given its account address.
+   * Queries the current state for an Movement account given its account address.
    *
    * @param args - The arguments for retrieving account information.
-   * @param args.accountAddress - The Aptos account address to query.
+   * @param args.accountAddress - The Movement account address to query.
    * @returns The account data.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *     // Retrieve account information for a specific address
-   *     const accountInfo = await aptos.getAccountInfo({ accountAddress: "0x1" }); // replace with a real account address
+   *     const accountInfo = await movement.getAccountInfo({ accountAddress: "0x1" }); // replace with a real account address
    *     console.log(accountInfo);
    * }
    * runExample().catch(console.error);
@@ -117,14 +116,14 @@ export class Account {
    * @group Account
    */
   async getAccountInfo(args: { accountAddress: AccountAddressInput }): Promise<AccountData> {
-    return getInfo({ aptosConfig: this.config, ...args });
+    return getInfo({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries for all modules in an account given an account address.
    * This function may call the API multiple times to auto paginate through results.
    *
-   * @param args.accountAddress - The Aptos account address to query modules for.
+   * @param args.accountAddress - The Movement account address to query modules for.
    * @param args.options.limit - The maximum number of results to return.
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it retrieves the latest version.
    *
@@ -132,14 +131,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching account modules for a specific account
-   *   const accountModules = await aptos.getAccountModules({
+   *   const accountModules = await movement.getAccountModules({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       limit: 10, // limiting to 10 modules
@@ -156,13 +155,13 @@ export class Account {
     accountAddress: AccountAddressInput;
     options?: { limit?: number } & LedgerVersionArg;
   }): Promise<MoveModuleBytecode[]> {
-    return getModules({ aptosConfig: this.config, ...args });
+    return getModules({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries for a page of modules in an account given an account address.
    *
-   * @param args.accountAddress - The Aptos account address to query modules for.
+   * @param args.accountAddress - The Movement account address to query modules for.
    * @param args.options.cursor - The cursor to start returning results from.  Note, this is obfuscated and is not an index.
    * @param args.options.limit - The maximum number of results to return.
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it retrieves the latest version.
@@ -171,14 +170,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching account modules for a specific account
-   *   const {modules, cursor} = await aptos.getAccountModulesPage({
+   *   const {modules, cursor} = await movement.getAccountModulesPage({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       cursor: undefined, // starting from the first module
@@ -197,13 +196,13 @@ export class Account {
     accountAddress: AccountAddressInput;
     options?: CursorPaginationArgs & LedgerVersionArg;
   }): Promise<{ modules: MoveModuleBytecode[]; cursor: string | undefined }> {
-    return getModulesPage({ aptosConfig: this.config, ...args });
+    return getModulesPage({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries for a specific account module given an account address and module name.
    *
-   * @param args.accountAddress - The Aptos account address.
+   * @param args.accountAddress - The Movement account address.
    * @param args.moduleName - The name of the module.
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
    *
@@ -211,14 +210,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the account module for a specific account address and module name
-   *   const module = await aptos.getAccountModule({
+   *   const module = await movement.getAccountModule({
    *     accountAddress: "0x1", // replace with a real account address
    *     moduleName: "MyModule" // specify the module name
    *   });
@@ -234,14 +233,14 @@ export class Account {
     moduleName: string;
     options?: LedgerVersionArg;
   }): Promise<MoveModuleBytecode> {
-    return getModule({ aptosConfig: this.config, ...args });
+    return getModule({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries account transactions given an account address.
    * This function may call the API multiple times to auto paginate and retrieve all account transactions.
    *
-   * @param args.accountAddress - The Aptos account address to query transactions for.
+   * @param args.accountAddress - The Movement account address to query transactions for.
    * @param args.options - Optional pagination arguments.
    * @param args.options.offset - The number of transactions to start returning results from.
    * @param args.options.limit - The maximum number of results to return.
@@ -250,14 +249,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetch transactions for a specific account
-   *   const transactions = await aptos.getAccountTransactions({
+   *   const transactions = await movement.getAccountTransactions({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       offset: 0, // starting from the first transaction
@@ -276,7 +275,7 @@ export class Account {
     options?: PaginationArgs;
   }): Promise<TransactionResponse[]> {
     return getTransactions({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -285,21 +284,21 @@ export class Account {
    * Queries all account resources given an account address.
    * This function may call the API multiple times to auto paginate through results.
    *
-   * @param args.accountAddress - The Aptos account address to query resources for.
+   * @param args.accountAddress - The Movement account address to query resources for.
    * @param args.options.limit - The maximum number of results to return.
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
    * @returns Account resources.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching account resources for a specific account address
-   *   const resources = await aptos.getAccountResources({ accountAddress: "0x1" }); // replace with a real account address
+   *   const resources = await movement.getAccountResources({ accountAddress: "0x1" }); // replace with a real account address
    *   console.log(resources);
    * }
    * runExample().catch(console.error);
@@ -310,13 +309,13 @@ export class Account {
     accountAddress: AccountAddressInput;
     options?: PaginationArgs & LedgerVersionArg;
   }): Promise<MoveResource[]> {
-    return getResources({ aptosConfig: this.config, ...args });
+    return getResources({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries a page of account resources given an account address.
    *
-   * @param args.accountAddress - The Aptos account address to query resources for.
+   * @param args.accountAddress - The Movement account address to query resources for.
    * @param args.options.cursor - The cursor to start returning results from.  Note, this is obfuscated and is not an index.
    * @param args.options.limit - The maximum number of results to return.
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
@@ -324,14 +323,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching account resources for a specific account address
-   *   const resources = await aptos.getAccountResourcesPage({
+   *   const resources = await movement.getAccountResourcesPage({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       cursor: undefined, // starting from the first resource
@@ -349,28 +348,28 @@ export class Account {
     accountAddress: AccountAddressInput;
     options?: CursorPaginationArgs & LedgerVersionArg;
   }): Promise<{ resources: MoveResource[]; cursor: string | undefined }> {
-    return getResourcesPage({ aptosConfig: this.config, ...args });
+    return getResourcesPage({ movementConfig: this.config, ...args });
   }
 
   /**
    * Queries a specific account resource given an account address and resource type.
    *
    * @template T - The typed output of the resource.
-   * @param args.accountAddress - The Aptos account address to query.
+   * @param args.accountAddress - The Movement account address to query.
    * @param args.resourceType - The string representation of an on-chain Move struct type, e.g., "0x1::aptos_coin::AptosCoin".
    * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
    * @returns The account resource of the specified type.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the account resource for a specific account address and resource type
-   *   const resource = await aptos.getAccountResource({
+   *   const resource = await movement.getAccountResource({
    *     accountAddress: "0x1", // replace with a real account address
    *     resourceType: "0x1::aptos_coin::AptosCoin"
    *   });
@@ -386,7 +385,7 @@ export class Account {
     resourceType: MoveStructId;
     options?: LedgerVersionArg;
   }): Promise<T> {
-    return getResource<T>({ aptosConfig: this.config, ...args });
+    return getResource<T>({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -399,14 +398,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Look up the original account address for a given authentication key
-   *   const accountAddress = await aptos.lookupOriginalAccountAddress({
+   *   const accountAddress = await movement.lookupOriginalAccountAddress({
    *     authenticationKey: "0x1", // replace with a real authentication key
    *   });
    *
@@ -421,7 +420,7 @@ export class Account {
     minimumLedgerVersion?: AnyNumber;
     options?: LedgerVersionArg;
   }): Promise<AccountAddress> {
-    return lookupOriginalAccountAddress({ aptosConfig: this.config, ...args });
+    return lookupOriginalAccountAddress({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -434,14 +433,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the count of tokens owned by the account
-   *   const tokensCount = await aptos.getAccountTokensCount({ accountAddress: "0x1" }); // replace with a real account address
+   *   const tokensCount = await movement.getAccountTokensCount({ accountAddress: "0x1" }); // replace with a real account address
    *   console.log(`Tokens Count: ${tokensCount}`);
    * }
    * runExample().catch(console.error);
@@ -458,7 +457,7 @@ export class Account {
       processorType: ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR,
     });
     return getAccountTokensCount({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -477,14 +476,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the tokens owned by a specific account
-   *   const accountOwnedTokens = await aptos.getAccountOwnedTokens({
+   *   const accountOwnedTokens = await movement.getAccountOwnedTokens({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       limit: 10, // specify how many tokens to return
@@ -509,7 +508,7 @@ export class Account {
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
     return getAccountOwnedTokens({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -530,14 +529,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get tokens owned by a specific account in a specific collection
-   *   const accountOwnedTokens = await aptos.getAccountOwnedTokensFromCollectionAddress({
+   *   const accountOwnedTokens = await movement.getAccountOwnedTokensFromCollectionAddress({
    *     accountAddress: "0x1", // replace with a real account address
    *     collectionAddress: "0x2", // replace with a real collection address
    *   });
@@ -560,7 +559,7 @@ export class Account {
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
     return getAccountOwnedTokensFromCollectionAddress({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -579,14 +578,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get account collections with owned tokens for a specific account
-   *   const accountCollectionsWithOwnedTokens = await aptos.getAccountCollectionsWithOwnedTokens({
+   *   const accountCollectionsWithOwnedTokens = await movement.getAccountCollectionsWithOwnedTokens({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       tokenStandard: "NFT", // specify the token standard if needed
@@ -611,7 +610,7 @@ export class Account {
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
     return getAccountCollectionsWithOwnedTokens({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -626,14 +625,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the count of transactions for a specific account
-   *   const accountTransactionsCount = await aptos.getAccountTransactionsCount({
+   *   const accountTransactionsCount = await movement.getAccountTransactionsCount({
    *     accountAddress: "0x1", // replace with a real account address
    *     minimumLedgerVersion: 1, // specify your own minimum ledger version if needed
    *   });
@@ -654,7 +653,7 @@ export class Account {
       processorType: ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR,
     });
     return getAccountTransactionsCount({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -672,14 +671,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching coins data for a specific account
-   *   const accountCoinsData = await aptos.getAccountCoinsData({
+   *   const accountCoinsData = await movement.getAccountCoinsData({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       limit: 10, // specify the number of results to return
@@ -706,7 +705,7 @@ export class Account {
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
     return getAccountCoinsData({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -721,14 +720,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Getting the account coins count for a specific account
-   *   const accountCoinsCount = await aptos.getAccountCoinsCount({ accountAddress: "0x1" }); // replace with a real account address
+   *   const accountCoinsCount = await movement.getAccountCoinsCount({ accountAddress: "0x1" }); // replace with a real account address
    *   console.log("Account Coins Count:", accountCoinsCount);
    * }
    * runExample().catch(console.error);
@@ -744,7 +743,7 @@ export class Account {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
-    return getAccountCoinsCount({ aptosConfig: this.config, ...args });
+    return getAccountCoinsCount({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -757,14 +756,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the APT amount for a specific account
-   *   const accountAPTAmount = await aptos.getAccountAPTAmount({ accountAddress: "0x1" }); // replace with a real account address
+   *   const accountAPTAmount = await movement.getAccountAPTAmount({ accountAddress: "0x1" }); // replace with a real account address
    *   console.log("Account APT Amount:", accountAPTAmount);
    * }
    * runExample().catch(console.error);
@@ -794,14 +793,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Prefer the new API
-   *   const amount = await aptos.getBalance({ accountAddress: "0x1", asset: "0x1::aptos_coin::AptosCoin" });
+   *   const amount = await movement.getBalance({ accountAddress: "0x1", asset: "0x1::aptos_coin::AptosCoin" });
    *   console.log(`Balance: ${amount}`);
    * }
    * runExample().catch(console.error);
@@ -824,7 +823,7 @@ export class Account {
           try {
             const pairedCoinTypeStruct = (
               await view<[{ vec: [MoveStructId] }]>({
-                aptosConfig: this.config,
+                movementConfig: this.config,
                 payload: { function: "0x1::coin::paired_coin", functionArguments: [faMetadataAddress] },
               })
             )[0];
@@ -870,7 +869,7 @@ export class Account {
     // TODO: This function's signature at the top, returns number, but it could be greater than can be represented
     if (coinAssetType !== undefined) {
       const [balanceStr] = await view<[string]>({
-        aptosConfig: this.config,
+        movementConfig: this.config,
         payload: {
           function: "0x1::coin::balance",
           typeArguments: [coinAssetType],
@@ -880,7 +879,7 @@ export class Account {
       return parseInt(balanceStr, 10);
     }
     const [balanceStr] = await view<[string]>({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       payload: {
         function: "0x1::primary_fungible_store::balance",
         typeArguments: ["0x1::object::ObjectCore"],
@@ -900,11 +899,11 @@ export class Account {
    *
    * @example
    * ```ts
-   * const aptos = new Aptos(new AptosConfig());
+   * const movement = new Movement(new MovementConfig());
    * // APT coin by type
-   * const apt = await aptos.getBalance({ accountAddress: "0x1", asset: "0x1::aptos_coin::AptosCoin" });
+   * const apt = await movement.getBalance({ accountAddress: "0x1", asset: "0x1::aptos_coin::AptosCoin" });
    * // Some FA by metadata address
-   * const fa = await aptos.getBalance({ accountAddress: "0x1", asset: "0xa" });
+   * const fa = await movement.getBalance({ accountAddress: "0x1", asset: "0xa" });
    * ```
    * @group Account
    */
@@ -912,7 +911,7 @@ export class Account {
     accountAddress: AccountAddressInput;
     asset: MoveStructId | AccountAddressInput;
   }): Promise<number> {
-    return getBalance({ aptosConfig: this.config, ...args });
+    return getBalance({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -927,14 +926,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the objects owned by the specified account
-   *   const accountOwnedObjects = await aptos.getAccountOwnedObjects({
+   *   const accountOwnedObjects = await movement.getAccountOwnedObjects({
    *     accountAddress: "0x1", // replace with a real account address
    *     minimumLedgerVersion: 1, // optional, specify if needed
    *     options: {
@@ -961,7 +960,7 @@ export class Account {
       processorType: ProcessorType.DEFAULT,
     });
     return getAccountOwnedObjects({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -981,14 +980,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Ed25519PrivateKey } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Ed25519PrivateKey } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *     // Deriving an account from a private key
-   *     const account = await aptos.deriveAccountFromPrivateKey({
+   *     const account = await movement.deriveAccountFromPrivateKey({
    *         privateKey: new Ed25519PrivateKey("0x123") // replace with a real private key
    *     });
    *
@@ -1016,7 +1015,7 @@ export class Account {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.OBJECT_PROCESSOR,
     });
-    return deriveAccountFromPrivateKey({ aptosConfig: this.config, ...args });
+    return deriveAccountFromPrivateKey({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1036,14 +1035,14 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Ed25519Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Ed25519Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function getOwnedAccounts() {
    *   const signer = Ed25519Account.generate();
-   *   const accounts = await aptos.deriveOwnedAccountsFromSigner({
+   *   const accounts = await movement.deriveOwnedAccountsFromSigner({
    *     signer
    *   });
    *   const account = accounts[0];
@@ -1067,7 +1066,7 @@ export class Account {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.OBJECT_PROCESSOR,
     });
-    return deriveOwnedAccountsFromSigner({ aptosConfig: this.config, ...args });
+    return deriveOwnedAccountsFromSigner({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1090,15 +1089,15 @@ export class Account {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Ed25519PrivateKey } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Ed25519PrivateKey } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function getAccounts() {
    *   const privateKey = Ed25519PrivateKey.generate();
    *   const publicKey = privateKey.publicKey();
-   *   const accounts = await aptos.getAccountsForPublicKey({
+   *   const accounts = await movement.getAccountsForPublicKey({
    *     publicKey
    *   });
    *   console.log(accounts);
@@ -1122,7 +1121,7 @@ export class Account {
       processorType: ProcessorType.OBJECT_PROCESSOR,
     });
     return getAccountsForPublicKey({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }

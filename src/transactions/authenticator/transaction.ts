@@ -1,14 +1,14 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import { AccountAuthenticator } from "./account";
 import { Deserializer, Serializable, Serializer } from "../../bcs";
 import { AccountAddress } from "../../core";
 import { Ed25519PublicKey, Ed25519Signature } from "../../core/crypto/ed25519";
 import { MultiEd25519PublicKey, MultiEd25519Signature } from "../../core/crypto/multiEd25519";
 import { TransactionAuthenticatorVariant } from "../../types";
+import { AccountAuthenticator } from "./account";
 
 /**
  * Represents an abstract base class for transaction authenticators.
@@ -74,7 +74,7 @@ export abstract class TransactionAuthenticator extends Serializable {
  *
  * @param public_key - The client's public key.
  * @param signature - The Ed25519 signature of a raw transaction.
- * @see {@link https://aptos.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
+ * @see {@link https://movement.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
  * for details about generating a signature.
  * @group Implementation
  * @category Transactions

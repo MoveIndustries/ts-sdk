@@ -1,5 +1,5 @@
 /* eslint-disable max-len */
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -71,33 +71,33 @@ describe("keyless api", () => {
   const jwkAccount = Account.generate();
 
   beforeEach(async () => {
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: jwkAccount.accountAddress,
       amount: FUND_AMOUNT,
     });
-    const jwkTransaction = await aptos.updateFederatedKeylessJwkSetTransaction({
+    const jwkTransaction = await movement.updateFederatedKeylessJwkSetTransaction({
       sender: jwkAccount,
       iss: "test.federated.oidc.provider",
       jwksUrl: "https://github.com/aptos-labs/aptos-core/raw/main/types/src/jwks/rsa/secure_test_jwk.json",
     });
-    const committedJwkTxn = await aptos.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
-    await aptos.waitForTransaction({ transactionHash: committedJwkTxn.hash });
+    const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
+    await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
   });
 
   test(
     "installs jwks for an auth0 iss",
     async () => {
       const sender = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: sender.accountAddress,
         amount: FUND_AMOUNT,
       });
-      const jwkTransaction = await aptos.updateFederatedKeylessJwkSetTransaction({
+      const jwkTransaction = await movement.updateFederatedKeylessJwkSetTransaction({
         sender,
         iss: "https://dev-qtdgjv22jh0v1k7g.us.auth0.com/",
       });
-      const committedJwkTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction: jwkTransaction });
-      await aptos.waitForTransaction({ transactionHash: committedJwkTxn.hash });
+      const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction: jwkTransaction });
+      await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
     },
     KEYLESS_TEST_TIMEOUT,
   );
@@ -106,16 +106,16 @@ describe("keyless api", () => {
     "installs jwks for a firebase iss",
     async () => {
       const sender = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: sender.accountAddress,
         amount: FUND_AMOUNT,
       });
-      const jwkTransaction = await aptos.updateFederatedKeylessJwkSetTransaction({
+      const jwkTransaction = await movement.updateFederatedKeylessJwkSetTransaction({
         sender,
         iss: "https://securetoken.google.com/aptos-build",
       });
-      const committedJwkTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction: jwkTransaction });
-      await aptos.waitForTransaction({ transactionHash: committedJwkTxn.hash });
+      const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction: jwkTransaction });
+      await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
     },
     KEYLESS_TEST_TIMEOUT,
   );
@@ -143,7 +143,7 @@ describe("keyless api", () => {
     "submitting a keyless txn with a federated keyless account with an outdated JWK should error with meaningful message",
     async () => {
       // This deserializes a keyless account derived from a JWT with a kid that is no longer valid.
-      const account = await aptos.deriveKeylessAccount({
+      const account = await movement.deriveKeylessAccount({
         jwt: TEST_FEDERATED_JWT_TOKENS[0],
         ephemeralKeyPair,
         jwkAddress: jwkAccount.accountAddress,
@@ -151,13 +151,13 @@ describe("keyless api", () => {
       const recipient = Account.generate();
 
       // Now rotate the JWKs
-      const jwkTransaction = await aptos.updateFederatedKeylessJwkSetTransaction({
+      const jwkTransaction = await movement.updateFederatedKeylessJwkSetTransaction({
         sender: jwkAccount,
         iss: "test.federated.oidc.provider",
         jwksUrl: "https://dev-qtdgjv22jh0v1k7g.us.auth0.com/.well-known/jwks.json",
       });
-      const committedJwkTxn = await aptos.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
-      await aptos.waitForTransaction({ transactionHash: committedJwkTxn.hash });
+      const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
+      await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
 
       await expect(simpleCoinTransactionHelper(aptos, account, recipient)).rejects.toThrow(
         "JWK with kid 'test-rsa' for issuer 'test.federated.oidc.provider' not found",
@@ -182,8 +182,8 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
         const recipient = Account.generate();
         await simpleCoinTransactionHelper(aptos, sender, recipient);
       },
@@ -193,8 +193,8 @@ describe("keyless api", () => {
     test(
       "creates the keyless account via the static constructor and submits a transaction",
       async () => {
-        const pepper = await aptos.getPepper({ jwt, ephemeralKeyPair });
-        const proof = await aptos.getProof({ jwt, ephemeralKeyPair, pepper });
+        const pepper = await movement.getPepper({ jwt, ephemeralKeyPair });
+        const proof = await movement.getProof({ jwt, ephemeralKeyPair, pepper });
 
         const account =
           jwkAddress === undefined
@@ -211,8 +211,8 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, uidKey: "email" })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress, uidKey: "email" });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, uidKey: "email" })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress, uidKey: "email" });
         const recipient = Account.generate();
         await simpleCoinTransactionHelper(aptos, sender, recipient);
       },
@@ -224,8 +224,8 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, pepper: new Uint8Array(31) })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress, pepper: new Uint8Array(31) });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, pepper: new Uint8Array(31) })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress, pepper: new Uint8Array(31) });
         const recipient = Account.generate();
         await simpleCoinTransactionHelper(aptos, sender, recipient);
       },
@@ -244,8 +244,8 @@ describe("keyless api", () => {
         };
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
         expect(succeeded).toBeFalsy();
         await sender.waitForProofFetch();
         expect(succeeded).toBeTruthy();
@@ -258,22 +258,22 @@ describe("keyless api", () => {
     test(
       "derives the keyless account with async proof fetch and submits a transaction",
       async () => {
-        const proofFetchCallback = async () => {};
+        const proofFetchCallback = async () => { };
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
-        await aptos.fundAccount({
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
+        await movement.fundAccount({
           accountAddress: sender.accountAddress,
           amount: FUND_AMOUNT,
         });
-        const transaction = await aptos.transferCoinTransaction({
+        const transaction = await movement.transferCoinTransaction({
           sender: sender.accountAddress,
           recipient: sender.accountAddress,
           amount: TRANSFER_AMOUNT,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction });
-        await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction });
+        await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
       },
       KEYLESS_TEST_TIMEOUT,
     );
@@ -281,16 +281,16 @@ describe("keyless api", () => {
     test(
       "deriving keyless account with async proof fetch throws when trying to immediately sign",
       async () => {
-        const proofFetchCallback = async () => {};
+        const proofFetchCallback = async () => { };
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
-        await aptos.fundAccount({
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback, jwkAddress });
+        await movement.fundAccount({
           accountAddress: sender.accountAddress,
           amount: FUND_AMOUNT,
         });
-        const transaction = await aptos.transferCoinTransaction({
+        const transaction = await movement.transferCoinTransaction({
           sender: sender.accountAddress,
           recipient: sender.accountAddress,
           amount: TRANSFER_AMOUNT,
@@ -305,25 +305,25 @@ describe("keyless api", () => {
     test(
       "deriving keyless account using all parameters",
       async () => {
-        const proofFetchCallback = async () => {};
+        const proofFetchCallback = async () => { };
 
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({
-                jwt,
-                ephemeralKeyPair,
-                uidKey: "email",
-                pepper: new Uint8Array(31),
-                proofFetchCallback,
-              })
-            : await aptos.deriveKeylessAccount({
-                jwt,
-                ephemeralKeyPair,
-                uidKey: "email",
-                pepper: new Uint8Array(31),
-                proofFetchCallback,
-                jwkAddress,
-              });
+            ? await movement.deriveKeylessAccount({
+              jwt,
+              ephemeralKeyPair,
+              uidKey: "email",
+              pepper: new Uint8Array(31),
+              proofFetchCallback,
+            })
+            : await movement.deriveKeylessAccount({
+              jwt,
+              ephemeralKeyPair,
+              uidKey: "email",
+              pepper: new Uint8Array(31),
+              proofFetchCallback,
+              jwkAddress,
+            });
         const recipient = Account.generate();
         await simpleCoinTransactionHelper(aptos, sender, recipient);
       },
@@ -335,18 +335,18 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
-        await aptos.fundAccount({
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
+        await movement.fundAccount({
           accountAddress: sender.accountAddress,
           amount: FUND_AMOUNT,
         });
-        const transaction = await aptos.transferCoinTransaction({
+        const transaction = await movement.transferCoinTransaction({
           sender: sender.accountAddress,
           recipient: sender.accountAddress,
           amount: TRANSFER_AMOUNT,
         });
-        await aptos.transaction.simulate.simple({ signerPublicKey: sender.publicKey, transaction });
+        await movement.transaction.simulate.simple({ signerPublicKey: sender.publicKey, transaction });
       },
       KEYLESS_TEST_TIMEOUT,
     );
@@ -356,11 +356,11 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
         const message = "hello world";
         const signature = sender.sign(message);
-        expect(await sender.verifySignatureAsync({ aptosConfig: aptos.config, message, signature })).toBe(true);
+        expect(await sender.verifySignatureAsync({ movementConfig: movement.config, message, signature })).toBe(true);
       },
       KEYLESS_TEST_TIMEOUT,
     );
@@ -370,8 +370,8 @@ describe("keyless api", () => {
       async () => {
         const sender =
           jwkAddress === undefined
-            ? await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair })
-            : await aptos.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
+            ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair })
+            : await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, jwkAddress });
         const bytes = sender.bcsToBytes();
         const deserializedAccount =
           jwkAddress === undefined ? KeylessAccount.fromBytes(bytes) : FederatedKeylessAccount.fromBytes(bytes);

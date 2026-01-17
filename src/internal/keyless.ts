@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -9,36 +9,36 @@
  * @group Implementation
  */
 import { jwtDecode, JwtPayload } from "jwt-decode";
-import { AptosConfig } from "../api/aptosConfig";
+import { Account, EphemeralKeyPair, KeylessAccount, ProofFetchCallback } from "../account";
+import { FederatedKeylessAccount } from "../account/FederatedKeylessAccount";
+import { MovementConfig } from "../api/movementConfig";
+import { MoveVector } from "../bcs";
 import { postAptosPepperService, postAptosProvingService } from "../client";
 import {
   AccountAddressInput,
   EphemeralSignature,
+  getKeylessConfig,
   Groth16Zkp,
   Hex,
   KeylessPublicKey,
   MoveJWK,
   ZeroKnowledgeSig,
   ZkProof,
-  getKeylessConfig,
 } from "../core";
-import { HexInput, ZkpVariant } from "../types";
-import { Account, EphemeralKeyPair, KeylessAccount, ProofFetchCallback } from "../account";
-import { PepperFetchRequest, PepperFetchResponse, ProverRequest, ProverResponse } from "../types/keyless";
-import { lookupOriginalAccountAddress } from "./account";
 import { FederatedKeylessPublicKey } from "../core/crypto/federatedKeyless";
-import { FederatedKeylessAccount } from "../account/FederatedKeylessAccount";
-import { MoveVector } from "../bcs";
-import { generateTransaction } from "./transactionSubmission";
-import { InputGenerateTransactionOptions, SimpleTransaction } from "../transactions";
 import { KeylessError, KeylessErrorType } from "../errors";
+import { InputGenerateTransactionOptions, SimpleTransaction } from "../transactions";
+import { HexInput, ZkpVariant } from "../types";
+import { PepperFetchRequest, PepperFetchResponse, ProverRequest, ProverResponse } from "../types/keyless";
 import { FIREBASE_AUTH_ISS_PATTERN } from "../utils/const";
+import { lookupOriginalAccountAddress } from "./account";
+import { generateTransaction } from "./transactionSubmission";
 
 /**
  * Retrieves a pepper value based on the provided configuration and authentication details.
  *
  * @param args - The arguments required to fetch the pepper.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.jwt - The JSON Web Token used for authentication.
  * @param args.ephemeralKeyPair - The ephemeral key pair used for the operation.
  * @param args.uidKey - An optional unique identifier key (defaults to "sub").
@@ -47,13 +47,13 @@ import { FIREBASE_AUTH_ISS_PATTERN } from "../utils/const";
  * @group Implementation
  */
 export async function getPepper(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   uidKey?: string;
   derivationPath?: string;
 }): Promise<Uint8Array> {
-  const { aptosConfig, jwt, ephemeralKeyPair, uidKey = "sub", derivationPath } = args;
+  const { movementConfig, jwt, ephemeralKeyPair, uidKey = "sub", derivationPath } = args;
 
   const body = {
     jwt_b64: jwt,
@@ -64,7 +64,7 @@ export async function getPepper(args: {
     derivation_path: derivationPath,
   };
   const { data } = await postAptosPepperService<PepperFetchRequest, PepperFetchResponse>({
-    aptosConfig,
+    movementConfig,
     path: "fetch",
     body,
     originMethod: "getPepper",
@@ -78,7 +78,7 @@ export async function getPepper(args: {
  * This function is essential for creating a signed proof that can be used in various cryptographic operations.
  *
  * @param args - The parameters required to generate the proof.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.jwt - The JSON Web Token used for authentication.
  * @param args.ephemeralKeyPair - The ephemeral key pair used for generating the proof.
  * @param args.pepper - An optional hex input used to enhance security (default is generated if not provided).
@@ -87,7 +87,7 @@ export async function getPepper(args: {
  * @group Implementation
  */
 export async function getProof(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   pepper?: HexInput;
@@ -95,12 +95,12 @@ export async function getProof(args: {
   maxExpHorizonSecs?: number;
 }): Promise<ZeroKnowledgeSig> {
   const {
-    aptosConfig,
+    movementConfig,
     jwt,
     ephemeralKeyPair,
     pepper = await getPepper(args),
     uidKey = "sub",
-    maxExpHorizonSecs = (await getKeylessConfig({ aptosConfig })).maxExpHorizonSecs,
+    maxExpHorizonSecs = (await getKeylessConfig({ movementConfig })).maxExpHorizonSecs,
   } = args;
   if (Hex.fromHexInput(pepper).toUint8Array().length !== KeylessAccount.PEPPER_LENGTH) {
     throw new Error(`Pepper needs to be ${KeylessAccount.PEPPER_LENGTH} bytes`);
@@ -123,7 +123,7 @@ export async function getProof(args: {
   };
 
   const { data } = await postAptosProvingService<ProverRequest, ProverResponse>({
-    aptosConfig,
+    movementConfig,
     path: "prove",
     body: json,
     originMethod: "getProof",
@@ -150,7 +150,7 @@ export async function getProof(args: {
  * This function helps in creating a keyless account that can be used without managing private keys directly.
  *
  * @param args - The arguments required to derive the keyless account.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.jwt - The JSON Web Token used for authentication.
  * @param args.ephemeralKeyPair - The ephemeral key pair used for cryptographic operations.
  * @param args.uidKey - An optional unique identifier key for the user.
@@ -160,7 +160,7 @@ export async function getProof(args: {
  * @group Implementation
  */
 export async function deriveKeylessAccount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   uidKey?: string;
@@ -169,7 +169,7 @@ export async function deriveKeylessAccount(args: {
 }): Promise<KeylessAccount>;
 
 export async function deriveKeylessAccount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   jwkAddress: AccountAddressInput;
@@ -179,7 +179,7 @@ export async function deriveKeylessAccount(args: {
 }): Promise<FederatedKeylessAccount>;
 
 export async function deriveKeylessAccount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   jwkAddress?: AccountAddressInput;
@@ -189,7 +189,7 @@ export async function deriveKeylessAccount(args: {
 }): Promise<KeylessAccount | FederatedKeylessAccount>;
 
 export async function deriveKeylessAccount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwt: string;
   ephemeralKeyPair: EphemeralKeyPair;
   jwkAddress?: AccountAddressInput;
@@ -197,8 +197,8 @@ export async function deriveKeylessAccount(args: {
   pepper?: HexInput;
   proofFetchCallback?: ProofFetchCallback;
 }): Promise<KeylessAccount | FederatedKeylessAccount> {
-  const { aptosConfig, jwt, jwkAddress, uidKey, proofFetchCallback, pepper = await getPepper(args) } = args;
-  const { verificationKey, maxExpHorizonSecs } = await getKeylessConfig({ aptosConfig });
+  const { movementConfig, jwt, jwkAddress, uidKey, proofFetchCallback, pepper = await getPepper(args) } = args;
+  const { verificationKey, maxExpHorizonSecs } = await getKeylessConfig({ movementConfig });
 
   const proofPromise = getProof({ ...args, pepper, maxExpHorizonSecs });
   // If a callback is provided, pass in the proof as a promise to KeylessAccount.create.  This will make the proof be fetched in the
@@ -212,7 +212,7 @@ export async function deriveKeylessAccount(args: {
   if (jwkAddress !== undefined) {
     const publicKey = FederatedKeylessPublicKey.fromJwtAndPepper({ jwt, pepper, jwkAddress, uidKey });
     const address = await lookupOriginalAccountAddress({
-      aptosConfig,
+      movementConfig,
       authenticationKey: publicKey.authKey().derivedAddress(),
     });
 
@@ -229,7 +229,7 @@ export async function deriveKeylessAccount(args: {
 
   const publicKey = KeylessPublicKey.fromJwtAndPepper({ jwt, pepper, uidKey });
   const address = await lookupOriginalAccountAddress({
-    aptosConfig,
+    movementConfig,
     authenticationKey: publicKey.authKey().derivedAddress(),
   });
   return KeylessAccount.create({ ...args, address, proof, pepper, proofFetchCallback, verificationKey });
@@ -240,13 +240,13 @@ export interface JWKS {
 }
 
 export async function updateFederatedKeylessJwkSetTransaction(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: Account;
   iss: string;
   jwksUrl?: string;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, sender, iss, options } = args;
+  const { movementConfig, sender, iss, options } = args;
 
   let { jwksUrl } = args;
 
@@ -280,7 +280,7 @@ export async function updateFederatedKeylessJwkSetTransaction(args: {
 
   const jwks: JWKS = await response.json();
   return generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: sender.accountAddress,
     data: {
       function: "0x1::jwks::update_federated_jwk_set",

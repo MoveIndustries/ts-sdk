@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -9,7 +9,7 @@
  * @group Implementation
  */
 
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
 import { getAptosFullNode, postAptosIndexer } from "../client";
 import { GetChainTopUserTransactionsResponse, GetProcessorStatusResponse, GraphqlQuery, LedgerInfo } from "../types";
 import { GetChainTopUserTransactionsQuery, GetProcessorStatusQuery } from "../types/generated/operations";
@@ -20,13 +20,13 @@ import { ProcessorType } from "../utils/const";
  * Retrieves information about the current ledger.
  *
  * @param args - The arguments for retrieving ledger information.
- * @param args.aptosConfig - The configuration object for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration object for connecting to the Movement network.
  * @group Implementation
  */
-export async function getLedgerInfo(args: { aptosConfig: AptosConfig }): Promise<LedgerInfo> {
-  const { aptosConfig } = args;
+export async function getLedgerInfo(args: { movementConfig: MovementConfig }): Promise<LedgerInfo> {
+  const { movementConfig } = args;
   const { data } = await getAptosFullNode<{}, LedgerInfo>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getLedgerInfo",
     path: "",
   });
@@ -37,23 +37,23 @@ export async function getLedgerInfo(args: { aptosConfig: AptosConfig }): Promise
  * Retrieves the top user transactions for a specific blockchain chain.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.limit - The maximum number of transactions to retrieve.
  * @returns An array of user transactions.
  * @group Implementation
  */
 export async function getChainTopUserTransactions(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   limit: number;
 }): Promise<GetChainTopUserTransactionsResponse> {
-  const { aptosConfig, limit } = args;
+  const { movementConfig, limit } = args;
   const graphqlQuery = {
     query: GetChainTopUserTransactions,
     variables: { limit },
   };
 
   const data = await queryIndexer<GetChainTopUserTransactionsQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getChainTopUserTransactions",
   });
@@ -62,23 +62,23 @@ export async function getChainTopUserTransactions(args: {
 }
 
 /**
- * Executes a GraphQL query against the Aptos indexer and retrieves the resulting data.
+ * Executes a GraphQL query against the Movement indexer and retrieves the resulting data.
  *
  * @param args - The arguments for the query.
- * @param args.aptosConfig - The configuration settings for the Aptos client.
+ * @param args.movementConfig - The configuration settings for the Movement client.
  * @param args.query - The GraphQL query to be executed.
  * @param args.originMethod - An optional string to specify the origin method for tracking purposes.
  * @returns The data returned from the query execution.
  * @group Implementation
  */
 export async function queryIndexer<T extends {}>(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   query: GraphqlQuery;
   originMethod?: string;
 }): Promise<T> {
-  const { aptosConfig, query, originMethod } = args;
+  const { movementConfig, query, originMethod } = args;
   const { data } = await postAptosIndexer<GraphqlQuery, T>({
-    aptosConfig,
+    movementConfig,
     originMethod: originMethod ?? "queryIndexer",
     path: "",
     body: query,
@@ -91,19 +91,19 @@ export async function queryIndexer<T extends {}>(args: {
  * Retrieves the current statuses of processors.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @returns The statuses of the processors.
  * @group Implementation
  */
-export async function getProcessorStatuses(args: { aptosConfig: AptosConfig }): Promise<GetProcessorStatusResponse> {
-  const { aptosConfig } = args;
+export async function getProcessorStatuses(args: { movementConfig: MovementConfig }): Promise<GetProcessorStatusResponse> {
+  const { movementConfig } = args;
 
   const graphqlQuery = {
     query: GetProcessorStatus,
   };
 
   const data = await queryIndexer<GetProcessorStatusQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getProcessorStatuses",
   });
@@ -115,30 +115,30 @@ export async function getProcessorStatuses(args: { aptosConfig: AptosConfig }): 
  * Retrieves the last success version from the indexer.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @returns The last success version as a BigInt.
  * @group Implementation
  */
-export async function getIndexerLastSuccessVersion(args: { aptosConfig: AptosConfig }): Promise<bigint> {
-  const response = await getProcessorStatuses({ aptosConfig: args.aptosConfig });
+export async function getIndexerLastSuccessVersion(args: { movementConfig: MovementConfig }): Promise<bigint> {
+  const response = await getProcessorStatuses({ movementConfig: args.movementConfig });
   return BigInt(response[0].last_success_version);
 }
 
 /**
- * Retrieves the status of a specified processor in the Aptos network.
+ * Retrieves the status of a specified processor in the Movement network.
  * This function allows you to check the current operational status of a processor, which can be useful for monitoring and troubleshooting.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration object for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration object for connecting to the Movement network.
  * @param args.processorType - The type of processor whose status you want to retrieve.
  * @returns The status of the specified processor.
  * @group Implementation
  */
 export async function getProcessorStatus(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   processorType: ProcessorType;
 }): Promise<GetProcessorStatusResponse[0]> {
-  const { aptosConfig, processorType } = args;
+  const { movementConfig, processorType } = args;
 
   const whereCondition: { processor: { _eq: string } } = {
     processor: { _eq: processorType },
@@ -152,7 +152,7 @@ export async function getProcessorStatus(args: {
   };
 
   const data = await queryIndexer<GetProcessorStatusQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getProcessorStatus",
   });

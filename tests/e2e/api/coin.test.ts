@@ -1,24 +1,23 @@
 import {
-  AptosConfig,
-  Network,
-  Aptos,
   Account,
   Deserializer,
+  MovementConfig,
+  Network,
   RawTransaction,
-  TransactionPayloadEntryFunction,
+  TransactionPayloadEntryFunction
 } from "../../../src";
 import { FUND_AMOUNT, longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 
 describe("coin", () => {
-  test("it generates a transfer coin transaction with AptosCoin coin type", async () => {
-    const config = new AptosConfig({ network: Network.LOCAL });
-    const aptos = new Aptos(config);
+  test("it generates a transfer coin transaction with MovementCoin coin type", async () => {
+    const config = new MovementConfig({ network: Network.LOCAL });
+    const movement = new Movement(config);
     const sender = Account.generate();
     const recipient = Account.generate();
-    await aptos.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
+    await movement.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
 
-    const transaction = await aptos.transferCoinTransaction({
+    const transaction = await movement.transferCoinTransaction({
       sender: sender.accountAddress,
       recipient: recipient.accountAddress,
       amount: 10,
@@ -38,16 +37,16 @@ describe("coin", () => {
 
     expect(typeArg.value.address.toString()).toBe("0x1");
     expect(typeArg.value.moduleName.identifier).toBe("aptos_coin");
-    expect(typeArg.value.name.identifier).toBe("AptosCoin");
+    expect(typeArg.value.name.identifier).toBe("MovementCoin");
   });
 
   test("it generates a transfer coin transaction with a custom coin type", async () => {
     const { aptos } = getAptosClient();
     const sender = Account.generate();
     const recipient = Account.generate();
-    await aptos.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
+    await movement.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
 
-    const transaction = await aptos.transferCoinTransaction({
+    const transaction = await movement.transferCoinTransaction({
       sender: sender.accountAddress,
       recipient: recipient.accountAddress,
       amount: 10,
@@ -78,22 +77,22 @@ describe("coin", () => {
       const sender = Account.generate();
       const recipient = Account.generate();
 
-      await aptos.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
-      const senderCoinsBefore = await aptos.getAccountCoinsData({ accountAddress: sender.accountAddress });
+      await movement.fundAccount({ accountAddress: sender.accountAddress, amount: FUND_AMOUNT });
+      const senderCoinsBefore = await movement.getAccountCoinsData({ accountAddress: sender.accountAddress });
 
-      const transaction = await aptos.transferCoinTransaction({
+      const transaction = await movement.transferCoinTransaction({
         sender: sender.accountAddress,
         recipient: recipient.accountAddress,
         amount: 10,
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction });
 
-      const res = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
-      const recipientCoins = await aptos.getAccountCoinsData({
+      const res = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const recipientCoins = await movement.getAccountCoinsData({
         accountAddress: recipient.accountAddress,
         minimumLedgerVersion: BigInt(res.version),
       });
-      const senderCoinsAfter = await aptos.getAccountCoinsData({
+      const senderCoinsAfter = await movement.getAccountCoinsData({
         accountAddress: sender.accountAddress,
         minimumLedgerVersion: BigInt(res.version),
       });

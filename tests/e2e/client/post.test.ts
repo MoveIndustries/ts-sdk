@@ -1,18 +1,18 @@
 import {
-  AptosConfig,
-  GraphqlQuery,
-  postAptosIndexer,
-  postAptosFullNode,
-  U8,
-  postAptosFaucet,
   Account,
+  GraphqlQuery,
   InputViewFunctionData,
+  MovementConfig,
+  postAptosFaucet,
+  postAptosFullNode,
+  postAptosIndexer,
+  U8,
 } from "../../../src";
 import { GetChainTopUserTransactionsQuery } from "../../../src/types/generated/operations";
 import { GetChainTopUserTransactions } from "../../../src/types/generated/queries";
 import { getAptosClient } from "../helper";
 
-function getAptosConfig(): AptosConfig {
+function getMovementConfig(): MovementConfig {
   const partialConfig = {
     clientConfig: {
       HEADERS: { clientConfig: "clientConfig-header" },
@@ -30,7 +30,7 @@ describe("post request", () => {
   describe("indexer", () => {
     test("it sets correct headers", async () => {
       const response = await postAptosIndexer<GraphqlQuery, GetChainTopUserTransactionsQuery>({
-        aptosConfig: getAptosConfig(),
+        movementConfig: getMovementConfig(),
         originMethod: "testQueryIndexer",
         path: "",
         body: {
@@ -53,7 +53,7 @@ describe("post request", () => {
   describe("fullnode", () => {
     test("it sets correct headers on post request", async () => {
       const response = await postAptosFullNode<InputViewFunctionData, U8>({
-        aptosConfig: getAptosConfig(),
+        movementConfig: getMovementConfig(),
         originMethod: "testPostFullnodeQuery",
         path: "view",
         body: {
@@ -77,7 +77,7 @@ describe("post request", () => {
     test("it sets correct headers", async () => {
       const account = Account.generate();
       const response = await postAptosFaucet<any, { txn_hashes: Array<string> }>({
-        aptosConfig: getAptosConfig(),
+        movementConfig: getMovementConfig(),
         path: "fund",
         body: {
           address: account.accountAddress.toString(),

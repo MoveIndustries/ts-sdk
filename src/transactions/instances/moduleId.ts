@@ -1,11 +1,11 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Serializable, Serializer } from "../../bcs/serializer";
 import { Deserializer } from "../../bcs/deserializer";
+import { Serializable, Serializer } from "../../bcs/serializer";
 import { AccountAddress } from "../../core";
-import { Identifier } from "./identifier";
 import { MoveModuleId } from "../../types";
+import { Identifier } from "./identifier";
 
 /**
  * Represents a ModuleId that can be serialized and deserialized.

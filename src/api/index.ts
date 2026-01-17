@@ -1,5 +1,6 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-export * from "./aptos";
-export * from "./aptosConfig";
+export * from "./movement";
+export * from "./movementConfig";
+

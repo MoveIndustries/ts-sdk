@@ -1,10 +1,10 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
+import { AnyNumber, ClientConfig, MimeType, MovementResponse } from "../types";
+import { MovementApiType } from "../utils/const";
 import { aptosRequest } from "./core";
-import { AptosResponse, AnyNumber, ClientConfig, MimeType } from "../types";
-import { AptosApiType } from "../utils/const";
 
 /**
  * Options for making a POST request, including the API client configuration.
@@ -17,13 +17,13 @@ export type PostRequestOptions = {
    * @group Implementation
    * @category Client
    */
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   /**
    * The type of API endpoint to call e.g. fullnode, indexer, etc
    * @group Implementation
    * @category Client
    */
-  type: AptosApiType;
+  type: MovementApiType;
   /**
    * The name of the API method
    * @group Implementation
@@ -61,7 +61,7 @@ export type PostRequestOptions = {
    */
   body?: any;
   /**
-   * Specific client overrides for this request to override aptosConfig
+   * Specific client overrides for this request to override movementConfig
    * @group Implementation
    * @category Client
    */
@@ -69,7 +69,7 @@ export type PostRequestOptions = {
 };
 
 /**
- * Options for posting a request to Aptos, excluding the type field.
+ * Options for posting a request to Movement, excluding the type field.
  * @group Implementation
  * @category Client
  */
@@ -86,7 +86,7 @@ export type PostAptosRequestOptions = Omit<PostRequestOptions, "type">;
  * @param options.acceptType - The type of response expected from the server.
  * @param options.contentType - The content type of the request body.
  * @param options.params - Additional parameters to include in the request.
- * @param options.aptosConfig - Configuration settings for the Aptos request.
+ * @param options.movementConfig - Configuration settings for the Movement request.
  * @param options.overrides - Any overrides for the default request behavior.
  * @returns The response from the POST request.
  * @group Implementation
@@ -94,9 +94,9 @@ export type PostAptosRequestOptions = Omit<PostRequestOptions, "type">;
  */
 export async function post<Req extends {}, Res extends {}>(
   options: PostRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { type, originMethod, path, body, acceptType, contentType, params, aptosConfig, overrides } = options;
-  const url = aptosConfig.getRequestUrl(type);
+): Promise<MovementResponse<Req, Res>> {
+  const { type, originMethod, path, body, acceptType, contentType, params, movementConfig, overrides } = options;
+  const url = movementConfig.getRequestUrl(type);
 
   return aptosRequest<Req, Res>(
     {
@@ -110,48 +110,48 @@ export async function post<Req extends {}, Res extends {}>(
       params,
       overrides,
     },
-    aptosConfig,
+    movementConfig,
     options.type,
   );
 }
 
 /**
- * Sends a request to the Aptos full node using the specified options.
- * This function allows you to interact with the Aptos blockchain by sending requests to the full node.
+ * Sends a request to the Movement full node using the specified options.
+ * This function allows you to interact with the Movement blockchain by sending requests to the full node.
  *
  * @param options - The options for the request.
- * @param options.aptosConfig - Configuration settings for the Aptos client.
- * @param options.aptosConfig.clientConfig - Client-specific configuration settings.
- * @param options.aptosConfig.fullnodeConfig - Full node-specific configuration settings.
+ * @param options.movementConfig - Configuration settings for the Movement client.
+ * @param options.movementConfig.clientConfig - Client-specific configuration settings.
+ * @param options.movementConfig.fullnodeConfig - Full node-specific configuration settings.
  * @param options.overrides - Additional overrides for the request.
  * @group Implementation
  * @category Client
  */
 export async function postAptosFullNode<Req extends {}, Res extends {}>(
   options: PostAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { aptosConfig } = options;
+): Promise<MovementResponse<Req, Res>> {
+  const { movementConfig } = options;
 
   return post<Req, Res>({
     ...options,
-    type: AptosApiType.FULLNODE,
+    type: MovementApiType.FULLNODE,
     overrides: {
-      ...aptosConfig.clientConfig,
-      ...aptosConfig.fullnodeConfig,
+      ...movementConfig.clientConfig,
+      ...movementConfig.fullnodeConfig,
       ...options.overrides,
-      HEADERS: { ...aptosConfig.clientConfig?.HEADERS, ...aptosConfig.fullnodeConfig?.HEADERS },
+      HEADERS: { ...movementConfig.clientConfig?.HEADERS, ...movementConfig.fullnodeConfig?.HEADERS },
     },
   });
 }
 
 /**
- * Sends a request to the Aptos indexer with the specified options.
- * This function allows you to interact with the Aptos indexer and customize the request using various configurations.
+ * Sends a request to the Movement indexer with the specified options.
+ * This function allows you to interact with the Movement indexer and customize the request using various configurations.
  *
- * @param options - The options for the request to the Aptos indexer.
- * @param options.aptosConfig - Configuration settings specific to the Aptos client and indexer.
- * @param options.aptosConfig.clientConfig - The client configuration settings.
- * @param options.aptosConfig.indexerConfig - The indexer configuration settings.
+ * @param options - The options for the request to the Movement indexer.
+ * @param options.movementConfig - Configuration settings specific to the Movement client and indexer.
+ * @param options.movementConfig.clientConfig - The client configuration settings.
+ * @param options.movementConfig.indexerConfig - The indexer configuration settings.
  * @param options.overrides - Additional overrides for the request.
  * @param options.overrides.HEADERS - Custom headers to include in the request.
  * @group Implementation
@@ -159,58 +159,58 @@ export async function postAptosFullNode<Req extends {}, Res extends {}>(
  */
 export async function postAptosIndexer<Req extends {}, Res extends {}>(
   options: PostAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { aptosConfig } = options;
+): Promise<MovementResponse<Req, Res>> {
+  const { movementConfig } = options;
 
   return post<Req, Res>({
     ...options,
-    type: AptosApiType.INDEXER,
+    type: MovementApiType.INDEXER,
     overrides: {
-      ...aptosConfig.clientConfig,
-      ...aptosConfig.indexerConfig,
+      ...movementConfig.clientConfig,
+      ...movementConfig.indexerConfig,
       ...options.overrides,
-      HEADERS: { ...aptosConfig.clientConfig?.HEADERS, ...aptosConfig.indexerConfig?.HEADERS },
+      HEADERS: { ...movementConfig.clientConfig?.HEADERS, ...movementConfig.indexerConfig?.HEADERS },
     },
   });
 }
 
 /**
- * Sends a request to the Aptos faucet to obtain test tokens.
+ * Sends a request to the Movement faucet to obtain test tokens.
  * This function modifies the provided configuration to ensure that the API_KEY is not included in the request.
  *
  * Note that only devnet has a publicly accessible faucet. For testnet, you must use
- * the minting page at https://aptos.dev/network/faucet.
+ * the minting page at https://movement.dev/network/faucet.
  *
  * @param options - The options for the request.
- * @param options.aptosConfig - The configuration settings for the Aptos client.
- * @param options.aptosConfig.clientConfig - The client-specific configuration settings.
- * @param options.aptosConfig.clientConfig.HEADERS - Optional headers to include in the request.
- * @param options.aptosConfig.faucetConfig - The configuration settings specific to the faucet.
+ * @param options.movementConfig - The configuration settings for the Movement client.
+ * @param options.movementConfig.clientConfig - The client-specific configuration settings.
+ * @param options.movementConfig.clientConfig.HEADERS - Optional headers to include in the request.
+ * @param options.movementConfig.faucetConfig - The configuration settings specific to the faucet.
  * @param options.overrides - Additional overrides for the request configuration.
  * @group Implementation
  * @category Client
  */
 export async function postAptosFaucet<Req extends {}, Res extends {}>(
   options: PostAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { aptosConfig } = options;
+): Promise<MovementResponse<Req, Res>> {
+  const { movementConfig } = options;
   // Faucet does not support API_KEY
   // Create a new object with the desired modification
-  const modifiedAptosConfig = {
-    ...aptosConfig,
-    clientConfig: { ...aptosConfig.clientConfig },
+  const modifiedMovementConfig = {
+    ...movementConfig,
+    clientConfig: { ...movementConfig.clientConfig },
   };
   // Delete API_KEY config
-  delete modifiedAptosConfig?.clientConfig?.API_KEY;
+  delete modifiedMovementConfig?.clientConfig?.API_KEY;
 
   return post<Req, Res>({
     ...options,
-    type: AptosApiType.FAUCET,
+    type: MovementApiType.FAUCET,
     overrides: {
-      ...modifiedAptosConfig.clientConfig,
-      ...modifiedAptosConfig.faucetConfig,
+      ...modifiedMovementConfig.clientConfig,
+      ...modifiedMovementConfig.faucetConfig,
       ...options.overrides,
-      HEADERS: { ...modifiedAptosConfig.clientConfig?.HEADERS, ...modifiedAptosConfig.faucetConfig?.HEADERS },
+      HEADERS: { ...modifiedMovementConfig.clientConfig?.HEADERS, ...modifiedMovementConfig.faucetConfig?.HEADERS },
     },
   });
 }
@@ -228,21 +228,21 @@ export async function postAptosFaucet<Req extends {}, Res extends {}>(
  */
 export async function postAptosPepperService<Req extends {}, Res extends {}>(
   options: PostAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  return post<Req, Res>({ ...options, type: AptosApiType.PEPPER });
+): Promise<MovementResponse<Req, Res>> {
+  return post<Req, Res>({ ...options, type: MovementApiType.PEPPER });
 }
 
 /**
- * Sends a request to the Aptos proving service with the specified options.
+ * Sends a request to the Movement proving service with the specified options.
  *
- * @param options - The options for the request to the Aptos proving service.
- * @param options.type - The type of the request, which should be set to AptosApiType.PROVER.
+ * @param options - The options for the request to the Movement proving service.
+ * @param options.type - The type of the request, which should be set to MovementApiType.PROVER.
  * @param options.data - The data to be included in the request.
  * @group Implementation
  * @category Client
  */
 export async function postAptosProvingService<Req extends {}, Res extends {}>(
   options: PostAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  return post<Req, Res>({ ...options, type: AptosApiType.PROVER });
+): Promise<MovementResponse<Req, Res>> {
+  return post<Req, Res>({ ...options, type: MovementApiType.PROVER });
 }

@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
-import path from "path";
-import fs from "fs";
 import { AccountAddress } from "@moveindustries/ts-sdk";
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
 
 /* eslint-disable no-console */
 /* eslint-disable max-len */
@@ -23,7 +23,7 @@ export function compilePackage(
     execSync("aptos --version");
   } catch (e) {
     console.log("In order to run compilation, you must have the `aptos` CLI installed.");
-    console.log("aptos is not installed. Please install it from the instructions on aptos.dev");
+    console.log("aptos is not installed. Please install it from the instructions on movement.dev");
   }
 
   const addressArg = namedAddresses.map(({ name, address }) => `${name}=${address}`).join(" ");

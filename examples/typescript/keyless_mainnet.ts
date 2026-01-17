@@ -2,10 +2,10 @@
 /* eslint-disable no-console */
 
 /**
- * This example shows how to use the Keyless accounts on Aptos
+ * This example shows how to use the Keyless accounts on Movement
  */
 
-import { AccountAddress, Aptos, AptosConfig, EphemeralKeyPair, Network } from "@moveindustries/ts-sdk";
+import { AccountAddress, EphemeralKeyPair, Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
 import * as readlineSync from "readline-sync";
 
 const TRANSFER_AMOUNT = 10; // octas
@@ -19,15 +19,15 @@ const GAS_UNIT_PRICE = 100; // octas / gas unit
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Aptos, address: AccountAddress): Promise<any> =>
-  aptos.getAccountAPTAmount({
+const balance = async (aptos: Movement, address: AccountAddress): Promise<any> =>
+  movement.getAccountAPTAmount({
     accountAddress: address,
   });
 
 const example = async () => {
   // Set up the client
-  const config = new AptosConfig({ network: Network.MAINNET });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: Network.MAINNET });
+  const movement = new Movement(config);
 
   // Generate the ephemeral (temporary) key pair that will be used to sign transactions.
   const aliceEphem = EphemeralKeyPair.generate();
@@ -50,7 +50,7 @@ const example = async () => {
 
   const jwt = inputJwt();
   // Derive the Keyless Account from the JWT and ephemeral key pair.
-  const alice = await aptos.deriveKeylessAccount({
+  const alice = await movement.deriveKeylessAccount({
     jwt,
     ephemeralKeyPair: aliceEphem,
   });
@@ -87,7 +87,7 @@ const example = async () => {
   console.log(`Alice's balance is: ${aliceBalance}`);
 
   // Transfer to yourself to not waste APT
-  const transaction = await aptos.transferCoinTransaction({
+  const transaction = await movement.transferCoinTransaction({
     sender: alice.accountAddress,
     recipient: alice.accountAddress,
     amount: TRANSFER_AMOUNT,
@@ -97,9 +97,9 @@ const example = async () => {
     },
   });
 
-  const committedTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction });
+  const committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction });
 
-  await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  await movement.waitForTransaction({ transactionHash: committedTxn.hash });
   console.log(`Committed transaction: ${committedTxn.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");

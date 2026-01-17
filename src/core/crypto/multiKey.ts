@@ -1,11 +1,11 @@
-import { AnyPublicKeyVariant, SigningScheme as AuthenticationKeyScheme, HexInput } from "../../types";
+import { MovementConfig } from "../../api";
 import { Deserializer } from "../../bcs/deserializer";
 import { Serializer } from "../../bcs/serializer";
+import { AnyPublicKeyVariant, SigningScheme as AuthenticationKeyScheme, HexInput } from "../../types";
 import { AuthenticationKey } from "../authenticationKey";
-import { AccountPublicKey, PublicKey, VerifySignatureAsyncArgs } from "./publicKey";
+import { AccountPublicKey, PublicKey } from "./publicKey";
 import { Signature } from "./signature";
 import { AnyPublicKey, AnySignature } from "./singleKey";
-import { AptosConfig } from "../../api";
 
 /**
  * Counts the number of set bits (1s) in a byte.
@@ -105,8 +105,8 @@ export abstract class AbstractMultiKey extends AccountPublicKey {
  * to be associated with a single account. This class enforces a minimum number of valid signatures
  * required to authorize actions, ensuring enhanced security for multi-agent accounts.
  *
- * The public keys of each individual agent can be any type of public key supported by Aptos.
- * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263), Aptos supports
+ * The public keys of each individual agent can be any type of public key supported by Movement.
+ * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263), Movement supports
  * `Legacy` and `Unified` authentication keys.
  * @group Implementation
  * @category Serialization
@@ -218,14 +218,14 @@ export class MultiKey extends AbstractMultiKey {
    * This function helps ensure the integrity and authenticity of the message by checking if the signature is valid.
    *
    * @param args - The arguments for verifying the signature.
-   * @param args.aptosConfig - The Aptos configuration to use
+   * @param args.movementConfig - The Movement configuration to use
    * @param args.message - The message that was signed.
    * @param args.signature - The signature to verify.
    * @group Implementation
    * @category Serialization
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Signature;
     options?: { throwErrorWithReason?: boolean };
@@ -370,7 +370,7 @@ export class MultiKeySignature extends Signature {
    * Signature for a K-of-N multi-sig transaction.
    *
    * @see {@link
-   * https://aptos.dev/integration/creating-a-signed-transaction/#multisignature-transactions | Creating a Signed Transaction}
+   * https://movement.dev/integration/creating-a-signed-transaction/#multisignature-transactions | Creating a Signed Transaction}
    *
    * @param args.signatures A list of signatures
    * @param args.bitmap 4 bytes, at most 32 signatures are supported. If Nth bit value is `1`, the Nth

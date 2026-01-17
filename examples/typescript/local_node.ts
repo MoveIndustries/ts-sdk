@@ -24,16 +24,16 @@ async function runLocalNode() {
   }
 }
 
-// initialize current directory for Aptos
+// initialize current directory for Movement
 async function init() {
   try {
-    console.log("initializing Aptos");
+    console.log("initializing Movement");
     await move.init({
       network: "local",
       profile: "default",
     });
   } catch (error) {
-    console.error("error initializing Aptos", error);
+    console.error("error initializing Movement", error);
   }
 }
 

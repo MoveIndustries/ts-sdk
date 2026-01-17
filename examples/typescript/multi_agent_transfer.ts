@@ -2,18 +2,18 @@
 /* eslint-disable no-console */
 
 /**
- * This example shows how to use the Aptos client to create accounts, fund them, and transfer between them.
+ * This example shows how to use the Movement client to create accounts, fund them, and transfer between them.
  */
 import {
   Account,
   AccountAddress,
-  Aptos,
-  AptosConfig,
-  U64,
-  parseTypeTag,
+  InputViewFunctionJsonData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
-  InputViewFunctionJsonData,
+  U64,
+  parseTypeTag,
 } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
@@ -24,7 +24,7 @@ const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100_000_000;
 const TRANSFER_AMOUNT = 10;
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 /**
  * Prints the balance of an account
@@ -34,13 +34,13 @@ const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ??
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Aptos, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await aptos.viewJson<[number]>({ payload: payload });
+  const [balance] = await movement.viewJson<[number]>({ payload: payload });
 
   console.log(`${name}'s balance is: ${balance}`);
   return Number(balance);
@@ -57,8 +57,8 @@ const example = async () => {
   );
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   // Create two accounts
   const alice = Account.generate();
@@ -71,13 +71,13 @@ const example = async () => {
   // Fund the accounts
   console.log("\n=== Funding accounts ===\n");
 
-  const aliceFundTxn = await aptos.fundAccount({
+  const aliceFundTxn = await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: ALICE_INITIAL_BALANCE,
   });
   console.log("Alice's fund transaction: ", aliceFundTxn);
 
-  const bobFundTxn = await aptos.fundAccount({
+  const bobFundTxn = await movement.fundAccount({
     accountAddress: bob.accountAddress,
     amount: BOB_INITIAL_BALANCE,
   });
@@ -95,17 +95,17 @@ const example = async () => {
 
   // Create the object
   console.log("\n=== Create an object owned by Alice ===\n");
-  const createObject = await aptos.transaction.build.simple({
+  const createObject = await movement.transaction.build.simple({
     sender: alice.accountAddress,
     data: {
       bytecode: CREATE_OBJECT_SCRIPT,
       functionArguments: [],
     },
   });
-  const pendingObjectTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: createObject });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingObjectTxn.hash });
+  const pendingObjectTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: createObject });
+  const response = await movement.waitForTransaction({ transactionHash: pendingObjectTxn.hash });
 
-  const objects = await aptos.getAccountOwnedObjects({
+  const objects = await movement.getAccountOwnedObjects({
     accountAddress: alice.accountAddress,
     minimumLedgerVersion: BigInt(response.version),
   });
@@ -118,7 +118,7 @@ const example = async () => {
   console.log(`Created object ${objectAddress} with transaction: ${pendingObjectTxn.hash}`);
 
   console.log("\n=== Transfer object ownership to Bob ===\n");
-  const transferTxn = await aptos.transaction.build.multiAgent({
+  const transferTxn = await movement.transaction.build.multiAgent({
     sender: alice.accountAddress,
     secondarySignerAddresses: [bob.accountAddress],
     data: {
@@ -129,19 +129,19 @@ const example = async () => {
   });
 
   // Alice signs
-  const aliceSignature = aptos.transaction.sign({ signer: alice, transaction: transferTxn });
+  const aliceSignature = movement.transaction.sign({ signer: alice, transaction: transferTxn });
 
   // Bob signs
-  const bobSignature = aptos.transaction.sign({ signer: bob, transaction: transferTxn });
+  const bobSignature = movement.transaction.sign({ signer: bob, transaction: transferTxn });
 
-  const pendingTransferTxn = await aptos.transaction.submit.multiAgent({
+  const pendingTransferTxn = await movement.transaction.submit.multiAgent({
     transaction: transferTxn,
     senderAuthenticator: aliceSignature,
     additionalSignersAuthenticators: [bobSignature],
   });
-  const transferResponse = await aptos.waitForTransaction({ transactionHash: pendingTransferTxn.hash });
+  const transferResponse = await movement.waitForTransaction({ transactionHash: pendingTransferTxn.hash });
 
-  const bobObjectsAfter = await aptos.getAccountOwnedObjects({
+  const bobObjectsAfter = await movement.getAccountOwnedObjects({
     accountAddress: bob.accountAddress,
     minimumLedgerVersion: BigInt(transferResponse.version),
   });

@@ -1,10 +1,10 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { submitTransaction } from "../../internal/transactionSubmission";
 import { AccountAuthenticator, AnyRawTransaction, InputTransactionPluginData } from "../../transactions";
 import { PendingTransactionResponse } from "../../types";
-import { AptosConfig } from "../aptosConfig";
+import { MovementConfig } from "../movementConfig";
 import { validateFeePayerDataOnSubmission } from "./helpers";
 
 /**
@@ -12,44 +12,44 @@ import { validateFeePayerDataOnSubmission } from "./helpers";
  * @group Implementation
  */
 export class Submit {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Initializes a new instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Initializes a new instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., TESTNET, MAINNET).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    * @param config.faucetUrl - The URL of the faucet for obtaining test tokens.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({
    *         network: Network.TESTNET, // Use the TESTNET for testing
-   *         nodeUrl: "https://testnet.aptos.dev", // Specify the node URL
-   *         faucetUrl: "https://faucet.testnet.aptos.dev" // Specify the faucet URL
+   *         nodeUrl: "https://testnet.movement.dev", // Specify the node URL
+   *         faucetUrl: "https://faucet.testnet.movement.dev" // Specify the faucet URL
    *     });
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Implementation
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
   }
 
   /**
-   * Submits a transaction to the Aptos blockchain using the provided transaction details and authenticators.
+   * Submits a transaction to the Movement blockchain using the provided transaction details and authenticators.
    * This function allows you to execute transactions securely by specifying the sender and optional fee payer authenticators.
    *
    * @param args - The arguments for submitting the transaction.
@@ -59,14 +59,14 @@ export class Submit {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new sender account
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -75,7 +75,7 @@ export class Submit {
    *   });
    *
    *   // Submit the transaction
-   *   const response = await aptos.simple({
+   *   const response = await movement.simple({
    *     transaction,
    *     senderAuthenticator: sender.getAuthenticator(), // Use the sender's authenticator
    *   });
@@ -94,11 +94,11 @@ export class Submit {
     } & InputTransactionPluginData,
   ): Promise<PendingTransactionResponse> {
     validateFeePayerDataOnSubmission(this.config, args);
-    return submitTransaction({ aptosConfig: this.config, ...args });
+    return submitTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
-   * Submits a multi-agent transaction to the Aptos network, allowing multiple signers to authorize the transaction.
+   * Submits a multi-agent transaction to the Movement network, allowing multiple signers to authorize the transaction.
    * This function is useful for scenarios where a transaction requires approval from multiple accounts.
    *
    * @param args - The parameters for the multi-agent transaction.
@@ -109,17 +109,17 @@ export class Submit {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new sender account
    *   const additionalSigner1 = Account.generate(); // Generate an additional signer account
    *   const additionalSigner2 = Account.generate(); // Generate another additional signer account
    *
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -127,7 +127,7 @@ export class Submit {
    *     },
    *   });
    *
-   *   const response = await aptos.multiAgent({
+   *   const response = await movement.multiAgent({
    *     transaction,
    *     senderAuthenticator: sender.getAuthenticator(), // Use the sender's authenticator
    *     additionalSignersAuthenticators: [
@@ -151,6 +151,6 @@ export class Submit {
     } & InputTransactionPluginData,
   ): Promise<PendingTransactionResponse> {
     validateFeePayerDataOnSubmission(this.config, args);
-    return submitTransaction({ aptosConfig: this.config, ...args });
+    return submitTransaction({ movementConfig: this.config, ...args });
   }
 }

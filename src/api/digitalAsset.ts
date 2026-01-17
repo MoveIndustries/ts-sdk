@@ -1,21 +1,8 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  AnyNumber,
-  GetCollectionDataResponse,
-  GetCurrentTokenOwnershipResponse,
-  GetOwnedTokensResponse,
-  GetTokenActivityResponse,
-  GetTokenDataResponse,
-  MoveStructId,
-  OrderByArg,
-  PaginationArgs,
-  TokenStandardArg,
-} from "../types";
-import { AccountAddress, AccountAddressInput } from "../core";
 import { Account } from "../account";
-import { InputGenerateTransactionOptions } from "../transactions/types";
+import { AccountAddress, AccountAddressInput } from "../core";
 import {
   addDigitalAssetPropertyTransaction,
   addDigitalAssetTypedPropertyTransaction,
@@ -45,40 +32,53 @@ import {
   updateDigitalAssetPropertyTransaction,
   updateDigitalAssetTypedPropertyTransaction,
 } from "../internal/digitalAsset";
-import { ProcessorType } from "../utils/const";
-import { AptosConfig } from "./aptosConfig";
-import { waitForIndexerOnVersion } from "./utils";
 import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
+import { InputGenerateTransactionOptions } from "../transactions/types";
+import {
+  AnyNumber,
+  GetCollectionDataResponse,
+  GetCurrentTokenOwnershipResponse,
+  GetOwnedTokensResponse,
+  GetTokenActivityResponse,
+  GetTokenDataResponse,
+  MoveStructId,
+  OrderByArg,
+  PaginationArgs,
+  TokenStandardArg,
+} from "../types";
+import { ProcessorType } from "../utils/const";
+import { MovementConfig } from "./movementConfig";
+import { waitForIndexerOnVersion } from "./utils";
 
 /**
- * A class to query all `DigitalAsset` related queries on Aptos.
+ * A class to query all `DigitalAsset` related queries on Movement.
  * @group DigitalAsset
  */
 export class DigitalAsset {
   /**
-   * Initializes a new instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Initializes a new instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // Specify your desired network
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // Specify your desired network
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group DigitalAsset
    */
-  constructor(readonly config: AptosConfig) { }
+  constructor(readonly config: MovementConfig) { }
 
   /**
    * Queries data of a specific collection by the collection creator address and the collection name.
@@ -97,14 +97,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Querying collection data by creator address and collection name
-   *   const collection = await aptos.getCollectionData({
+   *   const collection = await movement.getCollectionData({
    *     creatorAddress: "0x1", // replace with a real creator address
    *     collectionName: "myCollection", // specify your collection name
    *   });
@@ -138,7 +138,7 @@ export class DigitalAsset {
       whereCondition.token_standard = { _eq: options?.tokenStandard ?? "v2" };
     }
 
-    return getCollectionData({ aptosConfig: this.config, options: { where: whereCondition } });
+    return getCollectionData({ movementConfig: this.config, options: { where: whereCondition } });
   }
 
   /**
@@ -154,14 +154,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching collection data by creator address and collection name
-   *   const collection = await aptos.getCollectionDataByCreatorAddressAndCollectionName({
+   *   const collection = await movement.getCollectionDataByCreatorAddressAndCollectionName({
    *     creatorAddress: "0x1", // replace with a real creator address
    *     collectionName: "myCollection",
    *     minimumLedgerVersion: 1, // optional, specify if needed
@@ -186,7 +186,7 @@ export class DigitalAsset {
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
 
-    return getCollectionDataByCreatorAddressAndCollectionName({ aptosConfig: this.config, ...args });
+    return getCollectionDataByCreatorAddressAndCollectionName({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -201,14 +201,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve collection data by creator address
-   *   const collectionData = await aptos.getCollectionDataByCreatorAddress({
+   *   const collectionData = await movement.getCollectionDataByCreatorAddress({
    *     creatorAddress: "0x1", // replace with a real creator address
    *     minimumLedgerVersion: 1, // specify the minimum ledger version if needed
    *     options: {
@@ -234,7 +234,7 @@ export class DigitalAsset {
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
 
-    return getCollectionDataByCreatorAddress({ aptosConfig: this.config, ...args });
+    return getCollectionDataByCreatorAddress({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -247,14 +247,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching collection data by collection ID
-   *   const collection = await aptos.getCollectionDataByCollectionId({
+   *   const collection = await movement.getCollectionDataByCollectionId({
    *     collectionId: "0x123", // replace with a real collection ID
    *   });
    *
@@ -274,7 +274,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getCollectionDataByCollectionId({ aptosConfig: this.config, ...args });
+    return getCollectionDataByCollectionId({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -289,14 +289,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching the collection ID for a specific creator and collection name
-   *   const collectionId = await aptos.getCollectionId({
+   *   const collectionId = await movement.getCollectionId({
    *     creatorAddress: "0x1", // replace with a real creator address
    *     collectionName: "myCollection"
    *   });
@@ -318,7 +318,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getCollectionId({ aptosConfig: this.config, ...args });
+    return getCollectionId({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -331,14 +331,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching digital asset data for a specific address
-   *   const digitalAsset = await aptos.getDigitalAssetData({
+   *   const digitalAsset = await movement.getDigitalAssetData({
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
    *   });
    *
@@ -357,7 +357,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getDigitalAssetData({ aptosConfig: this.config, ...args });
+    return getDigitalAssetData({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -371,14 +371,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Getting the current ownership of a digital asset
-   *   const digitalAssetOwner = await aptos.getCurrentDigitalAssetOwnership({
+   *   const digitalAssetOwner = await movement.getCurrentDigitalAssetOwnership({
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
    *   });
    *
@@ -397,7 +397,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getCurrentDigitalAssetOwnership({ aptosConfig: this.config, ...args });
+    return getCurrentDigitalAssetOwnership({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -411,14 +411,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching the digital assets owned by the specified address
-   *   const digitalAssets = await aptos.getOwnedDigitalAssets({
+   *   const digitalAssets = await movement.getOwnedDigitalAssets({
    *     ownerAddress: "0x1", // replace with a real account address
    *   });
    *
@@ -438,7 +438,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getOwnedDigitalAssets({ aptosConfig: this.config, ...args });
+    return getOwnedDigitalAssets({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -453,14 +453,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the activity data for a digital asset
-   *   const digitalAssetActivity = await aptos.getDigitalAssetActivity({
+   *   const digitalAssetActivity = await movement.getDigitalAssetActivity({
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
    *   });
    *
@@ -480,7 +480,7 @@ export class DigitalAsset {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.TOKEN_V2_PROCESSOR,
     });
-    return getDigitalAssetActivity({ aptosConfig: this.config, ...args });
+    return getDigitalAssetActivity({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -512,14 +512,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Creating a new collection transaction
-   *   const transaction = await aptos.createCollectionTransaction({
+   *   const transaction = await movement.createCollectionTransaction({
    *     creator: Account.generate(), // Replace with a real account
    *     description: "A unique collection of digital assets.",
    *     name: "My Digital Collection",
@@ -541,7 +541,7 @@ export class DigitalAsset {
       options?: InputGenerateTransactionOptions;
     } & CreateCollectionOptions,
   ): Promise<SimpleTransaction> {
-    return createCollectionTransaction({ aptosConfig: this.config, ...args });
+    return createCollectionTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -562,14 +562,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Creating a transaction to mint a digital asset
-   *   const transaction = await aptos.mintDigitalAssetTransaction({
+   *   const transaction = await movement.mintDigitalAssetTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     collection: "MyCollection",
    *     description: "This is a digital asset.",
@@ -594,7 +594,7 @@ export class DigitalAsset {
     propertyValues?: Array<PropertyValue>;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return mintDigitalAssetTransaction({ aptosConfig: this.config, ...args });
+    return mintDigitalAssetTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -612,14 +612,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Transfer a digital asset
-   *   const transaction = await aptos.transferDigitalAssetTransaction({
+   *   const transaction = await movement.transferDigitalAssetTransaction({
    *     sender: Account.generate(), // replace with a real sender account
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
    *     recipient: "0x456", // replace with a real recipient account address
@@ -638,7 +638,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return transferDigitalAssetTransaction({ aptosConfig: this.config, ...args });
+    return transferDigitalAssetTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -661,14 +661,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Mint a soul bound digital asset
-   *   const transaction = await aptos.mintSoulBoundTransaction({
+   *   const transaction = await movement.mintSoulBoundTransaction({
    *     account: Account.generate(), // Replace with a real account
    *     collection: "collectionName",
    *     description: "collectionDescription",
@@ -695,7 +695,7 @@ export class DigitalAsset {
     propertyValues?: Array<PropertyValue>;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return mintSoulBoundTransaction({ aptosConfig: this.config, ...args });
+    return mintSoulBoundTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -711,14 +711,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const creator = Account.generate(); // Replace with a real creator account
-   *   const transaction = await aptos.burnDigitalAssetTransaction({
+   *   const transaction = await movement.burnDigitalAssetTransaction({
    *     creator: creator,
    *     digitalAssetAddress: "0x123", // Replace with a real digital asset address
    *   });
@@ -735,7 +735,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return burnDigitalAssetTransaction({ aptosConfig: this.config, ...args });
+    return burnDigitalAssetTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -752,14 +752,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Freeze the digital asset transfer
-   *   const transaction = await aptos.freezeDigitalAssetTransaferTransaction({
+   *   const transaction = await movement.freezeDigitalAssetTransaferTransaction({
    *     creator: Account.generate(), // Replace with a real account if needed
    *     digitalAssetAddress: "0x123", // Replace with a real digital asset address
    *   });
@@ -776,7 +776,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return freezeDigitalAssetTransferTransaction({ aptosConfig: this.config, ...args });
+    return freezeDigitalAssetTransferTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -793,14 +793,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Unfreeze the ability to transfer a digital asset
-   *   const transaction = await aptos.unfreezeDigitalAssetTransaferTransaction({
+   *   const transaction = await movement.unfreezeDigitalAssetTransaferTransaction({
    *     creator: Account.generate(), // replace with a real creator account
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
    *   });
@@ -818,7 +818,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return unfreezeDigitalAssetTransferTransaction({ aptosConfig: this.config, ...args });
+    return unfreezeDigitalAssetTransferTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -835,14 +835,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Set the digital asset description
-   *   const transaction = await aptos.setDigitalAssetDescriptionTransaction({
+   *   const transaction = await movement.setDigitalAssetDescriptionTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     description: "This is a digital asset description.",
    *     digitalAssetAddress: "0x123", // replace with a real digital asset address
@@ -861,7 +861,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return setDigitalAssetDescriptionTransaction({ aptosConfig: this.config, ...args });
+    return setDigitalAssetDescriptionTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -878,17 +878,17 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const creator = Account.generate(); // Generate a new account for the creator
    *   const digitalAssetAddress = "0x123"; // replace with a real digital asset address
    *
    *   // Set the digital asset name
-   *   const transaction = await aptos.setDigitalAssetNameTransaction({
+   *   const transaction = await movement.setDigitalAssetNameTransaction({
    *     creator: creator,
    *     name: "digitalAssetName",
    *     digitalAssetAddress: digitalAssetAddress,
@@ -907,7 +907,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return setDigitalAssetNameTransaction({ aptosConfig: this.config, ...args });
+    return setDigitalAssetNameTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -923,14 +923,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Set the URI for a digital asset
-   *   const transaction = await aptos.setDigitalAssetURITransaction({
+   *   const transaction = await movement.setDigitalAssetURITransaction({
    *     creator: Account.generate(), // Replace with a real creator account
    *     uri: "digital-asset-uri.com",
    *     digitalAssetAddress: "0x123", // Replace with a real digital asset address
@@ -949,7 +949,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return setDigitalAssetURITransaction({ aptosConfig: this.config, ...args });
+    return setDigitalAssetURITransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -968,14 +968,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Add a digital asset property
-   *   const transaction = await aptos.addDigitalAssetPropertyTransaction({
+   *   const transaction = await movement.addDigitalAssetPropertyTransaction({
    *     creator: Account.generate(), // Replace with a real account
    *     propertyKey: "newKey",
    *     propertyType: "BOOLEAN",
@@ -998,7 +998,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return addDigitalAssetPropertyTransaction({ aptosConfig: this.config, ...args });
+    return addDigitalAssetPropertyTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1018,14 +1018,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Remove a digital asset property
-   *   const transaction = await aptos.removeDigitalAssetPropertyTransaction({
+   *   const transaction = await movement.removeDigitalAssetPropertyTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     propertyKey: "newKey",
    *     propertyType: "BOOLEAN",
@@ -1048,7 +1048,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return removeDigitalAssetPropertyTransaction({ aptosConfig: this.config, ...args });
+    return removeDigitalAssetPropertyTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1067,14 +1067,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Update a digital asset property
-   *   const transaction = await aptos.updateDigitalAssetPropertyTransaction({
+   *   const transaction = await movement.updateDigitalAssetPropertyTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     propertyKey: "newKey",
    *     propertyType: "BOOLEAN",
@@ -1097,7 +1097,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return updateDigitalAssetPropertyTransaction({ aptosConfig: this.config, ...args });
+    return updateDigitalAssetPropertyTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1118,14 +1118,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Adding a typed digital asset property
-   *   const transaction = await aptos.addDigitalAssetTypedPropertyTransaction({
+   *   const transaction = await movement.addDigitalAssetTypedPropertyTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     propertyKey: "typedKey",
    *     propertyType: "STRING",
@@ -1148,7 +1148,7 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return addDigitalAssetTypedPropertyTransaction({ aptosConfig: this.config, ...args });
+    return addDigitalAssetTypedPropertyTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -1168,14 +1168,14 @@ export class DigitalAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Update a typed digital asset property
-   *   const transaction = await aptos.updateDigitalAssetTypedPropertyTransaction({
+   *   const transaction = await movement.updateDigitalAssetTypedPropertyTransaction({
    *     creator: Account.generate(), // replace with a real account
    *     propertyKey: "typedKey",
    *     propertyType: "U8",
@@ -1198,6 +1198,6 @@ export class DigitalAsset {
     digitalAssetType?: MoveStructId;
     options?: InputGenerateTransactionOptions;
   }) {
-    return updateDigitalAssetTypedPropertyTransaction({ aptosConfig: this.config, ...args });
+    return updateDigitalAssetTypedPropertyTransaction({ movementConfig: this.config, ...args });
   }
 }

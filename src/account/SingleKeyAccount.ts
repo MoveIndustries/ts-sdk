@@ -1,20 +1,19 @@
-import { AccountAuthenticatorSingleKey } from "../transactions/authenticator/account";
-import { type HexInput, SigningScheme, SigningSchemeInput } from "../types";
+import { MovementConfig } from "../api";
 import { AccountAddress, AccountAddressInput } from "../core/accountAddress";
 import {
   AnyPublicKey,
   AnySignature,
   Ed25519PrivateKey,
-  KeylessSignature,
   PrivateKeyInput,
   Secp256k1PrivateKey,
-  Signature,
+  Signature
 } from "../core/crypto";
-import type { Account } from "./Account";
+import { AccountAuthenticatorSingleKey } from "../transactions/authenticator/account";
 import { generateSigningMessageForTransaction } from "../transactions/transactionBuilder/signingMessage";
 import { AnyRawTransaction } from "../transactions/types";
+import { type HexInput, SigningScheme, SigningSchemeInput } from "../types";
+import type { Account } from "./Account";
 import { Ed25519Account } from "./Ed25519Account";
-import { AptosConfig } from "../api";
 
 /**
  * An interface which defines if an Account utilizes SingleKey signing.
@@ -211,7 +210,7 @@ export class SingleKeyAccount implements Account, SingleKeySigner {
    * @category Account (On-Chain Model)
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Signature;
     options?: { throwErrorWithReason?: boolean };

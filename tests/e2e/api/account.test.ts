@@ -1,20 +1,19 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   APTOS_COIN,
   Account,
-  Aptos,
-  AptosConfig,
-  Ed25519PrivateKey,
-  Network,
-  SigningSchemeInput,
-  U64,
   AccountAddress,
-  MultiKeyAccount,
+  CommittedTransactionResponse,
+  Ed25519PrivateKey,
+  MovementConfig,
   MultiEd25519Account,
   MultiEd25519PublicKey,
-  CommittedTransactionResponse,
+  MultiKeyAccount,
+  Network,
+  SigningSchemeInput,
+  U64
 } from "../../../src";
 import { getAptosClient } from "../helper";
 import { simpleCoinTransactionHeler } from "../transaction/helper";
@@ -25,7 +24,7 @@ describe("account api", () => {
   describe("fetch data", () => {
     test("it fetches account data", async () => {
       const { aptos } = getAptosClient();
-      const data = await aptos.getAccountInfo({
+      const data = await movement.getAccountInfo({
         accountAddress: "0x1",
       });
       expect(data).toHaveProperty("sequence_number");
@@ -36,16 +35,16 @@ describe("account api", () => {
 
     test("it fetches account modules", async () => {
       const { aptos } = getAptosClient();
-      const data = await aptos.getAccountModules({
+      const data = await movement.getAccountModules({
         accountAddress: "0x1",
       });
       expect(data.length).toBeGreaterThan(0);
     });
 
     test("it fetches account modules with a limit", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const data = await aptos.getAccountModules({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const data = await movement.getAccountModules({
         accountAddress: "0x1",
         options: {
           limit: 1,
@@ -55,9 +54,9 @@ describe("account api", () => {
     });
 
     test("it fetches account modules with pagination", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      let { modules, cursor } = await aptos.getAccountModulesPage({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      let { modules, cursor } = await movement.getAccountModulesPage({
         accountAddress: "0x1",
         options: {
           limit: 1,
@@ -66,7 +65,7 @@ describe("account api", () => {
       expect(modules.length).toEqual(1);
       expect(cursor).toBeDefined();
       while (true) {
-        const { modules: modules2, cursor: cursor2 } = await aptos.getAccountModulesPage({
+        const { modules: modules2, cursor: cursor2 } = await movement.getAccountModulesPage({
           accountAddress: "0x1",
           options: {
             cursor,
@@ -82,9 +81,9 @@ describe("account api", () => {
     });
 
     test("it fetches an account module", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const data = await aptos.getAccountModule({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const data = await movement.getAccountModule({
         accountAddress: "0x1",
         moduleName: "coin",
       });
@@ -92,18 +91,18 @@ describe("account api", () => {
     });
 
     test("it fetches account resources", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const data = await aptos.getAccountResources({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const data = await movement.getAccountResources({
         accountAddress: "0x1",
       });
       expect(data.length).toBeGreaterThan(0);
     });
 
     test("it fetches account resources with a limit", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const data = await aptos.getAccountResources({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const data = await movement.getAccountResources({
         accountAddress: "0x1",
         options: {
           limit: 1,
@@ -113,9 +112,9 @@ describe("account api", () => {
     });
 
     test("it fetches account resources with pagination", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const { resources, cursor } = await aptos.getAccountResourcesPage({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const { resources, cursor } = await movement.getAccountResourcesPage({
         accountAddress: "0x1",
         options: {
           limit: 1,
@@ -124,7 +123,7 @@ describe("account api", () => {
       expect(resources.length).toEqual(1);
       expect(cursor).toBeDefined();
 
-      const { resources: resources2, cursor: cursor2 } = await aptos.getAccountResourcesPage({
+      const { resources: resources2, cursor: cursor2 } = await movement.getAccountResourcesPage({
         accountAddress: "0x1",
         options: {
           cursor,
@@ -136,9 +135,9 @@ describe("account api", () => {
     });
 
     test("it fetches an account resource without a type", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
-      const data = await aptos.getAccountResource({
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
+      const data = await movement.getAccountResource({
         accountAddress: "0x1",
         resourceType: "0x1::account::Account",
       });
@@ -149,8 +148,8 @@ describe("account api", () => {
     });
 
     test("it fetches an account resource typed", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       type AccountRes = {
         authentication_key: string;
         coin_register_events: {
@@ -175,7 +174,7 @@ describe("account api", () => {
         sequence_number: string;
       };
 
-      const resource = await aptos.getAccountResource<AccountRes>({
+      const resource = await movement.getAccountResource<AccountRes>({
         accountAddress: "0x1",
         resourceType: "0x1::account::Account",
       });
@@ -186,63 +185,63 @@ describe("account api", () => {
     });
 
     test("it fetches account transactions", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const senderAccount = Account.generate();
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: senderAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
       const bob = Account.generate();
-      const rawTxn = await aptos.transaction.build.simple({
+      const rawTxn = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: "0x1::aptos_account::transfer",
           functionArguments: [bob.accountAddress, new U64(10)],
         },
       });
-      const authenticator = aptos.transaction.sign({
+      const authenticator = movement.transaction.sign({
         signer: senderAccount,
         transaction: rawTxn,
       });
-      const response = await aptos.transaction.submit.simple({
+      const response = await movement.transaction.submit.simple({
         transaction: rawTxn,
         senderAuthenticator: authenticator,
       });
-      const txn = await aptos.waitForTransaction({ transactionHash: response.hash });
-      const accountTransactions = await aptos.getAccountTransactions({
+      const txn = await movement.waitForTransaction({ transactionHash: response.hash });
+      const accountTransactions = await movement.getAccountTransactions({
         accountAddress: senderAccount.accountAddress,
       });
       expect(accountTransactions[0]).toStrictEqual(txn);
     });
 
     test("it fetches account transactions count", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const senderAccount = Account.generate();
-      const response = await aptos.fundAccount({
+      const response = await movement.fundAccount({
         accountAddress: senderAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
 
-      await aptos.waitForTransaction({ transactionHash: response.hash });
-      const accountTransactionsCount = await aptos.getAccountTransactionsCount({
+      await movement.waitForTransaction({ transactionHash: response.hash });
+      const accountTransactionsCount = await movement.getAccountTransactionsCount({
         accountAddress: senderAccount.accountAddress,
       });
       expect(accountTransactionsCount).toBe(1);
     });
 
     test("it fetches account coins data", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const senderAccount = Account.generate();
-      const fundTxn = await aptos.fundAccount({
+      const fundTxn = await movement.fundAccount({
         accountAddress: senderAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
 
-      await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
-      const accountCoinData = await aptos.getAccountCoinsData({
+      await movement.waitForTransaction({ transactionHash: fundTxn.hash });
+      const accountCoinData = await movement.getAccountCoinsData({
         accountAddress: senderAccount.accountAddress,
       });
       expect(accountCoinData[0].amount).toBe(FUND_AMOUNT);
@@ -250,84 +249,84 @@ describe("account api", () => {
     });
 
     test("it fetches account coins count", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const senderAccount = Account.generate();
-      const fundTxn = await aptos.fundAccount({
+      const fundTxn = await movement.fundAccount({
         accountAddress: senderAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
 
-      await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
-      const accountCoinsCount = await aptos.getAccountCoinsCount({
+      await movement.waitForTransaction({ transactionHash: fundTxn.hash });
+      const accountCoinsCount = await movement.getAccountCoinsCount({
         accountAddress: senderAccount.accountAddress,
       });
       expect(accountCoinsCount).toBe(1);
     });
 
     test("it fetches account's coin amount", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const senderAccount = Account.generate();
-      const fundTxn = await aptos.fundAccount({
+      const fundTxn = await movement.fundAccount({
         accountAddress: senderAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
 
-      await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
+      await movement.waitForTransaction({ transactionHash: fundTxn.hash });
       // custom coin type that doesn't exist, will throw an error
-      const getInvalidCoinAmount = aptos.getAccountCoinAmount({
+      const getInvalidCoinAmount = movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         coinType: "0x12345::coin::Coin",
       });
       await expect(getInvalidCoinAmount).rejects.toThrow();
       // custom coin type struct that does exist, but is not a coin, will return 0, similar to a coin that exists
-      const getOtherCoinAmount = await aptos.getAccountCoinAmount({
+      const getOtherCoinAmount = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         coinType: "0x1::string::String",
       });
       expect(getOtherCoinAmount).toBe(0);
 
-      // APT Aptos coin
-      const accountAPTAmount = await aptos.getAccountCoinAmount({
+      // APT Movement coin
+      const accountAPTAmount = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         coinType: APTOS_COIN,
       });
       expect(accountAPTAmount).toBe(100000000);
 
-      // APT Aptos coin by fungible asset metadata
-      const accountAPTAmount2 = await aptos.getAccountCoinAmount({
+      // APT Movement coin by fungible asset metadata
+      const accountAPTAmount2 = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         faMetadataAddress: AccountAddress.A,
       });
       expect(accountAPTAmount2).toBe(100000000);
       // By both
-      // APT Aptos coin by fungible asset metadata
-      const accountAPTAmount3 = await aptos.getAccountCoinAmount({
+      // APT Movement coin by fungible asset metadata
+      const accountAPTAmount3 = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         coinType: APTOS_COIN,
         faMetadataAddress: "0xA",
       });
       expect(accountAPTAmount3).toBe(100000000);
       // By neither
-      const failForNoCoinTypeGiven = aptos.getAccountCoinAmount({
+      const failForNoCoinTypeGiven = movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
       });
       await expect(failForNoCoinTypeGiven).rejects.toThrow();
     });
 
     test("it fetches account balance by coin type (APT)", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const account = Account.generate();
 
-      const fundTxn = await aptos.fundAccount({
+      const fundTxn = await movement.fundAccount({
         accountAddress: account.accountAddress,
         amount: FUND_AMOUNT,
       });
-      await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
+      await movement.waitForTransaction({ transactionHash: fundTxn.hash });
 
-      const balance = await aptos.getBalance({
+      const balance = await movement.getBalance({
         accountAddress: account.accountAddress,
         asset: APTOS_COIN,
       });
@@ -335,17 +334,17 @@ describe("account api", () => {
     });
 
     test("it fetches account balance by FA metadata address (APT)", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const account = Account.generate();
 
-      const fundTxn = await aptos.fundAccount({
+      const fundTxn = await movement.fundAccount({
         accountAddress: account.accountAddress,
         amount: FUND_AMOUNT,
       });
-      await aptos.waitForTransaction({ transactionHash: fundTxn.hash });
+      await movement.waitForTransaction({ transactionHash: fundTxn.hash });
 
-      const balance = await aptos.getBalance({
+      const balance = await movement.getBalance({
         accountAddress: account.accountAddress,
         asset: AccountAddress.A,
       });
@@ -353,53 +352,53 @@ describe("account api", () => {
     });
 
     test("lookupOriginalAccountAddress - Look up account address before key rotation", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const account = Account.generate();
 
       // Fund and create account on-chain
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: FUND_AMOUNT });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: FUND_AMOUNT });
 
-      const lookupAccount = await aptos.lookupOriginalAccountAddress({
+      const lookupAccount = await movement.lookupOriginalAccountAddress({
         authenticationKey: account.accountAddress,
       });
       expect(lookupAccount).toStrictEqual(account.accountAddress);
     });
 
     test("it fetches account owned token from collection", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
       const creator = Account.generate();
-      await aptos.fundAccount({ accountAddress: creator.accountAddress, amount: FUND_AMOUNT });
-      const collectionCreationTransaction = await aptos.createCollectionTransaction({
+      await movement.fundAccount({ accountAddress: creator.accountAddress, amount: FUND_AMOUNT });
+      const collectionCreationTransaction = await movement.createCollectionTransaction({
         creator,
         description: "My new collection!",
         name: "Test Collection",
         uri: "Test Collection",
       });
-      const pendingCollectionCreationTransaction = await aptos.signAndSubmitTransaction({
+      const pendingCollectionCreationTransaction = await movement.signAndSubmitTransaction({
         signer: creator,
         transaction: collectionCreationTransaction,
       });
-      await aptos.waitForTransaction({ transactionHash: pendingCollectionCreationTransaction.hash });
-      const transaction = await aptos.mintDigitalAssetTransaction({
+      await movement.waitForTransaction({ transactionHash: pendingCollectionCreationTransaction.hash });
+      const transaction = await movement.mintDigitalAssetTransaction({
         creator,
         collection: "Test Collection",
         description: "My new collection!",
         name: "Test Token",
-        uri: "http://aptos.dev/nft",
+        uri: "http://movement.dev/nft",
         propertyKeys: ["my bool key", "my array key"],
         propertyTypes: ["BOOLEAN", "ARRAY"],
         propertyValues: [false, "[value]"],
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: creator, transaction });
-      const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: creator, transaction });
+      const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      const address = await aptos.getCollectionId({
+      const address = await movement.getCollectionId({
         collectionName: "Test Collection",
         creatorAddress: creator.accountAddress,
       });
-      const tokens = await aptos.getAccountOwnedTokensFromCollectionAddress({
+      const tokens = await movement.getAccountOwnedTokensFromCollectionAddress({
         accountAddress: creator.accountAddress,
         collectionAddress: address,
         minimumLedgerVersion: BigInt(response.version),
@@ -410,37 +409,37 @@ describe("account api", () => {
     });
 
     describe("it derives an account from a private key", () => {
-      const config = new AptosConfig({
+      const config = new MovementConfig({
         network: Network.LOCAL,
       });
-      const aptos = new Aptos(config);
+      const movement = new Movement(config);
 
       test("single sender ed25519", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: false });
-        await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
+        await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
 
-        const derivedAccount = await aptos.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
+        const derivedAccount = await movement.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
         expect(derivedAccount.accountAddress.equals(account.accountAddress)).toEqual(true);
       }, 15000);
       test("single sender secp256k1", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Secp256k1Ecdsa });
-        await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
+        await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
 
-        const derivedAccount = await aptos.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
+        const derivedAccount = await movement.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
         expect(derivedAccount).toStrictEqual(account);
       });
       test("legacy ed25519", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
-        await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
+        await movement.fundAccount({ accountAddress: account.accountAddress, amount: 100 });
 
-        const derivedAccount = await aptos.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
+        const derivedAccount = await movement.deriveAccountFromPrivateKey({ privateKey: account.privateKey });
         expect(derivedAccount).toStrictEqual(account);
       });
       test("fails when account not created/funded and throwIfNoAccountFound is true", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
 
         expect(async () => {
-          await aptos.deriveAccountFromPrivateKey({
+          await movement.deriveAccountFromPrivateKey({
             privateKey: account.privateKey,
             options: { throwIfNoAccountFound: true },
           });
@@ -449,7 +448,7 @@ describe("account api", () => {
       test("returns default legacy ed25519 account if no account exists", async () => {
         const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
 
-        const derivedAccount = await aptos.deriveAccountFromPrivateKey({
+        const derivedAccount = await movement.deriveAccountFromPrivateKey({
           privateKey: account.privateKey,
         });
         expect(derivedAccount).toStrictEqual(account);
@@ -459,23 +458,23 @@ describe("account api", () => {
 
   describe("Key Rotation", () => {
     test("it should rotate ed25519 to ed25519 auth key correctly", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
 
       // Current Account
       const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
 
       // account that holds the new key
       const rotateToPrivateKey = Ed25519PrivateKey.generate();
 
       // Rotate the key
-      const txn = await aptos.rotateAuthKey({ fromAccount: account, toNewPrivateKey: rotateToPrivateKey });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account, transaction: txn });
-      const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const txn = await movement.rotateAuthKey({ fromAccount: account, toNewPrivateKey: rotateToPrivateKey });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account, transaction: txn });
+      const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
       // lookup original account address
-      const lookupAccountAddress = await aptos.lookupOriginalAccountAddress({
+      const lookupAccountAddress = await movement.lookupOriginalAccountAddress({
         authenticationKey: rotateToPrivateKey.publicKey().authKey().derivedAddress(),
         minimumLedgerVersion: BigInt(response.version),
       });
@@ -491,12 +490,12 @@ describe("account api", () => {
     }, 10000);
 
     test("it should rotate ed25519 to multi-ed25519 auth key correctly", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
 
       // Current Account
       const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
 
       const mk1 = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
       const mk2 = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
@@ -509,11 +508,11 @@ describe("account api", () => {
       });
 
       // Rotate the key
-      const txn = await aptos.rotateAuthKey({ fromAccount: account, toAccount: multiEdAccount });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account, transaction: txn });
-      await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const txn = await movement.rotateAuthKey({ fromAccount: account, toAccount: multiEdAccount });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account, transaction: txn });
+      await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      const accountInfo = await aptos.account.getAccountInfo({
+      const accountInfo = await movement.account.getAccountInfo({
         accountAddress: account.accountAddress,
       });
       expect(accountInfo.authentication_key).toEqual(multiEdAccount.publicKey.authKey().toString());
@@ -530,12 +529,12 @@ describe("account api", () => {
     }, 10000);
 
     test("it should rotate ed25519 to multikey auth key correctly", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
 
       // Current Account
       const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
 
       const mk1 = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
       const mk2 = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
@@ -546,14 +545,14 @@ describe("account api", () => {
       });
 
       // Rotate the key
-      const txn = await aptos.rotateAuthKeyUnverified({
+      const txn = await movement.rotateAuthKeyUnverified({
         fromAccount: account,
         toNewPublicKey: multiKeyAccount.publicKey,
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account, transaction: txn });
-      await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account, transaction: txn });
+      await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      const accountInfo = await aptos.account.getAccountInfo({
+      const accountInfo = await movement.account.getAccountInfo({
         accountAddress: account.accountAddress,
       });
       expect(accountInfo.authentication_key).toEqual(multiKeyAccount.publicKey.authKey().toString());
@@ -568,26 +567,26 @@ describe("account api", () => {
     }, 10000);
 
     test("it should rotate ed25519 to unverified auth key correctly", async () => {
-      const config = new AptosConfig({ network: Network.LOCAL });
-      const aptos = new Aptos(config);
+      const config = new MovementConfig({ network: Network.LOCAL });
+      const movement = new Movement(config);
 
       // Current Account
       const account = Account.generate({ scheme: SigningSchemeInput.Ed25519, legacy: true });
-      await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1_000_000_000 });
 
       // account that holds the new key
       const newAccount = Account.generate();
       const newAuthKey = newAccount.publicKey.authKey();
 
       // Rotate the key
-      const txn = await aptos.rotateAuthKeyUnverified({
+      const txn = await movement.rotateAuthKeyUnverified({
         fromAccount: account,
         toNewPublicKey: newAccount.publicKey,
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account, transaction: txn });
-      await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account, transaction: txn });
+      await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      const accountInfo = await aptos.account.getAccountInfo({
+      const accountInfo = await movement.account.getAccountInfo({
         accountAddress: account.accountAddress,
       });
       expect(accountInfo.authentication_key).toEqual(newAuthKey.toString());
@@ -601,13 +600,13 @@ describe("account api", () => {
   });
 
   describe("Account Derivation APIs", () => {
-    const config = new AptosConfig({ network: Network.LOCAL });
-    const aptos = new Aptos(config);
+    const config = new MovementConfig({ network: Network.LOCAL });
+    const movement = new Movement(config);
 
     const minterAccount = Account.generate();
 
     beforeAll(async () => {
-      await aptos.fundAccount({
+      await movement.fundAccount({
         accountAddress: minterAccount.accountAddress,
         amount: FUND_AMOUNT,
       });
@@ -625,7 +624,7 @@ describe("account api", () => {
 
     const DEFAULT_MAX_GAS_AMOUNT = 2000;
     async function createAccount(recipient: Account): Promise<CommittedTransactionResponse> {
-      const transaction = await aptos.transferCoinTransaction({
+      const transaction = await movement.transferCoinTransaction({
         sender: minterAccount.accountAddress,
         recipient: recipient.accountAddress,
         amount: FUND_AMOUNT / 100,
@@ -633,12 +632,12 @@ describe("account api", () => {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: minterAccount, transaction });
-      return await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: minterAccount, transaction });
+      return await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
     }
 
     async function sendNoopTxn(sender: Account): Promise<CommittedTransactionResponse> {
-      const transaction = await aptos.transferCoinTransaction({
+      const transaction = await movement.transferCoinTransaction({
         sender: sender.accountAddress,
         recipient: sender.accountAddress,
         amount: 0,
@@ -646,8 +645,8 @@ describe("account api", () => {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction });
-      return await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction });
+      return await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
     }
 
     test("it derives accounts correctly", async () => {
@@ -677,27 +676,27 @@ describe("account api", () => {
         await createAccount(account);
       }
       // Rotate account2 to account1's auth key, skipping verification.
-      const rotateTxn = await aptos.rotateAuthKeyUnverified({
+      const rotateTxn = await movement.rotateAuthKeyUnverified({
         fromAccount: account2,
         toNewPublicKey: account1.publicKey,
         options: {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
-      await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
+      await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
       // Send noop txns for the multikey accounts with account3 as the signer. These accounts
       // are not verified as owned by account1.
       await sendNoopTxn(multiKeyAccount);
       await sendNoopTxn(multiEdAccount);
       await sendNoopTxn(multiEdAccountTwoSigners);
-      let accounts = await aptos.deriveOwnedAccountsFromSigner({ signer: account1 });
+      let accounts = await movement.deriveOwnedAccountsFromSigner({ signer: account1 });
       expect(accounts.length).toBe(1);
       expect(accounts[0].accountAddress.equals(account1.accountAddress)).toEqual(true);
 
       // Include unverified accounts.
-      accounts = await aptos.deriveOwnedAccountsFromSigner({
+      accounts = await movement.deriveOwnedAccountsFromSigner({
         signer: account1,
         options: {
           includeUnverified: true,
@@ -710,7 +709,7 @@ describe("account api", () => {
       await sendNoopTxn(accounts[1]);
       const { version } = await sendNoopTxn(accounts[2]);
 
-      accounts = await aptos.deriveOwnedAccountsFromSigner({
+      accounts = await movement.deriveOwnedAccountsFromSigner({
         signer: account1,
         minimumLedgerVersion: BigInt(version),
         options: {
@@ -722,11 +721,11 @@ describe("account api", () => {
       // Send txn with account1 which will change the ordering
       await sendNoopTxn(account1);
 
-      accounts = await aptos.deriveOwnedAccountsFromSigner({ signer: account1 });
+      accounts = await movement.deriveOwnedAccountsFromSigner({ signer: account1 });
       checkAccountsMatch(accounts, [account1, account2, multiKeyAccount]);
 
       // Check the noMultiKey works.
-      accounts = await aptos.deriveOwnedAccountsFromSigner({ signer: account1, options: { noMultiKey: true } });
+      accounts = await movement.deriveOwnedAccountsFromSigner({ signer: account1, options: { noMultiKey: true } });
       checkAccountsMatch(accounts, [account1, account2]);
     }, 20000);
 
@@ -738,22 +737,22 @@ describe("account api", () => {
         await createAccount(account);
       }
 
-      let accounts = await aptos.deriveOwnedAccountsFromSigner({ signer: account1 });
+      let accounts = await movement.deriveOwnedAccountsFromSigner({ signer: account1 });
       expect(accounts.length).toBe(1);
       expect(accounts[0].accountAddress.equals(account1.accountAddress)).toEqual(true);
 
       // Verified rotation. Should be derivable immediately.
-      const rotateTxn = await aptos.rotateAuthKey({
+      const rotateTxn = await movement.rotateAuthKey({
         fromAccount: account2,
         toNewPrivateKey: account1.privateKey,
         options: {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
-      const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
+      const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      accounts = await aptos.deriveOwnedAccountsFromSigner({
+      accounts = await movement.deriveOwnedAccountsFromSigner({
         signer: account1,
         minimumLedgerVersion: BigInt(response.version),
       });
@@ -778,7 +777,7 @@ describe("account api", () => {
         txn = await createAccount(account);
       }
 
-      let accounts = await aptos.deriveOwnedAccountsFromSigner({
+      let accounts = await movement.deriveOwnedAccountsFromSigner({
         signer: key,
         minimumLedgerVersion: Number(txn!.version),
       });
@@ -793,22 +792,22 @@ describe("account api", () => {
         await createAccount(account);
       }
 
-      let accounts = await aptos.deriveOwnedAccountsFromSigner({ signer: account1 });
+      let accounts = await movement.deriveOwnedAccountsFromSigner({ signer: account1 });
       expect(accounts.length).toBe(1);
       expect(accounts[0].accountAddress.equals(account1.accountAddress)).toEqual(true);
 
       // Verified rotation. Should be derivable immediately.
-      const rotateTxn = await aptos.rotateAuthKey({
+      const rotateTxn = await movement.rotateAuthKey({
         fromAccount: account1,
         toNewPrivateKey: Ed25519PrivateKey.generate(),
         options: {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account1, transaction: rotateTxn });
-      const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account1, transaction: rotateTxn });
+      const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
-      accounts = await aptos.deriveOwnedAccountsFromSigner({
+      accounts = await movement.deriveOwnedAccountsFromSigner({
         signer: account1,
         minimumLedgerVersion: BigInt(response.version),
       });
@@ -835,22 +834,22 @@ describe("account api", () => {
         await createAccount(account);
       }
       // Rotate account2 to account1's auth key, skipping verification.
-      const rotateTxn = await aptos.rotateAuthKeyUnverified({
+      const rotateTxn = await movement.rotateAuthKeyUnverified({
         fromAccount: account2,
         toNewPublicKey: account1.publicKey,
         options: {
           maxGasAmount: DEFAULT_MAX_GAS_AMOUNT,
         },
       });
-      const pendingTxn = await aptos.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
-      await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const pendingTxn = await movement.signAndSubmitTransaction({ signer: account2, transaction: rotateTxn });
+      await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 
       // Send noop txns for the multikey accounts
       // The multiEdAccount has account1 as a signer.
       await sendNoopTxn(multiKeyAccount);
       let { version } = await sendNoopTxn(multiEdAccount);
 
-      let accounts = await aptos.getAccountsForPublicKey({
+      let accounts = await movement.getAccountsForPublicKey({
         publicKey: account1.publicKey,
         minimumLedgerVersion: BigInt(version),
       });
@@ -858,7 +857,7 @@ describe("account api", () => {
       checkAccountsMatch(accounts, [multiEdAccount, account1]);
 
       // Check that the multiKeyAccount is not included.
-      accounts = await aptos.getAccountsForPublicKey({
+      accounts = await movement.getAccountsForPublicKey({
         publicKey: account1.publicKey,
         options: {
           includeUnverified: true,

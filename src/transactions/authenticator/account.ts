@@ -1,16 +1,16 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import { Serializer, Deserializer, Serializable } from "../../bcs";
+import { Deserializer, Serializable, Serializer } from "../../bcs";
+import { AccountAddress, Hex } from "../../core";
 import { AnyPublicKey, AnySignature } from "../../core/crypto";
 import { Ed25519PublicKey, Ed25519Signature } from "../../core/crypto/ed25519";
 import { MultiEd25519PublicKey, MultiEd25519Signature } from "../../core/crypto/multiEd25519";
 import { MultiKey, MultiKeySignature } from "../../core/crypto/multiKey";
 import { AccountAuthenticatorVariant, HexInput, MoveFunctionId } from "../../types";
 import { AASigningDataVariant, AbstractAuthenticationDataVariant } from "../../types/abstraction";
-import { AccountAddress, Hex } from "../../core";
 import { getFunctionParts, isValidFunctionInfo } from "../../utils/helpers";
 
 /**

@@ -1,23 +1,23 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   AccountAddress,
-  Serializer,
-  Deserializer,
   Bool,
+  deserializeFromScriptArgument,
+  Deserializer,
+  MoveString,
   MoveVector,
+  ScriptFunctionArgument,
+  Serialized,
+  Serializer,
+  TransactionArgument,
   U128,
   U16,
   U256,
   U32,
   U64,
   U8,
-  TransactionArgument,
-  ScriptFunctionArgument,
-  deserializeFromScriptArgument,
-  Serialized,
-  MoveString,
 } from "../../src";
 
 describe("Tests for the script transaction argument class", () => {

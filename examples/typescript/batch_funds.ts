@@ -10,30 +10,30 @@
  * or get an execution validation error.
  *
  * The TransactionWorker constructor accepts
- * @param aptosConfig - a config object
+ * @param movementConfig - a config object
  * @param sender - the sender account
  * @param maxWaitTime - the max wait time to wait before restarting the local sequence number to the current on-chain state
  * @param maximumInFlight - submit up to `maximumInFlight` transactions per account
  * @param sleepTime - If `maximumInFlight` are in flight, wait `sleepTime` seconds before re-evaluating
  *
- * Read more about it here {@link https://aptos.dev/guides/transaction-management}
+ * Read more about it here {@link https://movement.dev/guides/transaction-management}
  */
 import {
   Account,
   AccountData,
-  Aptos,
-  AptosConfig,
   InputGenerateTransactionPayloadData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
   TransactionWorkerEventsEnum,
   UserTransactionResponse,
 } from "@moveindustries/ts-sdk";
 
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 async function main() {
   const accountsCount = 2;
@@ -63,7 +63,7 @@ async function main() {
 
   for (let i = 0; i < senders.length; i += 1) {
     funds.push(
-      aptos.fundAccount({ accountAddress: senders[i].accountAddress.toStringWithoutPrefix(), amount: 10000000000 }),
+      movement.fundAccount({ accountAddress: senders[i].accountAddress.toStringWithoutPrefix(), amount: 10000000000 }),
     );
   }
 
@@ -75,7 +75,7 @@ async function main() {
   // read sender accounts
   const balances: Array<Promise<AccountData>> = [];
   for (let i = 0; i < senders.length; i += 1) {
-    balances.push(aptos.getAccountInfo({ accountAddress: senders[i].accountAddress }));
+    balances.push(movement.getAccountInfo({ accountAddress: senders[i].accountAddress }));
   }
   await Promise.all(balances);
 
@@ -96,21 +96,21 @@ async function main() {
     }
   }
 
-  console.log(`sends ${totalTransactions * senders.length} transactions to ${aptos.config.network}....`);
+  console.log(`sends ${totalTransactions * senders.length} transactions to ${movement.config.network}....`);
   // emit batch transactions
-  senders.map((sender) => aptos.transaction.batch.forSingleAccount({ sender, data: payloads }));
+  senders.map((sender) => movement.transaction.batch.forSingleAccount({ sender, data: payloads }));
 
-  aptos.transaction.batch.on(TransactionWorkerEventsEnum.TransactionSent, async (data) => {
+  movement.transaction.batch.on(TransactionWorkerEventsEnum.TransactionSent, async (data) => {
     console.log("message:", data.message);
     console.log("transaction hash:", data.transactionHash);
   });
 
-  aptos.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data) => {
+  movement.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data) => {
     // log event output
     console.log(data.message);
 
     // verify accounts sequence number
-    const accounts = senders.map((sender) => aptos.getAccountInfo({ accountAddress: sender.accountAddress }));
+    const accounts = senders.map((sender) => movement.getAccountInfo({ accountAddress: sender.accountAddress }));
     const accountsData = await Promise.all(accounts);
     accountsData.forEach((accountData) => {
       console.log(
@@ -119,7 +119,7 @@ async function main() {
       );
     });
     // worker finished execution, we can now unsubscribe from event listeners
-    aptos.transaction.batch.removeAllListeners();
+    movement.transaction.batch.removeAllListeners();
     process.exit(0);
   });
 }

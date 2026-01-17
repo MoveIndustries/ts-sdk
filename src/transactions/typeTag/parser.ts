@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -7,6 +7,12 @@ import {
   TypeTagAddress,
   TypeTagBool,
   TypeTagGeneric,
+  TypeTagI128,
+  TypeTagI16,
+  TypeTagI256,
+  TypeTagI32,
+  TypeTagI64,
+  TypeTagI8,
   TypeTagReference,
   TypeTagSigner,
   TypeTagStruct,
@@ -16,12 +22,6 @@ import {
   TypeTagU32,
   TypeTagU64,
   TypeTagU8,
-  TypeTagI8,
-  TypeTagI16,
-  TypeTagI32,
-  TypeTagI64,
-  TypeTagI128,
-  TypeTagI256,
   TypeTagVector,
 } from ".";
 import { AccountAddress } from "../../core";

@@ -1,42 +1,42 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import EventEmitter from "eventemitter3";
 import { jwtDecode } from "jwt-decode";
-import { EphemeralCertificateVariant, HexInput, SigningScheme } from "../types";
 import { AccountAddress } from "../core/accountAddress";
 import {
   AnyPublicKey,
   AnySignature,
+  EphemeralCertificate,
+  fetchJWK,
+  getKeylessConfig,
+  KeylessConfiguration,
   KeylessPublicKey,
   KeylessSignature,
-  EphemeralCertificate,
+  MoveJWK,
   ZeroKnowledgeSig,
   ZkProof,
-  MoveJWK,
-  getKeylessConfig,
-  fetchJWK,
-  KeylessConfiguration,
 } from "../core/crypto";
+import { EphemeralCertificateVariant, HexInput, SigningScheme } from "../types";
 
-import { EphemeralKeyPair } from "./EphemeralKeyPair";
-import { Hex } from "../core/hex";
-import { AccountAuthenticatorSingleKey } from "../transactions/authenticator/account";
+import { MovementConfig } from "../api/movementConfig";
 import { Deserializer, Serializable, Serializer } from "../bcs";
+import { FederatedKeylessPublicKey } from "../core/crypto/federatedKeyless";
+import { Hex } from "../core/hex";
+import { KeylessError, KeylessErrorType } from "../errors";
+import { AccountAuthenticatorSingleKey } from "../transactions/authenticator/account";
 import { deriveTransactionType, generateSigningMessage } from "../transactions/transactionBuilder/signingMessage";
 import { AnyRawTransaction, AnyRawTransactionInstance } from "../transactions/types";
 import { base64UrlDecode } from "../utils/helpers";
-import { FederatedKeylessPublicKey } from "../core/crypto/federatedKeyless";
 import { Account } from "./Account";
-import { AptosConfig } from "../api/aptosConfig";
-import { KeylessError, KeylessErrorType } from "../errors";
+import { EphemeralKeyPair } from "./EphemeralKeyPair";
 import type { SingleKeySigner } from "./SingleKeyAccount";
 
 /**
  * An interface which defines if an Account utilizes Keyless signing.
  */
 export interface KeylessSigner extends Account {
-  checkKeylessAccountValidity(aptosConfig: AptosConfig): Promise<void>;
+  checkKeylessAccountValidity(movementConfig: MovementConfig): Promise<void>;
 }
 
 export function isKeylessSigner(obj: any): obj is KeylessSigner {
@@ -341,7 +341,7 @@ export abstract class AbstractKeylessAccount extends Serializable implements Key
    * Validates that the Keyless Account can be used to sign transactions.
    * @return
    */
-  async checkKeylessAccountValidity(aptosConfig: AptosConfig): Promise<void> {
+  async checkKeylessAccountValidity(movementConfig: MovementConfig): Promise<void> {
     if (this.isExpired()) {
       throw KeylessError.fromErrorType({
         type: KeylessErrorType.EPHEMERAL_KEY_PAIR_EXPIRED,
@@ -361,7 +361,7 @@ export abstract class AbstractKeylessAccount extends Serializable implements Key
       });
     }
     if (this.verificationKeyHash !== undefined) {
-      const { verificationKey } = await getKeylessConfig({ aptosConfig });
+      const { verificationKey } = await getKeylessConfig({ movementConfig });
       if (Hex.hexInputToString(verificationKey.hash()) !== Hex.hexInputToString(this.verificationKeyHash)) {
         throw KeylessError.fromErrorType({
           type: KeylessErrorType.INVALID_PROOF_VERIFICATION_KEY_NOT_FOUND,
@@ -373,7 +373,7 @@ export abstract class AbstractKeylessAccount extends Serializable implements Key
         "[Aptos SDK] The verification key hash was not set. Proof may be invalid if the verification key has rotated.",
       );
     }
-    await AbstractKeylessAccount.fetchJWK({ aptosConfig, publicKey: this.publicKey, kid: header.kid });
+    await AbstractKeylessAccount.fetchJWK({ movementConfig, publicKey: this.publicKey, kid: header.kid });
   }
 
   /**
@@ -462,7 +462,7 @@ export abstract class AbstractKeylessAccount extends Serializable implements Key
   }
 
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: KeylessSignature;
     options?: { throwErrorWithReason?: boolean };
@@ -481,7 +481,7 @@ export abstract class AbstractKeylessAccount extends Serializable implements Key
    * @throws {KeylessError} If the JWK cannot be fetched
    */
   static async fetchJWK(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     publicKey: KeylessPublicKey | FederatedKeylessPublicKey;
     kid: string;
   }): Promise<MoveJWK> {

@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
-import kill from "tree-kill";
 import { platform } from "os";
+import kill from "tree-kill";
 
 import { sleep } from "../utils/helpers";
 
@@ -79,7 +79,7 @@ export class LocalNode {
   }
 
   /**
-   * Starts the localnet by running the Aptos node with the specified command-line arguments.
+   * Starts the localnet by running the Movement node with the specified command-line arguments.
    *
    * @returns {void}
    *

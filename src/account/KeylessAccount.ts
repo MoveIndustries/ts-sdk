@@ -1,14 +1,14 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { HexInput } from "../types";
 import { AccountAddress } from "../core/accountAddress";
 import { getIssAudAndUidVal, Groth16VerificationKey, KeylessPublicKey, ZeroKnowledgeSig } from "../core/crypto";
+import { HexInput } from "../types";
 
-import { EphemeralKeyPair } from "./EphemeralKeyPair";
 import { Deserializer, Serializer } from "../bcs";
-import { AbstractKeylessAccount, ProofFetchCallback } from "./AbstractKeylessAccount";
 import { Hex } from "../core/hex";
+import { AbstractKeylessAccount, ProofFetchCallback } from "./AbstractKeylessAccount";
+import { EphemeralKeyPair } from "./EphemeralKeyPair";
 
 /**
  * Account implementation for the Keyless authentication scheme.

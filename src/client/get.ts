@@ -1,7 +1,7 @@
-import { AptosConfig } from "../api/aptosConfig";
+import { MovementConfig } from "../api/movementConfig";
+import { AnyNumber, ClientConfig, MimeType, MovementResponse } from "../types";
+import { MovementApiType } from "../utils/const";
 import { aptosRequest } from "./core";
-import { AptosResponse, AnyNumber, ClientConfig, MimeType } from "../types";
-import { AptosApiType } from "../utils/const";
 
 /**
  * Options for making a GET request, including configuration for the API client.
@@ -14,13 +14,13 @@ export type GetRequestOptions = {
    * @group Implementation
    * @category Client
    */
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   /**
    * The type of API endpoint to call e.g. fullnode, indexer, etc
    * @group Implementation
    * @category Client
    */
-  type: AptosApiType;
+  type: MovementApiType;
   /**
    * The name of the API method
    * @group Implementation
@@ -52,7 +52,7 @@ export type GetRequestOptions = {
    */
   params?: Record<string, string | AnyNumber | boolean | undefined>;
   /**
-   * Specific client overrides for this request to override aptosConfig
+   * Specific client overrides for this request to override movementConfig
    * @group Implementation
    * @category Client
    */
@@ -60,7 +60,7 @@ export type GetRequestOptions = {
 };
 
 /**
- * Options for making a request to the Aptos API, excluding the "type" field.
+ * Options for making a request to the Movement API, excluding the "type" field.
  * @group Implementation
  * @category Client
  */
@@ -70,7 +70,7 @@ export type GetAptosRequestOptions = Omit<GetRequestOptions, "type">;
  * Executes a GET request to retrieve data based on the provided options.
  *
  * @param options - The options for the GET request.
- * @param options.aptosConfig - The configuration object for Aptos requests.
+ * @param options.movementConfig - The configuration object for Movement requests.
  * @param options.overrides - Optional overrides for the request configuration.
  * @param options.params - Query parameters to include in the request.
  * @param options.contentType - The content type of the request.
@@ -84,9 +84,9 @@ export type GetAptosRequestOptions = Omit<GetRequestOptions, "type">;
  */
 export async function get<Req extends {}, Res extends {}>(
   options: GetRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { aptosConfig, overrides, params, contentType, acceptType, path, originMethod, type } = options;
-  const url = aptosConfig.getRequestUrl(type);
+): Promise<MovementResponse<Req, Res>> {
+  const { movementConfig, overrides, params, contentType, acceptType, path, originMethod, type } = options;
+  const url = movementConfig.getRequestUrl(type);
 
   return aptosRequest<Req, Res>(
     {
@@ -98,60 +98,60 @@ export async function get<Req extends {}, Res extends {}>(
       acceptType,
       params,
       overrides: {
-        ...aptosConfig.clientConfig,
+        ...movementConfig.clientConfig,
         ...overrides,
       },
     },
-    aptosConfig,
+    movementConfig,
     options.type,
   );
 }
 
 /**
- * Retrieves data from the Aptos full node using the provided options.
+ * Retrieves data from the Movement full node using the provided options.
  *
- * @param options - The options for the request to the Aptos full node.
- * @param options.aptosConfig - Configuration settings specific to the Aptos client and full node.
- * @param options.aptosConfig.clientConfig - The client configuration settings.
- * @param options.aptosConfig.fullnodeConfig - The full node configuration settings.
+ * @param options - The options for the request to the Movement full node.
+ * @param options.movementConfig - Configuration settings specific to the Movement client and full node.
+ * @param options.movementConfig.clientConfig - The client configuration settings.
+ * @param options.movementConfig.fullnodeConfig - The full node configuration settings.
  * @param options.overrides - Additional overrides for the request.
  * @param options.type - The type of API request being made.
  *
- * @returns A promise that resolves with the response from the Aptos full node.
+ * @returns A promise that resolves with the response from the Movement full node.
  * @group Implementation
  * @category Client
  */
 export async function getAptosFullNode<Req extends {}, Res extends {}>(
   options: GetAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  const { aptosConfig } = options;
+): Promise<MovementResponse<Req, Res>> {
+  const { movementConfig } = options;
 
   return get<Req, Res>({
     ...options,
-    type: AptosApiType.FULLNODE,
+    type: MovementApiType.FULLNODE,
     overrides: {
-      ...aptosConfig.clientConfig,
-      ...aptosConfig.fullnodeConfig,
+      ...movementConfig.clientConfig,
+      ...movementConfig.fullnodeConfig,
       ...options.overrides,
-      HEADERS: { ...aptosConfig.clientConfig?.HEADERS, ...aptosConfig.fullnodeConfig?.HEADERS },
+      HEADERS: { ...movementConfig.clientConfig?.HEADERS, ...movementConfig.fullnodeConfig?.HEADERS },
     },
   });
 }
 
 /**
- * Makes a GET request to the Aptos Pepper service to retrieve data.
+ * Makes a GET request to the Movement Pepper service to retrieve data.
  *
  * @param options - The options for the request.
  * @param options.param1 - Description of param1.
  * @param options.param2 - Description of param2.
- * @returns AptosResponse - The response from the Aptos Pepper service.
+ * @returns MovementResponse - The response from the Movement Pepper service.
  * @group Implementation
  * @category Client
  */
 export async function getAptosPepperService<Req extends {}, Res extends {}>(
   options: GetAptosRequestOptions,
-): Promise<AptosResponse<Req, Res>> {
-  return get<Req, Res>({ ...options, type: AptosApiType.PEPPER });
+): Promise<MovementResponse<Req, Res>> {
+  return get<Req, Res>({ ...options, type: MovementApiType.PEPPER });
 }
 
 /**
@@ -168,8 +168,8 @@ export async function paginateWithCursor<Req extends Record<string, any>, Res ex
   do {
     // eslint-disable-next-line no-await-in-loop
     const response = await get<Req, Res>({
-      type: AptosApiType.FULLNODE,
-      aptosConfig: options.aptosConfig,
+      type: MovementApiType.FULLNODE,
+      movementConfig: options.movementConfig,
       originMethod: options.originMethod,
       path: options.path,
       params: requestParams,
@@ -229,7 +229,7 @@ export async function paginateWithObfuscatedCursor<Req extends Record<string, an
 
 export async function getPageWithObfuscatedCursor<Req extends Record<string, any>, Res extends Array<{}>>(
   options: GetAptosRequestOptions,
-): Promise<{ response: AptosResponse<Req, Res>; cursor: string | undefined }> {
+): Promise<{ response: MovementResponse<Req, Res>; cursor: string | undefined }> {
   let cursor: string | undefined;
   let requestParams: { start?: string; limit?: number } = {};
 
@@ -244,8 +244,8 @@ export async function getPageWithObfuscatedCursor<Req extends Record<string, any
 
   // eslint-disable-next-line no-await-in-loop
   const response = await get<Req, Res>({
-    type: AptosApiType.FULLNODE,
-    aptosConfig: options.aptosConfig,
+    type: MovementApiType.FULLNODE,
+    movementConfig: options.movementConfig,
     originMethod: options.originMethod,
     path: options.path,
     params: requestParams,

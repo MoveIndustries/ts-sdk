@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -8,16 +8,47 @@
  * account namespace and without having a dependency cycle error.
  * @group Implementation
  */
-import { AptosConfig } from "../api/aptosConfig";
+import {
+  Account,
+  Ed25519Account,
+  FederatedKeylessAccount,
+  KeylessAccount,
+  MultiEd25519Account,
+  MultiKeyAccount,
+  SingleKeyAccount,
+} from "../account";
+import { MovementConfig } from "../api/movementConfig";
+import { Deserializer, MoveVector, U8 } from "../bcs";
 import {
   getAptosFullNode,
   getPageWithObfuscatedCursor,
   paginateWithCursor,
   paginateWithObfuscatedCursor,
 } from "../client";
+import { AuthenticationKey, createObjectAddress, Ed25519PrivateKey, Hex, Secp256k1PrivateKey } from "../core";
+import { AccountAddress, AccountAddressInput } from "../core/accountAddress";
+import {
+  AbstractMultiKey,
+  AccountPublicKey,
+  AnyPublicKey,
+  BaseAccountPublicKey,
+  Ed25519PublicKey,
+  MultiEd25519PublicKey,
+  MultiKey,
+  PrivateKeyInput,
+} from "../core/crypto";
+import { accountPublicKeyToBaseAccountPublicKey, accountPublicKeyToSigningScheme } from "../core/crypto/utils";
+import { MovementApiError } from "../errors";
+import {
+  EntryFunctionABI,
+  InputGenerateTransactionOptions,
+  RotationProofChallenge,
+  SimpleTransaction,
+  TypeTagU8,
+  TypeTagVector,
+} from "../transactions";
 import {
   AccountData,
-  AnyNumber,
   anyPublicKeyVariantToString,
   CommittedTransactionResponse,
   CursorPaginationArgs,
@@ -32,87 +63,50 @@ import {
   MoveStructId,
   OrderByArg,
   PaginationArgs,
-  PendingTransactionResponse,
   TokenStandardArg,
-  WhereArg,
+  WhereArg
 } from "../types";
-import { AccountAddress, AccountAddressInput } from "../core/accountAddress";
 import {
-  Account,
-  Ed25519Account,
-  FederatedKeylessAccount,
-  KeylessAccount,
-  MultiEd25519Account,
-  MultiKeyAccount,
-  SingleKeyAccount,
-} from "../account";
-import {
-  AbstractMultiKey,
-  AccountPublicKey,
-  AnyPublicKey,
-  BaseAccountPublicKey,
-  Ed25519PublicKey,
-  MultiEd25519PublicKey,
-  MultiKey,
-  PrivateKeyInput,
-} from "../core/crypto";
-import { queryIndexer } from "./general";
-import { getModule as getModuleUtil, getInfo as getInfoUtil } from "./utils";
-import {
+  GetAccountAddressesForAuthKeyQuery,
   GetAccountCoinsCountQuery,
   GetAccountCoinsDataQuery,
   GetAccountCollectionsWithOwnedTokensQuery,
-  GetObjectDataQuery,
   GetAccountOwnedTokensFromCollectionQuery,
   GetAccountOwnedTokensQuery,
   GetAccountTokensCountQuery,
   GetAccountTransactionsCountQuery,
   GetAuthKeysForPublicKeyQuery,
-  GetAccountAddressesForAuthKeyQuery,
+  GetObjectDataQuery,
 } from "../types/generated/operations";
 import {
+  GetAccountAddressesForAuthKey,
   GetAccountCoinsCount,
   GetAccountCoinsData,
   GetAccountCollectionsWithOwnedTokens,
-  GetObjectData,
   GetAccountOwnedTokens,
   GetAccountOwnedTokensFromCollection,
   GetAccountTokensCount,
   GetAccountTransactionsCount,
   GetAuthKeysForPublicKey,
-  GetAccountAddressesForAuthKey,
+  GetObjectData,
 } from "../types/generated/queries";
-import { Secp256k1PrivateKey, AuthenticationKey, Ed25519PrivateKey, createObjectAddress, Hex } from "../core";
 import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
-import { getTableItem } from "./table";
 import { APTOS_COIN } from "../utils";
-import { AptosApiError } from "../errors";
-import { Deserializer } from "../bcs";
-import { signAndSubmitTransaction, generateTransaction } from "./transactionSubmission";
-import {
-  EntryFunctionABI,
-  InputGenerateTransactionOptions,
-  RotationProofChallenge,
-  SimpleTransaction,
-  TypeTagU8,
-  TypeTagVector,
-} from "../transactions";
-import { U8, MoveVector } from "../bcs";
-import { waitForTransaction, waitForIndexer } from "./transaction";
-import { view } from "./view";
-import { getLedgerInfo } from "./general";
-import { accountPublicKeyToBaseAccountPublicKey, accountPublicKeyToSigningScheme } from "../core/crypto/utils";
+import { queryIndexer } from "./general";
+import { getTableItem } from "./table";
+import { generateTransaction } from "./transactionSubmission";
+import { getInfo as getInfoUtil, getModule as getModuleUtil } from "./utils";
 
 /**
  * Retrieves account information for a specified account address.
  *
  * @param args - The arguments for retrieving account information.
- * @param args.aptosConfig - The configuration object for Aptos.
+ * @param args.movementConfig - The configuration object for Movement.
  * @param args.accountAddress - The address of the account to retrieve information for.
  * @group Implementation
  */
 export async function getInfo(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<AccountData> {
   return getInfoUtil(args);
@@ -122,7 +116,7 @@ export async function getInfo(args: {
  * Retrieves the modules associated with a specified account address.
  *
  * @param args - The arguments for retrieving modules.
- * @param args.aptosConfig - The configuration for connecting to the Aptos blockchain.
+ * @param args.movementConfig - The configuration for connecting to the Movement blockchain.
  * @param args.accountAddress - The address of the account whose modules are to be retrieved.
  * @param args.options - Optional parameters for pagination and ledger version.
  * @param args.options.limit - The maximum number of modules to retrieve (default is 1000).
@@ -131,13 +125,13 @@ export async function getInfo(args: {
  * @group Implementation
  */
 export async function getModules(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: { limit?: number } & LedgerVersionArg;
 }): Promise<MoveModuleBytecode[]> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   return paginateWithObfuscatedCursor<{}, MoveModuleBytecode[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getModules",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/modules`,
     params: {
@@ -151,7 +145,7 @@ export async function getModules(args: {
  * Retrieves the modules associated with a specified account address.
  *
  * @param args - The arguments for retrieving modules.
- * @param args.aptosConfig - The configuration for connecting to the Aptos blockchain.
+ * @param args.movementConfig - The configuration for connecting to the Movement blockchain.
  * @param args.accountAddress - The address of the account whose modules are to be retrieved.
  * @param args.options - Optional parameters for pagination and ledger version.
  * @param args.options.cursor - The starting point for pagination.  Note, this is obfuscated and is not an index.
@@ -160,13 +154,13 @@ export async function getModules(args: {
  * @group Implementation
  */
 export async function getModulesPage(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: CursorPaginationArgs & LedgerVersionArg;
 }): Promise<{ modules: MoveModuleBytecode[]; cursor: string | undefined }> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const { response, cursor } = await getPageWithObfuscatedCursor<{}, MoveModuleBytecode[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getModulesPage",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/modules`,
     params: {
@@ -184,7 +178,7 @@ export async function getModulesPage(args: {
  * This function can help you retrieve the module's ABI and other relevant information.
  *
  * @param args - The arguments for retrieving the module.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The account address in hex-encoded 32 byte format.
  * @param args.moduleName - The name of the module to retrieve.
  * @param args.options - Optional parameters for the request.
@@ -193,7 +187,7 @@ export async function getModulesPage(args: {
  * @group Implementation
  */
 export async function getModule(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   moduleName: string;
   options?: LedgerVersionArg;
@@ -206,7 +200,7 @@ export async function getModule(args: {
  * This function allows you to paginate through the transactions for better performance and usability.
  *
  * @param args - The arguments for retrieving transactions.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.accountAddress - The account address for which to retrieve transactions.
  * @param args.options - Optional pagination parameters.
  * @param args.options.offset - The starting point for pagination.
@@ -214,13 +208,13 @@ export async function getModule(args: {
  * @group Implementation
  */
 export async function getTransactions(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: PaginationArgs;
 }): Promise<CommittedTransactionResponse[]> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   return paginateWithCursor<{}, CommittedTransactionResponse[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getTransactions",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/transactions`,
     params: { start: options?.offset, limit: options?.limit },
@@ -231,7 +225,7 @@ export async function getTransactions(args: {
  * Retrieves a list of resources associated with a specific account address.
  *
  * @param args - The arguments for retrieving resources.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.accountAddress - The address of the account to fetch resources for.
  * @param args.options - Optional pagination and ledger version parameters.
  * @param args.options.limit - The maximum number of resources to retrieve (default is 999).
@@ -239,13 +233,13 @@ export async function getTransactions(args: {
  * @group Implementation
  */
 export async function getResources(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: { limit?: number } & LedgerVersionArg;
 }): Promise<MoveResource[]> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   return paginateWithObfuscatedCursor<{}, MoveResource[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getResources",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/resources`,
     params: {
@@ -259,7 +253,7 @@ export async function getResources(args: {
  * Retrieves a page of resources associated with a specific account address.
  *
  * @param args - The arguments for retrieving resources.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.accountAddress - The address of the account to fetch resources for.
  * @param args.options - Optional pagination and ledger version parameters.
  * @param args.options.cursor - The starting point for pagination.  Note, this is obfuscated and is not an index.
@@ -268,13 +262,13 @@ export async function getResources(args: {
  * @group Implementation
  */
 export async function getResourcesPage(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: CursorPaginationArgs & LedgerVersionArg;
 }): Promise<{ resources: MoveResource[]; cursor: string | undefined }> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const { response, cursor } = await getPageWithObfuscatedCursor<{}, MoveResource[]>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getResourcesPage",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/resources`,
     params: {
@@ -291,21 +285,21 @@ export async function getResourcesPage(args: {
  * Retrieves a specific resource of a given type for the specified account address.
  *
  * @param args - The arguments for retrieving the resource.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.accountAddress - The address of the account from which to retrieve the resource.
  * @param args.resourceType - The type of the resource to retrieve, specified as a MoveStructId.
  * @param args.options - Optional parameters for specifying the ledger version.
  * @group Implementation
  */
 export async function getResource<T extends {}>(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   resourceType: MoveStructId;
   options?: LedgerVersionArg;
 }): Promise<T> {
-  const { aptosConfig, accountAddress, resourceType, options } = args;
+  const { movementConfig, accountAddress, resourceType, options } = args;
   const { data } = await getAptosFullNode<{}, MoveResource>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getResource",
     path: `accounts/${AccountAddress.from(accountAddress).toString()}/resource/${resourceType}`,
     params: { ledger_version: options?.ledgerVersion },
@@ -317,7 +311,7 @@ export async function getResource<T extends {}>(args: {
  * Retrieves the original account address associated with a given authentication key, which is useful for handling key rotations.
  *
  * @param args - The arguments for the lookup.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.authenticationKey - The authentication key for which to look up the original address.
  * @param args.options - Optional parameters for specifying the ledger version.
  * @returns The original account address or the provided authentication key address if not found.
@@ -325,16 +319,16 @@ export async function getResource<T extends {}>(args: {
  * @group Implementation
  */
 export async function lookupOriginalAccountAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   authenticationKey: AccountAddressInput;
   options?: LedgerVersionArg;
 }): Promise<AccountAddress> {
-  const { aptosConfig, authenticationKey, options } = args;
+  const { movementConfig, authenticationKey, options } = args;
   type OriginatingAddress = {
     address_map: { handle: string };
   };
   const resource = await getResource<OriginatingAddress>({
-    aptosConfig,
+    movementConfig,
     accountAddress: "0x1",
     resourceType: "0x1::account::OriginatingAddress",
     options,
@@ -350,7 +344,7 @@ export async function lookupOriginalAccountAddress(args: {
   // then return the address as is
   try {
     const originalAddress = await getTableItem<string>({
-      aptosConfig,
+      movementConfig,
       handle,
       data: {
         key: authKeyAddress.toString(),
@@ -362,7 +356,7 @@ export async function lookupOriginalAccountAddress(args: {
 
     return AccountAddress.from(originalAddress);
   } catch (err) {
-    if (err instanceof AptosApiError && err.data.error_code === "table_item_not_found") {
+    if (err instanceof MovementApiError && err.data.error_code === "table_item_not_found") {
       return authKeyAddress;
     }
 
@@ -374,16 +368,16 @@ export async function lookupOriginalAccountAddress(args: {
  * Retrieves the count of tokens owned by a specific account address.
  *
  * @param args - The arguments for retrieving the account tokens count.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.accountAddress - The address of the account for which to count the tokens.
  * @returns The count of tokens owned by the specified account.
  * @group Implementation
  */
 export async function getAccountTokensCount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress } = args;
+  const { movementConfig, accountAddress } = args;
 
   const address = AccountAddress.from(accountAddress).toStringLong();
 
@@ -398,7 +392,7 @@ export async function getAccountTokensCount(args: {
   };
 
   const data = await queryIndexer<GetAccountTokensCountQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountTokensCount",
   });
@@ -414,7 +408,7 @@ export async function getAccountTokensCount(args: {
  * Retrieves the tokens owned by a specified account address.
  *
  * @param args - The arguments for retrieving the account's tokens.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The address of the account whose tokens are being queried.
  * @param args.options - Optional parameters for filtering and pagination.
  * @param args.options.tokenStandard - The specific token standard to filter the results.
@@ -425,18 +419,18 @@ export async function getAccountTokensCount(args: {
  * @group Implementation
  */
 export async function getAccountOwnedTokens(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: TokenStandardArg & PaginationArgs & OrderByArg<GetAccountOwnedTokensQueryResponse[0]>;
 }): Promise<GetAccountOwnedTokensQueryResponse> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const whereCondition: { owner_address: { _eq: string }; amount: { _gt: number }; token_standard?: { _eq: string } } =
-    {
-      owner_address: { _eq: address },
-      amount: { _gt: 0 },
-    };
+  {
+    owner_address: { _eq: address },
+    amount: { _gt: 0 },
+  };
 
   if (options?.tokenStandard) {
     whereCondition.token_standard = { _eq: options?.tokenStandard };
@@ -453,7 +447,7 @@ export async function getAccountOwnedTokens(args: {
   };
 
   const data = await queryIndexer<GetAccountOwnedTokensQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountOwnedTokens",
   });
@@ -465,7 +459,7 @@ export async function getAccountOwnedTokens(args: {
  * Retrieves the tokens owned by a specific account from a particular collection address.
  *
  * @param args - The parameters required to fetch the owned tokens.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.accountAddress - The address of the account whose tokens are being queried.
  * @param args.collectionAddress - The address of the collection from which tokens are being retrieved.
  * @param args.options - Optional parameters for filtering and pagination, including token standard, pagination arguments, and
@@ -473,12 +467,12 @@ export async function getAccountOwnedTokens(args: {
  * @group Implementation
  */
 export async function getAccountOwnedTokensFromCollectionAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   collectionAddress: AccountAddressInput;
   options?: TokenStandardArg & PaginationArgs & OrderByArg<GetAccountOwnedTokensFromCollectionResponse[0]>;
 }): Promise<GetAccountOwnedTokensFromCollectionResponse> {
-  const { aptosConfig, accountAddress, collectionAddress, options } = args;
+  const { movementConfig, accountAddress, collectionAddress, options } = args;
   const ownerAddress = AccountAddress.from(accountAddress).toStringLong();
   const collAddress = AccountAddress.from(collectionAddress).toStringLong();
 
@@ -508,7 +502,7 @@ export async function getAccountOwnedTokensFromCollectionAddress(args: {
   };
 
   const data = await queryIndexer<GetAccountOwnedTokensFromCollectionQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountOwnedTokensFromCollectionAddress",
   });
@@ -520,7 +514,7 @@ export async function getAccountOwnedTokensFromCollectionAddress(args: {
  * Retrieves the collections owned by a specified account along with the tokens in those collections.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The address of the account whose collections are being queried.
  * @param args.options - Optional parameters for filtering and pagination.
  * @param args.options.tokenStandard - An optional token standard to filter the collections.
@@ -530,11 +524,11 @@ export async function getAccountOwnedTokensFromCollectionAddress(args: {
  * @group Implementation
  */
 export async function getAccountCollectionsWithOwnedTokens(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: TokenStandardArg & PaginationArgs & OrderByArg<GetAccountCollectionsWithOwnedTokenResponse[0]>;
 }): Promise<GetAccountCollectionsWithOwnedTokenResponse> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const whereCondition: {
@@ -561,7 +555,7 @@ export async function getAccountCollectionsWithOwnedTokens(args: {
   };
 
   const data = await queryIndexer<GetAccountCollectionsWithOwnedTokensQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountCollectionsWithOwnedTokens",
   });
@@ -573,16 +567,16 @@ export async function getAccountCollectionsWithOwnedTokens(args: {
  * Retrieves the count of transactions associated with a specified account.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.accountAddress - The address of the account for which to retrieve the transaction count.
  * @returns The number of transactions associated with the specified account.
  * @group Implementation
  */
 export async function getAccountTransactionsCount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress } = args;
+  const { movementConfig, accountAddress } = args;
 
   const address = AccountAddress.from(accountAddress).toStringLong();
 
@@ -592,7 +586,7 @@ export async function getAccountTransactionsCount(args: {
   };
 
   const data = await queryIndexer<GetAccountTransactionsCountQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountTransactionsCount",
   });
@@ -606,7 +600,7 @@ export async function getAccountTransactionsCount(args: {
  * Retrieves the amount of a specific coin held by an account.
  *
  * @param args - The parameters for the request.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.accountAddress - The address of the account to query.
  * @param args.coinType - Optional; the type of coin to check the amount for.
  * @param args.faMetadataAddress - Optional; the address of the fungible asset metadata.
@@ -615,12 +609,12 @@ export async function getAccountTransactionsCount(args: {
  * @group Implementation
  */
 export async function getAccountCoinAmount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   coinType?: MoveStructId;
   faMetadataAddress?: AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress, coinType, faMetadataAddress } = args;
+  const { movementConfig, accountAddress, coinType, faMetadataAddress } = args;
 
   let coinAssetType: string | undefined = coinType;
   let faAddress: string;
@@ -654,7 +648,7 @@ export async function getAccountCoinAmount(args: {
   }
 
   const data = await getAccountCoinsData({
-    aptosConfig,
+    movementConfig,
     accountAddress: address,
     options: {
       where,
@@ -670,7 +664,7 @@ export async function getAccountCoinAmount(args: {
  * Retrieves the current fungible asset balances for a specified account.
  *
  * @param args - The arguments for retrieving account coins data.
- * @param args.aptosConfig - The configuration for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration for connecting to the Movement network.
  * @param args.accountAddress - The address of the account for which to retrieve coin data.
  * @param args.options - Optional parameters for pagination and filtering the results.
  * @param args.options.offset - The number of items to skip before starting to collect the result set.
@@ -680,11 +674,11 @@ export async function getAccountCoinAmount(args: {
  * @group Implementation
  */
 export async function getAccountCoinsData(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: PaginationArgs & OrderByArg<GetAccountCoinsDataResponse[0]> & WhereArg<CurrentFungibleAssetBalancesBoolExp>;
 }): Promise<GetAccountCoinsDataResponse> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const whereCondition: { owner_address: { _eq: string } } = {
@@ -703,7 +697,7 @@ export async function getAccountCoinsData(args: {
   };
 
   const data = await queryIndexer<GetAccountCoinsDataQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountCoinsData",
   });
@@ -715,16 +709,16 @@ export async function getAccountCoinsData(args: {
  * Retrieves the count of fungible asset coins held by a specified account.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.accountAddress - The address of the account for which to retrieve the coin count.
  * @throws Error if the count of account coins cannot be retrieved.
  * @group Implementation
  */
 export async function getAccountCoinsCount(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress } = args;
+  const { movementConfig, accountAddress } = args;
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const graphqlQuery = {
@@ -733,7 +727,7 @@ export async function getAccountCoinsCount(args: {
   };
 
   const data = await queryIndexer<GetAccountCoinsCountQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountCoinsCount",
   });
@@ -752,21 +746,21 @@ export async function getAccountCoinsCount(args: {
  * - Calls: `GET /accounts/{accountAddress}/balance/{asset}` and returns the numeric balance.
  *
  * @param args - The parameters for the request.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.accountAddress - The account address to query.
  * @param args.asset - The asset identifier (coin type or FA metadata address).
  * @returns The balance as a number.
  * @group Implementation
  */
 export async function getBalance(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   asset: MoveStructId | AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress, asset } = args;
+  const { movementConfig, accountAddress, asset } = args;
 
   const response = await getAptosFullNode<{}, number>({
-    aptosConfig,
+    movementConfig,
     originMethod: "getBalance",
     path: `accounts/${accountAddress}/balance/${asset}`,
     params: {
@@ -782,7 +776,7 @@ export async function getBalance(args: {
  * Retrieves the objects owned by a specified account.
  *
  * @param args - The parameters for the request.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The address of the account whose owned objects are to be retrieved.
  * @param args.options - Optional parameters for pagination and ordering of the results.
  * @param args.options.offset - The number of items to skip before starting to collect the result set.
@@ -792,11 +786,11 @@ export async function getBalance(args: {
  * @group Implementation
  */
 export async function getAccountOwnedObjects(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   options?: PaginationArgs & OrderByArg<GetObjectDataQueryResponse[0]>;
 }): Promise<GetObjectDataQueryResponse> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const whereCondition: { owner_address: { _eq: string } } = {
@@ -812,7 +806,7 @@ export async function getAccountOwnedObjects(args: {
     },
   };
   const data = await queryIndexer<GetObjectDataQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountOwnedObjects",
   });
@@ -821,7 +815,7 @@ export async function getAccountOwnedObjects(args: {
 }
 
 /**
- * Derives an account from the provided private key and Aptos configuration.
+ * Derives an account from the provided private key and Movement configuration.
  *
  * This function queries all owned accounts for the provided private key and returns the most
  * recently used account. If no account is found, it will throw an error unless `throwIfNoAccountFound` is set to false.
@@ -834,7 +828,7 @@ export async function getAccountOwnedObjects(args: {
  * or first legacy scheme and then unified scheme.
  *
  * @param args - The arguments for deriving the account.
- * @param args.aptosConfig - The Aptos configuration used for account lookup.
+ * @param args.movementConfig - The Movement configuration used for account lookup.
  * @param args.privateKey - The private key used to derive the account.
  * @param args.options.throwIfNoAccountFound - If true, throw an error if no existing account is found on chain. Default is false.
  * @throws Error if the account cannot be derived from the private key.
@@ -842,16 +836,16 @@ export async function getAccountOwnedObjects(args: {
  * @deprecated Note that more inspection is needed by the user to determine which account exists on-chain
  */
 export async function deriveAccountFromPrivateKey(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   privateKey: PrivateKeyInput;
   options?: {
     throwIfNoAccountFound?: boolean;
   };
 }): Promise<Account> {
-  const { aptosConfig, privateKey, options } = args;
+  const { movementConfig, privateKey, options } = args;
   const throwIfNoAccountFound = options?.throwIfNoAccountFound ?? false;
 
-  const accounts = await deriveOwnedAccountsFromPrivateKey({ aptosConfig, privateKey });
+  const accounts = await deriveOwnedAccountsFromPrivateKey({ movementConfig, privateKey });
   if (accounts.length === 0) {
     if (throwIfNoAccountFound) {
       throw new Error(`No existing account found for private key.`);
@@ -863,52 +857,52 @@ export async function deriveAccountFromPrivateKey(args: {
 }
 
 /**
- * Checks if an account exists by verifying its information against the Aptos blockchain.
+ * Checks if an account exists by verifying its information against the Movement blockchain.
  *
  * @param args - The arguments for the function.
- * @param args.aptosConfig - The configuration for connecting to the Aptos blockchain.
+ * @param args.movementConfig - The configuration for connecting to the Movement blockchain.
  * @param args.authKey - The authentication key used to derive the account address.
  * @returns A promise that resolves to a boolean indicating whether the account exists.
  *
  * @throws Throws an Error if there is an issue while looking for account information.
  * @group Implementation
  */
-export async function isAccountExist(args: { aptosConfig: AptosConfig; authKey: AuthenticationKey }): Promise<boolean> {
-  const { aptosConfig, authKey } = args;
+export async function isAccountExist(args: { movementConfig: MovementConfig; authKey: AuthenticationKey }): Promise<boolean> {
+  const { movementConfig, authKey } = args;
   const accountAddress = await lookupOriginalAccountAddress({
-    aptosConfig,
+    movementConfig,
     authenticationKey: authKey.derivedAddress(),
   });
 
-  return doesAccountExistAtAddress({ aptosConfig, accountAddress });
+  return doesAccountExistAtAddress({ movementConfig, accountAddress });
 }
 
 /**
  * Checks if an account exists at a given address.
  *
  * @param args - The arguments for checking account existence.
- * @param args.aptosConfig - The configuration for the Aptos client.
+ * @param args.movementConfig - The configuration for the Movement client.
  * @param args.accountAddress - The address of the account to check.
  * @param args.options.withAuthKey - An optional authentication key which will also be checked against if provided.
  * @returns A promise that resolves to a boolean indicating whether the account exists.
  * @group Implementation
  */
 async function doesAccountExistAtAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddress;
   options?: { withAuthKey?: AuthenticationKey };
 }): Promise<boolean> {
-  const { aptosConfig, accountAddress, options } = args;
+  const { movementConfig, accountAddress, options } = args;
   try {
     // Get the account resources and the balance of the account.  We need to check both because
     // an account resource can exist with 0 balance and a balance can exist without an account resource (light accounts).
     const [resources, ownedObjects] = await Promise.all([
       getResources({
-        aptosConfig,
+        movementConfig,
         accountAddress,
       }),
       getAccountOwnedObjects({
-        aptosConfig,
+        movementConfig,
         accountAddress,
         options: {
           limit: 1,
@@ -966,7 +960,7 @@ const rotateAuthKeyAbi: EntryFunctionABI = {
  * Rotates the authentication key for a given account.
  *
  * @param args - The arguments for rotating the authentication key.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.fromAccount - The account from which the authentication key will be rotated.
  * @param args.toAccount - (Optional) The target account to rotate to. Required if not using toNewPrivateKey.
  * @param args.toNewPrivateKey - (Optional) The new private key to rotate to. Required if not using toAccount.
@@ -983,15 +977,15 @@ const rotateAuthKeyAbi: EntryFunctionABI = {
  */
 export async function rotateAuthKey(
   args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     fromAccount: Account;
     options?: InputGenerateTransactionOptions;
   } & ({ toAccount: Ed25519Account | MultiEd25519Account } | { toNewPrivateKey: Ed25519PrivateKey }),
 ): Promise<SimpleTransaction> {
-  const { aptosConfig, fromAccount, options } = args;
+  const { movementConfig, fromAccount, options } = args;
   if ("toNewPrivateKey" in args) {
     return rotateAuthKeyWithChallenge({
-      aptosConfig,
+      movementConfig,
       fromAccount,
       toNewPrivateKey: args.toNewPrivateKey,
       options,
@@ -999,13 +993,13 @@ export async function rotateAuthKey(
   } else if ("toAccount" in args) {
     if (args.toAccount instanceof Ed25519Account) {
       return rotateAuthKeyWithChallenge({
-        aptosConfig,
+        movementConfig,
         fromAccount,
         toNewPrivateKey: args.toAccount.privateKey,
         options,
       });
     } else {
-      return rotateAuthKeyWithChallenge({ aptosConfig, fromAccount, toAccount: args.toAccount, options });
+      return rotateAuthKeyWithChallenge({ movementConfig, fromAccount, toAccount: args.toAccount, options });
     }
   } else {
     throw new Error("Invalid arguments");
@@ -1014,14 +1008,14 @@ export async function rotateAuthKey(
 
 async function rotateAuthKeyWithChallenge(
   args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     fromAccount: Account;
     options?: InputGenerateTransactionOptions;
   } & ({ toNewPrivateKey: Ed25519PrivateKey } | { toAccount: MultiEd25519Account }),
 ): Promise<SimpleTransaction> {
-  const { aptosConfig, fromAccount, options } = args;
+  const { movementConfig, fromAccount, options } = args;
   const accountInfo = await getInfo({
-    aptosConfig,
+    movementConfig,
     accountAddress: fromAccount.accountAddress,
   });
 
@@ -1046,7 +1040,7 @@ async function rotateAuthKeyWithChallenge(
 
   // Generate transaction
   return generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: fromAccount.accountAddress,
     data: {
       function: "0x1::account::rotate_authentication_key",
@@ -1073,7 +1067,7 @@ const rotateAuthKeyUnverifiedAbi: EntryFunctionABI = {
  * Rotates the authentication key for a given account without verifying the new key.
  *
  * @param args - The arguments for rotating the authentication key.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.fromAccount - The account from which the authentication key will be rotated.
  * @param args.toNewPublicKey - The new public key to rotate to.
  * @returns A simple transaction object that can be submitted to the network.
@@ -1082,15 +1076,15 @@ const rotateAuthKeyUnverifiedAbi: EntryFunctionABI = {
  * @group Implementation
  */
 export async function rotateAuthKeyUnverified(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   fromAccount: Account;
   toNewPublicKey: AccountPublicKey;
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
-  const { aptosConfig, fromAccount, toNewPublicKey, options } = args;
+  const { movementConfig, fromAccount, toNewPublicKey, options } = args;
 
   return generateTransaction({
-    aptosConfig,
+    movementConfig,
     sender: fromAccount.accountAddress,
     data: {
       function: "0x1::account::rotate_authentication_key_from_public_key",
@@ -1111,11 +1105,11 @@ export type AccountInfo = {
 };
 
 export async function getAccountsForPublicKey(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   publicKey: BaseAccountPublicKey;
   options?: { includeUnverified?: boolean; noMultiKey?: boolean };
 }): Promise<AccountInfo[]> {
-  const { aptosConfig, publicKey, options } = args;
+  const { movementConfig, publicKey, options } = args;
   const noMultiKey = options?.noMultiKey ?? false;
   if (noMultiKey && publicKey instanceof AbstractMultiKey) {
     throw new Error("Multi-key accounts are not supported when noMultiKey is true.");
@@ -1135,7 +1129,7 @@ export async function getAccountsForPublicKey(args: {
     // and the AnyPublicKey form and may an existing account for each.
     Promise.all(
       allPublicKeys.map(async (publicKey) => {
-        const addressAndLastTxnVersion = await getDefaultAccountInfoForPublicKey({ aptosConfig, publicKey });
+        const addressAndLastTxnVersion = await getDefaultAccountInfoForPublicKey({ movementConfig, publicKey });
         if (addressAndLastTxnVersion) {
           return { ...addressAndLastTxnVersion, publicKey };
         }
@@ -1144,7 +1138,7 @@ export async function getAccountsForPublicKey(args: {
     ),
     // Get multi-keys for the provided public key if not already a multi-key.
     !(publicKey instanceof AbstractMultiKey) && !noMultiKey
-      ? getMultiKeysForPublicKey({ aptosConfig, publicKey, options })
+      ? getMultiKeysForPublicKey({ movementConfig, publicKey, options })
       : Promise.resolve([]),
   ]);
 
@@ -1169,7 +1163,7 @@ export async function getAccountsForPublicKey(args: {
 
   // Get the account addresses for the auth keys.
   const authKeyAccountAddressPairs = await getAccountAddressesForAuthKeys({
-    aptosConfig,
+    movementConfig,
     authKeys: allPublicKeys.map((key) => key.authKey()),
     options,
   });
@@ -1198,33 +1192,33 @@ export async function getAccountsForPublicKey(args: {
 }
 
 export async function deriveOwnedAccountsFromSigner(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   signer: Account | PrivateKeyInput;
   options?: { includeUnverified?: boolean; noMultiKey?: boolean };
 }): Promise<Account[]> {
-  const { aptosConfig, signer, options } = args;
+  const { movementConfig, signer, options } = args;
 
   if (signer instanceof Ed25519PrivateKey || signer instanceof Secp256k1PrivateKey) {
-    return deriveOwnedAccountsFromPrivateKey({ aptosConfig, privateKey: signer, options });
+    return deriveOwnedAccountsFromPrivateKey({ movementConfig, privateKey: signer, options });
   }
 
   if (signer instanceof Ed25519Account || signer instanceof SingleKeyAccount) {
-    return deriveOwnedAccountsFromPrivateKey({ aptosConfig, privateKey: signer.privateKey, options });
+    return deriveOwnedAccountsFromPrivateKey({ movementConfig, privateKey: signer.privateKey, options });
   }
 
   if (signer instanceof KeylessAccount || signer instanceof FederatedKeylessAccount) {
-    return deriveOwnedAccountsFromKeylessSigner({ aptosConfig, keylessAccount: signer, options });
+    return deriveOwnedAccountsFromKeylessSigner({ movementConfig, keylessAccount: signer, options });
   }
 
   if (signer instanceof MultiKeyAccount) {
     if (signer.signers.length === 1) {
-      return deriveOwnedAccountsFromSigner({ aptosConfig, signer: signer.signers[0], options });
+      return deriveOwnedAccountsFromSigner({ movementConfig, signer: signer.signers[0], options });
     }
   }
 
   if (signer instanceof MultiEd25519Account) {
     if (signer.signers.length === 1) {
-      return deriveOwnedAccountsFromPrivateKey({ aptosConfig, privateKey: signer.signers[0], options });
+      return deriveOwnedAccountsFromPrivateKey({ movementConfig, privateKey: signer.signers[0], options });
     }
   }
 
@@ -1232,13 +1226,13 @@ export async function deriveOwnedAccountsFromSigner(args: {
 }
 
 async function deriveOwnedAccountsFromKeylessSigner(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   keylessAccount: KeylessAccount | FederatedKeylessAccount;
   options?: { includeUnverified?: boolean; noMultiKey?: boolean };
 }): Promise<Account[]> {
-  const { aptosConfig, keylessAccount, options } = args;
+  const { movementConfig, keylessAccount, options } = args;
   const addressesAndPublicKeys = await getAccountsForPublicKey({
-    aptosConfig,
+    movementConfig,
     publicKey: keylessAccount.getAnyPublicKey(),
     options,
   });
@@ -1285,14 +1279,14 @@ async function deriveOwnedAccountsFromKeylessSigner(args: {
 }
 
 async function deriveOwnedAccountsFromPrivateKey(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   privateKey: Ed25519PrivateKey | Secp256k1PrivateKey;
   options?: { includeUnverified?: boolean; noMultiKey?: boolean };
 }): Promise<Account[]> {
-  const { aptosConfig, privateKey, options } = args;
+  const { movementConfig, privateKey, options } = args;
   const singleKeyAccount = Account.fromPrivateKey({ privateKey, legacy: false });
   const addressesAndPublicKeys = await getAccountsForPublicKey({
-    aptosConfig,
+    movementConfig,
     publicKey: new AnyPublicKey(privateKey.publicKey()),
     options,
   });
@@ -1334,16 +1328,16 @@ async function deriveOwnedAccountsFromPrivateKey(args: {
  * 2. Queries the indexer for the multi-keys.
  * 3. Returns the multi-keys.
  *
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.publicKey - The public key to get the multi-keys for. This public key cannot itself be a multi-key.
  * @returns The multi-keys (MultiKey or MultiEd25519PublicKey) that contain the given public key.
  */
 async function getMultiKeysForPublicKey(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   publicKey: Ed25519PublicKey | AnyPublicKey;
   options?: { includeUnverified?: boolean };
 }): Promise<(MultiKey | MultiEd25519PublicKey)[]> {
-  const { aptosConfig, publicKey, options } = args;
+  const { movementConfig, publicKey, options } = args;
   if (publicKey instanceof AbstractMultiKey) {
     throw new Error("Public key is a multi-key.");
   }
@@ -1366,7 +1360,7 @@ async function getMultiKeysForPublicKey(args: {
   };
 
   const { public_key_auth_keys: data } = await queryIndexer<GetAuthKeysForPublicKeyQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getMultiKeysForPublicKey",
   });
@@ -1393,7 +1387,7 @@ async function getMultiKeysForPublicKey(args: {
  * 2. Queries the indexer for the account addresses and gets the results ordered by the last transaction version (most recent first).
  * 3. Returns the account addresses.
  *
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.authKeys - The authentication keys to get the account addresses for.
  * @param args.options.includeUnverified - Whether to include unverified accounts in the results. Unverified accounts
  * are accounts that can be authenticated with the signer, but there is no history of the signer using the account.
@@ -1401,11 +1395,11 @@ async function getMultiKeysForPublicKey(args: {
  * @returns The account addresses associated with the given authentication keys.
  */
 async function getAccountAddressesForAuthKeys(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   authKeys: AuthenticationKey[];
   options?: { includeUnverified?: boolean };
 }): Promise<{ authKey: AuthenticationKey; accountAddress: AccountAddress; lastTransactionVersion: number }[]> {
-  const { aptosConfig, authKeys, options } = args;
+  const { movementConfig, authKeys, options } = args;
   const includeUnverified = options?.includeUnverified ?? false;
   if (authKeys.length === 0) {
     throw new Error("No authentication keys provided");
@@ -1423,7 +1417,7 @@ async function getAccountAddressesForAuthKeys(args: {
     },
   };
   const { auth_key_account_addresses: data } = await queryIndexer<GetAccountAddressesForAuthKeyQuery>({
-    aptosConfig,
+    movementConfig,
     query: graphqlQuery,
     originMethod: "getAccountAddressesForAuthKeys",
   });
@@ -1439,16 +1433,16 @@ async function getAccountAddressesForAuthKeys(args: {
  *
  * If an account was created but has not signed any transactions, the last transaction version will be 0.
  *
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.accountAddress - The account address to get the latest transaction version for.
  * @returns The last transaction version that was signed by the account.
  */
 async function getLatestTransactionVersionForAddress(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
 }): Promise<number> {
-  const { aptosConfig, accountAddress } = args;
-  const transactions = await getTransactions({ aptosConfig, accountAddress, options: { limit: 1 } });
+  const { movementConfig, accountAddress } = args;
+  const transactions = await getTransactions({ movementConfig, accountAddress, options: { limit: 1 } });
   if (transactions.length === 0) {
     return 0;
   }
@@ -1461,24 +1455,24 @@ async function getLatestTransactionVersionForAddress(args: {
  * not been rotated.
  *
  * @param args - The arguments for getting the default account info for a given public key.
- * @param args.aptosConfig - The configuration settings for the Aptos network.
+ * @param args.movementConfig - The configuration settings for the Movement network.
  * @param args.publicKey - The public key to use to derive the address.
  * @returns An object containing the account address and the last transaction version, or undefined if the account does not exist.
  */
 async function getDefaultAccountInfoForPublicKey(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   publicKey: AccountPublicKey;
 }): Promise<{ accountAddress: AccountAddress; lastTransactionVersion: number } | undefined> {
-  const { aptosConfig, publicKey } = args;
+  const { movementConfig, publicKey } = args;
   const derivedAddress = publicKey.authKey().derivedAddress();
 
   const [lastTransactionVersion, exists] = await Promise.all([
     getLatestTransactionVersionForAddress({
-      aptosConfig,
+      movementConfig,
       accountAddress: derivedAddress,
     }),
     doesAccountExistAtAddress({
-      aptosConfig,
+      movementConfig,
       accountAddress: derivedAddress,
       options: { withAuthKey: publicKey.authKey() },
     }),

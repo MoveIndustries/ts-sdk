@@ -1,16 +1,16 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Account } from "./Account";
-import { MultiKey, MultiKeySignature, PublicKey } from "../core/crypto";
+import { MovementConfig } from "../api/movementConfig";
 import { AccountAddress, AccountAddressInput } from "../core/accountAddress";
-import { HexInput, SigningScheme } from "../types";
+import { MultiKey, MultiKeySignature, PublicKey } from "../core/crypto";
 import { AccountAuthenticatorMultiKey } from "../transactions/authenticator/account";
 import { AnyRawTransaction } from "../transactions/types";
+import { HexInput, SigningScheme } from "../types";
 import { AbstractKeylessAccount, KeylessSigner } from "./AbstractKeylessAccount";
-import { AptosConfig } from "../api/aptosConfig";
-import { SingleKeyAccount, SingleKeySigner, SingleKeySignerOrLegacyEd25519Account } from "./SingleKeyAccount";
+import type { Account } from "./Account";
 import { Ed25519Account } from "./Ed25519Account";
+import { SingleKeyAccount, SingleKeySigner, SingleKeySignerOrLegacyEd25519Account } from "./SingleKeyAccount";
 
 /**
  * Arguments required to verify a multi-key signature against a given message.
@@ -215,11 +215,11 @@ export class MultiKeyAccount implements Account, KeylessSigner {
    * @group Implementation
    * @category Account (On-Chain Model)
    */
-  async checkKeylessAccountValidity(aptosConfig: AptosConfig): Promise<void> {
+  async checkKeylessAccountValidity(movementConfig: MovementConfig): Promise<void> {
     const keylessSigners = this.signers.filter(
       (signer) => signer instanceof AbstractKeylessAccount,
     ) as AbstractKeylessAccount[];
-    const promises = keylessSigners.map((signer) => signer.checkKeylessAccountValidity(aptosConfig));
+    const promises = keylessSigners.map((signer) => signer.checkKeylessAccountValidity(movementConfig));
     await Promise.all(promises);
   }
 
@@ -286,7 +286,7 @@ export class MultiKeyAccount implements Account, KeylessSigner {
    * @category Account (On-Chain Model)
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: MultiKeySignature;
     options?: { throwErrorWithReason?: boolean };

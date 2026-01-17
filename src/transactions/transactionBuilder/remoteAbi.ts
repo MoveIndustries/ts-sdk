@@ -1,7 +1,19 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseTypeTag } from "../typeTag/parser";
+import { MovementConfig } from "../../api/movementConfig";
+import { Bool, FixedBytes, MoveOption, MoveString, MoveVector, U128, U16, U256, U32, U64, U8 } from "../../bcs";
+import { AccountAddress } from "../../core";
+import { getModule } from "../../internal/account";
+import { MoveFunction, MoveModule } from "../../types";
+import {
+  EntryFunctionABI,
+  EntryFunctionArgumentTypes,
+  FunctionABI,
+  SimpleEntryFunctionArgumentTypes,
+  TypeArgument,
+  ViewFunctionABI,
+} from "../types";
 import {
   TypeTag,
   TypeTagAddress,
@@ -14,19 +26,9 @@ import {
   TypeTagU64,
   TypeTagU8,
 } from "../typeTag";
-import { AptosConfig } from "../../api/aptosConfig";
+import { parseTypeTag } from "../typeTag/parser";
 import {
-  EntryFunctionArgumentTypes,
-  SimpleEntryFunctionArgumentTypes,
-  EntryFunctionABI,
-  ViewFunctionABI,
-  FunctionABI,
-  TypeArgument,
-} from "../types";
-import { Bool, FixedBytes, MoveOption, MoveString, MoveVector, U128, U16, U256, U32, U64, U8 } from "../../bcs";
-import { AccountAddress } from "../../core";
-import { getModule } from "../../internal/account";
-import {
+  convertNumber,
   findFirstNonSignerArg,
   isBcsAddress,
   isBcsBool,
@@ -38,14 +40,12 @@ import {
   isBcsU64,
   isBcsU8,
   isBool,
+  isEmptyOption,
   isEncodedEntryFunctionArgument,
   isLargeNumber,
-  isEmptyOption,
   isString,
   throwTypeMismatch,
-  convertNumber,
 } from "./helpers";
-import { MoveFunction, MoveModule } from "../../types";
 
 const TEXT_ENCODER = new TextEncoder();
 
@@ -74,16 +74,16 @@ export function standardizeTypeTags(typeArguments?: Array<TypeArgument>): Array<
  *
  * @param moduleAddress - The address of the module from which to fetch the ABI.
  * @param moduleName - The name of the module containing the ABI.
- * @param aptosConfig - The configuration settings for Aptos.
+ * @param movementConfig - The configuration settings for Movement.
  * @group Implementation
  * @category Transactions
  */
 export async function fetchModuleAbi(
   moduleAddress: string,
   moduleName: string,
-  aptosConfig: AptosConfig,
+  movementConfig: MovementConfig,
 ): Promise<MoveModule | undefined> {
-  const moduleBytecode = await getModule({ aptosConfig, accountAddress: moduleAddress, moduleName });
+  const moduleBytecode = await getModule({ movementConfig, accountAddress: moduleAddress, moduleName });
   return moduleBytecode.abi;
 }
 
@@ -94,7 +94,7 @@ export async function fetchModuleAbi(
  * @param moduleAddress - The address of the module from which to fetch the function ABI.
  * @param moduleName - The name of the module containing the function.
  * @param functionName - The name of the function whose ABI is to be fetched.
- * @param aptosConfig - The configuration settings for Aptos.
+ * @param movementConfig - The configuration settings for Movement.
  * @group Implementation
  * @category Transactions
  */
@@ -102,9 +102,9 @@ export async function fetchFunctionAbi(
   moduleAddress: string,
   moduleName: string,
   functionName: string,
-  aptosConfig: AptosConfig,
+  movementConfig: MovementConfig,
 ): Promise<MoveFunction | undefined> {
-  const moduleAbi = await fetchModuleAbi(moduleAddress, moduleName, aptosConfig);
+  const moduleAbi = await fetchModuleAbi(moduleAddress, moduleName, movementConfig);
   if (!moduleAbi) throw new Error(`Could not find module ABI for '${moduleAddress}::${moduleName}'`);
   return moduleAbi.exposed_functions.find((func) => func.name === functionName);
 }
@@ -116,9 +116,9 @@ export async function fetchMoveFunctionAbi(
   moduleAddress: string,
   moduleName: string,
   functionName: string,
-  aptosConfig: AptosConfig,
+  movementConfig: MovementConfig,
 ): Promise<FunctionABI> {
-  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, aptosConfig);
+  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, movementConfig);
   if (!functionAbi) {
     throw new Error(`Could not find function ABI for '${moduleAddress}::${moduleName}::${functionName}'`);
   }
@@ -140,7 +140,7 @@ export async function fetchMoveFunctionAbi(
  * @param moduleAddress - The address of the module containing the entry function.
  * @param moduleName - The name of the module containing the entry function.
  * @param functionName - The name of the entry function to fetch the ABI for.
- * @param aptosConfig - The configuration settings for Aptos.
+ * @param movementConfig - The configuration settings for Movement.
  * @returns An object containing the number of signers, type parameters, and function parameters.
  * @throws Error if the ABI cannot be found or if the function is not an entry function.
  * @group Implementation
@@ -150,9 +150,9 @@ export async function fetchEntryFunctionAbi(
   moduleAddress: string,
   moduleName: string,
   functionName: string,
-  aptosConfig: AptosConfig,
+  movementConfig: MovementConfig,
 ): Promise<EntryFunctionABI> {
-  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, aptosConfig);
+  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, movementConfig);
 
   // If there's no ABI, then the function is invalid
   if (!functionAbi) {
@@ -185,7 +185,7 @@ export async function fetchEntryFunctionAbi(
  * @param moduleAddress - The address of the module containing the view function.
  * @param moduleName - The name of the module containing the view function.
  * @param functionName - The name of the view function for which to fetch the ABI.
- * @param aptosConfig - The configuration settings for Aptos.
+ * @param movementConfig - The configuration settings for Movement.
  * @returns An object containing the type parameters, parameters, and return types of the view function.
  * @throws Error if the ABI cannot be found or if the function is not a view function.
  * @group Implementation
@@ -195,9 +195,9 @@ export async function fetchViewFunctionAbi(
   moduleAddress: string,
   moduleName: string,
   functionName: string,
-  aptosConfig: AptosConfig,
+  movementConfig: MovementConfig,
 ): Promise<ViewFunctionABI> {
-  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, aptosConfig);
+  const functionAbi = await fetchFunctionAbi(moduleAddress, moduleName, functionName, movementConfig);
 
   // If there's no ABI, then the function is invalid
   if (!functionAbi) {
@@ -485,7 +485,7 @@ function parseArg(
       }
       throwTypeMismatch("string | AccountAddress", position);
     }
-    // Handle known enum types from Aptos framework
+    // Handle known enum types from Movement framework
     if (param.isDelegationKey() || param.isRateLimiter()) {
       if (arg instanceof Uint8Array) {
         return new FixedBytes(arg);

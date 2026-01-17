@@ -2,19 +2,19 @@
 /* eslint-disable max-len */
 
 /**
- * This example shows how to use the Aptos client to mint and transfer a Digital Asset.
+ * This example shows how to use the Movement client to mint and transfer a Digital Asset.
  */
 
+import { Account, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
-import { Account, Aptos, AptosConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 
 const INITIAL_BALANCE = 100_000_000;
 
 // Set up the client
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK] || Network.DEVNET;
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK] || Network.DEVNET;
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 const example = async () => {
   console.log(
@@ -29,21 +29,21 @@ const example = async () => {
   console.log(`Alice's address is: ${alice.accountAddress}`);
 
   // Fund and create the accounts
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: INITIAL_BALANCE,
   });
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: bob.accountAddress,
     amount: INITIAL_BALANCE,
   });
 
   const collectionName = "Example Collection";
   const collectionDescription = "Example description.";
-  const collectionURI = "aptos.dev";
+  const collectionURI = "movement.dev";
 
   // Create the collection
-  const createCollectionTransaction = await aptos.createCollectionTransaction({
+  const createCollectionTransaction = await movement.createCollectionTransaction({
     creator: alice,
     description: collectionDescription,
     name: collectionName,
@@ -51,11 +51,11 @@ const example = async () => {
   });
 
   console.log("\n=== Create the collection ===\n");
-  let committedTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: createCollectionTransaction });
+  let committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: createCollectionTransaction });
 
-  let pendingTxn = await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  let pendingTxn = await movement.waitForTransaction({ transactionHash: committedTxn.hash });
 
-  const aliceCollection = await aptos.getCollectionData({
+  const aliceCollection = await movement.getCollectionData({
     creatorAddress: alice.accountAddress,
     collectionName,
     minimumLedgerVersion: BigInt(pendingTxn.version),
@@ -64,11 +64,11 @@ const example = async () => {
 
   const tokenName = "Example Asset";
   const tokenDescription = "Example asset description.";
-  const tokenURI = "aptos.dev/asset";
+  const tokenURI = "movement.dev/asset";
 
   console.log("\n=== Alice Mints the digital asset ===\n");
 
-  const mintTokenTransaction = await aptos.mintDigitalAssetTransaction({
+  const mintTokenTransaction = await movement.mintDigitalAssetTransaction({
     creator: alice,
     collection: collectionName,
     description: tokenDescription,
@@ -76,10 +76,10 @@ const example = async () => {
     uri: tokenURI,
   });
 
-  committedTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: mintTokenTransaction });
-  pendingTxn = await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: mintTokenTransaction });
+  pendingTxn = await movement.waitForTransaction({ transactionHash: committedTxn.hash });
 
-  const aliceDigitalAsset = await aptos.getOwnedDigitalAssets({
+  const aliceDigitalAsset = await movement.getOwnedDigitalAssets({
     ownerAddress: alice.accountAddress,
     minimumLedgerVersion: BigInt(pendingTxn.version),
   });
@@ -89,21 +89,21 @@ const example = async () => {
 
   console.log("\n=== Transfer the digital asset to Bob ===\n");
 
-  const transferTransaction = await aptos.transferDigitalAssetTransaction({
+  const transferTransaction = await movement.transferDigitalAssetTransaction({
     sender: alice,
     digitalAssetAddress: aliceDigitalAsset[0].token_data_id,
     recipient: bob.accountAddress,
   });
-  committedTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: transferTransaction });
-  pendingTxn = await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: transferTransaction });
+  pendingTxn = await movement.waitForTransaction({ transactionHash: committedTxn.hash });
 
-  const aliceDigitalAssetsAfter = await aptos.getOwnedDigitalAssets({
+  const aliceDigitalAssetsAfter = await movement.getOwnedDigitalAssets({
     ownerAddress: alice.accountAddress,
     minimumLedgerVersion: BigInt(pendingTxn.version),
   });
   console.log(`Alice's digital assets balance: ${aliceDigitalAssetsAfter.length}`);
 
-  const bobDigitalAssetsAfter = await aptos.getOwnedDigitalAssets({
+  const bobDigitalAssetsAfter = await movement.getOwnedDigitalAssets({
     ownerAddress: bob.accountAddress,
     minimumLedgerVersion: BigInt(pendingTxn.version),
   });

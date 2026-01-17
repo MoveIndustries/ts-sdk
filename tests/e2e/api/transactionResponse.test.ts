@@ -1,9 +1,9 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable max-len */
 
-import { ValidatorTransactionResponse, TransactionResponseType, BlockMetadataTransactionResponse } from "../../../src";
+import { BlockMetadataTransactionResponse, TransactionResponseType, ValidatorTransactionResponse } from "../../../src";
 
 describe("transaction response types", () => {
   test("it tests a sample validator_transaction JSON response satisfies ValidatorTransactionResponse", async () => {

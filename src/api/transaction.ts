@@ -1,7 +1,9 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AptosConfig } from "./aptosConfig";
+import { Account, Ed25519Account, MultiEd25519Account } from "../account";
+import { AccountAddressInput, AccountPublicKey, Ed25519PrivateKey } from "../core";
+import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
 import {
   getGasPriceEstimation,
   getTransactionByHash,
@@ -10,16 +12,6 @@ import {
   isTransactionPending,
   waitForTransaction,
 } from "../internal/transaction";
-import {
-  AnyNumber,
-  CommittedTransactionResponse,
-  GasEstimation,
-  HexInput,
-  PaginationArgs,
-  PendingTransactionResponse,
-  TransactionResponse,
-  WaitForTransactionOptions,
-} from "../types";
 import {
   FeePayerOrFeePayerAuthenticatorOrNeither,
   getSigningMessage,
@@ -36,25 +28,33 @@ import {
   InputGenerateTransactionPayloadData,
   InputTransactionPluginData,
 } from "../transactions";
-import { AccountAddressInput, AccountPublicKey, AuthenticationKey, Ed25519PrivateKey } from "../core";
-import { Account, Ed25519Account, MultiEd25519Account } from "../account";
+import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
+import {
+  AnyNumber,
+  CommittedTransactionResponse,
+  GasEstimation,
+  HexInput,
+  PaginationArgs,
+  PendingTransactionResponse,
+  TransactionResponse,
+  WaitForTransactionOptions,
+} from "../types";
+import { MovementConfig } from "./movementConfig";
 import { Build } from "./transactionSubmission/build";
+import { TransactionManagement } from "./transactionSubmission/management";
 import { Simulate } from "./transactionSubmission/simulate";
 import { Submit } from "./transactionSubmission/submit";
-import { TransactionManagement } from "./transactionSubmission/management";
-import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
-import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
 
 /**
- * Represents a transaction in the Aptos blockchain,
+ * Represents a transaction in the Movement blockchain,
  * providing methods to build, simulate, submit, and manage transactions.
  * This class encapsulates functionalities for querying transaction details,
  * estimating gas prices, signing transactions, and handling transaction states.
  *
- * This class is used as part of the Aptos object, so should be called like so:
+ * This class is used as part of the Movement object, so should be called like so:
  * @example
  * ```typescript
- * import { Account, Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+ * import { Account, Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
  *
  * const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
  * const COIN_STORE = `0x1::coin::CoinStore<${APTOS_COIN}>`;
@@ -67,8 +67,8 @@ import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
  *   );
  *
  *   // Set up the client
- *   const config = new AptosConfig({ network: Network.DEVNET });
- *   const aptos = new Aptos(config);
+ *   const config = new MovementConfig({ network: Network.DEVNET });
+ *   const movement = new Movement(config);
  *
  *   // Generate two account credentials
  *   // Each account has a private key, a public key, and an address
@@ -82,16 +82,16 @@ import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
  *   // Fund the accounts using a faucet
  *   console.log("\n=== Funding accounts ===\n");
  *
- *   await aptos.fundAccount({
+ *   await movement.fundAccount({
  *     accountAddress: alice.accountAddress,
  *     amount: ALICE_INITIAL_BALANCE,
  *   });
  *
  *   // Send a transaction from Alice's account to Bob's account
- *   const txn = await aptos.transaction.build.simple({
+ *   const txn = await movement.transaction.build.simple({
  *     sender: alice.accountAddress,
  *     data: {
- *       // All transactions on Aptos are implemented via smart contracts.
+ *       // All transactions on Movement are implemented via smart contracts.
  *       function: "0x1::aptos_account::transfer",
  *       functionArguments: [bob.accountAddress, 100],
  *     },
@@ -99,25 +99,25 @@ import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
  *
  *   console.log("\n=== Transfer transaction ===\n");
  *   // Both signs and submits
- *   const committedTxn = await aptos.signAndSubmitTransaction({
+ *   const committedTxn = await movement.signAndSubmitTransaction({
  *     signer: alice,
  *     transaction: txn,
  *  });
- *   // Waits for Aptos to verify and execute the transaction
- *   const executedTransaction = await aptos.waitForTransaction({
+ *   // Waits for Movement to verify and execute the transaction
+ *   const executedTransaction = await movement.waitForTransaction({
  *     transactionHash: committedTxn.hash,
  *   });
  *   console.log("Transaction hash:", executedTransaction.hash);
  *
  *  console.log("\n=== Balances after transfer ===\n");
- *  const newAliceAccountBalance = await aptos.getAccountResource({
+ *  const newAliceAccountBalance = await movement.getAccountResource({
  *    accountAddress: alice.accountAddress,
  *    resourceType: COIN_STORE,
  *  });
  *  const newAliceBalance = Number(newAliceAccountBalance.coin.value);
  *  console.log(`Alice's balance is: ${newAliceBalance}`);
  *
- *  const newBobAccountBalance = await aptos.getAccountResource({
+ *  const newBobAccountBalance = await movement.getAccountResource({
  *    accountAddress: bob.accountAddress,
  *    resourceType: COIN_STORE,
  *  });
@@ -130,7 +130,7 @@ import { rotateAuthKey, rotateAuthKeyUnverified } from "../internal/account";
  * @group Transaction
  */
 export class Transaction {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   readonly build: Build;
 
@@ -141,29 +141,29 @@ export class Transaction {
   readonly batch: TransactionManagement;
 
   /**
-   * Creates an instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Creates an instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., Testnet, Mainnet).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a new Aptos client instance
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // Specify the network
-   *     const aptos = new Aptos(config);
+   *     // Create a new Movement client instance
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // Specify the network
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client created successfully:", aptos);
+   *     console.log("Movement client created successfully:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Transaction
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
     this.build = new Build(this.config);
     this.simulate = new Simulate(this.config);
@@ -184,14 +184,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetch transactions with pagination
-   *   const transactions = await aptos.getTransactions({
+   *   const transactions = await movement.getTransactions({
    *     options: {
    *       offset: 0, // Start from the first transaction
    *       limit: 10, // Limit to 10 results
@@ -206,7 +206,7 @@ export class Transaction {
    */
   async getTransactions(args?: { options?: PaginationArgs }): Promise<TransactionResponse[]> {
     return getTransactions({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -221,14 +221,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching a transaction by its version
-   *   const transaction = await aptos.getTransactionByVersion({ ledgerVersion: 1 }); // replace 1 with a real version
+   *   const transaction = await movement.getTransactionByVersion({ ledgerVersion: 1 }); // replace 1 with a real version
    *   console.log(transaction);
    * }
    * runExample().catch(console.error);
@@ -237,7 +237,7 @@ export class Transaction {
    */
   async getTransactionByVersion(args: { ledgerVersion: AnyNumber }): Promise<TransactionResponse> {
     return getTransactionByVersion({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -251,14 +251,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetch a transaction by its hash
-   *   const transaction = await aptos.getTransactionByHash({ transactionHash: "0x123" }); // replace with a real transaction hash
+   *   const transaction = await movement.getTransactionByHash({ transactionHash: "0x123" }); // replace with a real transaction hash
    *
    *   console.log(transaction);
    * }
@@ -268,7 +268,7 @@ export class Transaction {
    */
   async getTransactionByHash(args: { transactionHash: HexInput }): Promise<TransactionResponse> {
     return getTransactionByHash({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -283,14 +283,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Check if the transaction is pending using its hash
-   *   const isPendingTransaction = await aptos.isPendingTransaction({ transactionHash: "0x123" }); // replace with a real transaction hash
+   *   const isPendingTransaction = await movement.isPendingTransaction({ transactionHash: "0x123" }); // replace with a real transaction hash
    *   console.log("Is the transaction pending?", isPendingTransaction);
    * }
    * runExample().catch(console.error);
@@ -299,7 +299,7 @@ export class Transaction {
    */
   async isPendingTransaction(args: { transactionHash: HexInput }): Promise<boolean> {
     return isTransactionPending({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -310,7 +310,7 @@ export class Transaction {
    * 1. Transaction is successfully processed and committed to the chain.
    *    - The function will resolve with the transaction response from the API.
    * 2. Transaction is rejected for some reason, and is therefore not committed to the blockchain.
-   *    - The function will throw an AptosApiError with an HTTP status code indicating some problem with the request.
+   *    - The function will throw an MovementApiError with an HTTP status code indicating some problem with the request.
    * 3. Transaction is committed but execution failed, meaning no changes were
    *    written to the blockchain state.
    *    - If `checkSuccess` is true, the function will throw a FailedTransactionError
@@ -327,15 +327,15 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Wait for a transaction to complete using its hash
    *   const transactionHash = "0x123"; // replace with a real transaction hash
-   *   const transactionResponse = await aptos.waitForTransaction({
+   *   const transactionResponse = await movement.waitForTransaction({
    *     transactionHash,
    *     options: {
    *       timeoutSecs: 30, // specify your own timeout if needed
@@ -354,13 +354,13 @@ export class Transaction {
     options?: WaitForTransactionOptions;
   }): Promise<CommittedTransactionResponse> {
     return waitForTransaction({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
 
   /**
-   * Estimates the gas unit price required to process a transaction on the Aptos blockchain in a timely manner.
+   * Estimates the gas unit price required to process a transaction on the Movement blockchain in a timely manner.
    * This helps users to understand the cost associated with their transactions.
    * {@link https://mainnet.movementnetwork.xyz/v1/spec#/operations/estimate_gas_price}
    *
@@ -368,14 +368,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET }); // Specify your network
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET }); // Specify your network
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Getting the gas price estimation
-   *   const gasPriceEstimation = await aptos.getGasPriceEstimation();
+   *   const gasPriceEstimation = await movement.getGasPriceEstimation();
    *
    *   console.log("Estimated Gas Price:", gasPriceEstimation);
    * }
@@ -385,7 +385,7 @@ export class Transaction {
    */
   async getGasPriceEstimation(): Promise<GasEstimation> {
     return getGasPriceEstimation({
-      aptosConfig: this.config,
+      movementConfig: this.config,
     });
   }
 
@@ -397,13 +397,13 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
-   *     const transaction = await aptos.transaction.build.simple({
+   *     const transaction = await movement.transaction.build.simple({
    *         sender: "0x1", // replace with a real sender address
    *         data: {
    *             function: "0x1::aptos_account::transfer",
@@ -411,7 +411,7 @@ export class Transaction {
    *         },
    *     });
    *
-   *     const message = await aptos.getSigningMessage({ transaction });
+   *     const message = await movement.getSigningMessage({ transaction });
    *     console.log(message);
    * }
    * runExample().catch(console.error);
@@ -427,10 +427,10 @@ export class Transaction {
    * Generates a transaction to publish a Move package to the blockchain.
    * This function helps you create a transaction that can be simulated or submitted to the chain for publishing a package.
    *
-   * To get the `metadataBytes` and `byteCode`, can compile using Aptos CLI with command
+   * To get the `metadataBytes` and `byteCode`, can compile using Movement CLI with command
    * `aptos move compile --save-metadata ...`,
    *
-   * {@link https://aptos.dev/tutorials/your-first-dapp/#step-4-publish-a-move-module}
+   * {@link https://movement.dev/tutorials/your-first-dapp/#step-4-publish-a-move-module}
    *
    * @param args The arguments for publishing the package.
    * @param args.account The publisher account.
@@ -442,10 +442,10 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Replace with a real account address
@@ -453,7 +453,7 @@ export class Transaction {
    *   const metadataBytes = "0x..."; // replace with real metadata bytes
    *   const byteCode = "0x..."; // replace with real module bytecode
    *
-   *   const transaction = await aptos.publishPackageTransaction({
+   *   const transaction = await movement.publishPackageTransaction({
    *     account,
    *     metadataBytes,
    *     moduleBytecode: [byteCode],
@@ -471,7 +471,7 @@ export class Transaction {
     moduleBytecode: Array<HexInput>;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return publicPackageTransaction({ aptosConfig: this.config, ...args });
+    return publicPackageTransaction({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -497,13 +497,13 @@ export class Transaction {
    * @example
    * ```typescript
    * // Create and submit transaction to rotate the auth key
-   * const transaction = await aptos.rotateAuthKey({
+   * const transaction = await movement.rotateAuthKey({
    *   fromAccount,
    *   toAccount: toAccount,
    * });
    *
    * // Sign and submit the transaction
-   * const pendingTransaction = await aptos.signAndSubmitTransaction({
+   * const pendingTransaction = await movement.signAndSubmitTransaction({
    *   signer: fromAccount,
    *   transaction,
    * });
@@ -516,7 +516,7 @@ export class Transaction {
       options?: InputGenerateTransactionOptions;
     } & ({ toAccount: Ed25519Account | MultiEd25519Account } | { toNewPrivateKey: Ed25519PrivateKey }),
   ): Promise<SimpleTransaction> {
-    return rotateAuthKey({ aptosConfig: this.config, ...args });
+    return rotateAuthKey({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -535,13 +535,13 @@ export class Transaction {
    * @example
    * ```typescript
    * // Create and submit transaction to rotate the auth key
-   * const transaction = await aptos.rotateAuthKeyUnverified({
+   * const transaction = await movement.rotateAuthKeyUnverified({
    *   fromAccount,
    *   toNewPublicKey,
    * });
    *
    * // Sign and submit the transaction
-   * const pendingTransaction = await aptos.signAndSubmitTransaction({
+   * const pendingTransaction = await movement.signAndSubmitTransaction({
    *   signer: fromAccount,
    *   transaction,
    * });
@@ -553,7 +553,7 @@ export class Transaction {
     options?: InputGenerateTransactionOptions;
     toNewPublicKey: AccountPublicKey;
   }): Promise<SimpleTransaction> {
-    return rotateAuthKeyUnverified({ aptosConfig: this.config, ...args });
+    return rotateAuthKeyUnverified({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -568,14 +568,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new account for signing
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -583,7 +583,7 @@ export class Transaction {
    *     },
    *   });
    *
-   *   const signedTransaction = await aptos.transaction.sign({
+   *   const signedTransaction = await movement.transaction.sign({
    *     signer: sender,
    *     transaction,
    *   }); // Sign the transaction
@@ -613,21 +613,21 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new account for the fee payer
-   *   const transaction = await aptos.transaction.build.simple({
-   *     // All transactions on Aptos are implemented via smart contracts.
+   *   const transaction = await movement.transaction.build.simple({
+   *     // All transactions on Movement are implemented via smart contracts.
    *     function: "0x1::aptos_account::transfer",
    *     functionArguments: [sender.accountAddress, 100],
    *     feePayerAddress: sender.accountAddress, // Set the fee payer address
    *   });
    *
-   *   const signedTransaction = await aptos.transaction.signAsFeePayer({
+   *   const signedTransaction = await movement.transaction.signAsFeePayer({
    *     signer: sender,
    *     transaction,
    *   });
@@ -648,7 +648,7 @@ export class Transaction {
   // TRANSACTION SUBMISSION //
 
   /**
-   * @deprecated Prefer to use `aptos.transaction.batch.forSingleAccount()`
+   * @deprecated Prefer to use `movement.transaction.batch.forSingleAccount()`
    *
    * Batch transactions for a single account by submitting multiple transaction payloads.
    * This function is useful for efficiently processing and submitting transactions that do not depend on each other, such as
@@ -663,10 +663,10 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    * const sender = Account.generate(); // Generate a new account for sending transactions
    *
    * async function runExample() {
@@ -676,7 +676,7 @@ export class Transaction {
    *   ];
    *
    *   // Batch transactions for the single account
-   *   await aptos.batchTransactionsForSingleAccount({
+   *   await movement.batchTransactionsForSingleAccount({
    *     sender,
    *     data: transactions,
    *   });
@@ -710,14 +710,14 @@ export class Transaction {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new account for sending the transaction
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -726,7 +726,7 @@ export class Transaction {
    *   });
    *
    *   // Sign and submit the transaction
-   *   const pendingTransaction = await aptos.signAndSubmitTransaction({
+   *   const pendingTransaction = await movement.signAndSubmitTransaction({
    *     signer: sender,
    *     transaction,
    *   });
@@ -745,7 +745,7 @@ export class Transaction {
     } & InputTransactionPluginData,
   ): Promise<PendingTransactionResponse> {
     return signAndSubmitTransaction({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }
@@ -758,9 +758,9 @@ export class Transaction {
    * @param args.transaction An instance of a RawTransaction, plus optional secondary/fee payer addresses
    *
    * @example
-   * const transaction = await aptos.transaction.build.simple({sender: alice.accountAddress, feePayer: true ...})
+   * const transaction = await movement.transaction.build.simple({sender: alice.accountAddress, feePayer: true ...})
    * const senderAuthenticator = alice.signTransactionWithAuthenticator(transaction)
-   * const pendingTransaction = await aptos.signAndSubmitAsFeePayer({
+   * const pendingTransaction = await movement.signAndSubmitAsFeePayer({
    *  senderAuthenticator,
    *  feePayer: bob,
    *  transaction,
@@ -777,7 +777,7 @@ export class Transaction {
     } & InputTransactionPluginData,
   ): Promise<PendingTransactionResponse> {
     return signAndSubmitAsFeePayer({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       ...args,
     });
   }

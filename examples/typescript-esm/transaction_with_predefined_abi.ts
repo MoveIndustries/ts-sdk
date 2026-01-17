@@ -1,18 +1,16 @@
 /* eslint-disable no-console */
 
 /**
- * This example shows how to use the Aptos client to create accounts, fund them, and transfer between them.
+ * This example shows how to use the Movement client to create accounts, fund them, and transfer between them.
  */
-import dotenv from "dotenv";
-dotenv.config();
 import {
   Account,
   AccountAddress,
-  Aptos,
   APTOS_COIN,
-  AptosConfig,
   EntryFunctionABI,
   InputViewFunctionJsonData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
   parseTypeTag,
@@ -21,6 +19,8 @@ import {
   TypeTagU64,
   U64,
 } from "@moveindustries/ts-sdk";
+import dotenv from "dotenv";
+dotenv.config();
 
 const APTOS_COIN_TYPE = parseTypeTag(APTOS_COIN);
 const ALICE_INITIAL_BALANCE = 100_000_000;
@@ -28,7 +28,7 @@ const BOB_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK] || Network.DEVNET;
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK] || Network.DEVNET;
 
 /**
  * Prints the balance of an account
@@ -38,31 +38,31 @@ const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK] |
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Aptos, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await aptos.viewJson<[number]>({ payload: payload });
+  const [balance] = await movement.viewJson<[number]>({ payload: payload });
 
   console.log(`${name}'s balance is: ${balance}`);
   return Number(balance);
 };
 
 async function timeSubmission(
-  aptos: Aptos,
+  aptos: Movement,
   signer: Account,
   buildTxn: () => Promise<SimpleTransaction>,
 ): Promise<void> {
   const start = performance.now();
   const rawTxn = await buildTxn();
   const buildTime = performance.now();
-  const senderAuthenticator = aptos.sign({ signer, transaction: rawTxn });
+  const senderAuthenticator = movement.sign({ signer, transaction: rawTxn });
   const signTime = performance.now();
-  const submittedTxn = await aptos.transaction.submit.simple({ transaction: rawTxn, senderAuthenticator });
+  const submittedTxn = await movement.transaction.submit.simple({ transaction: rawTxn, senderAuthenticator });
   const submitTime = performance.now();
-  await aptos.waitForTransaction({ transactionHash: submittedTxn.hash });
+  await movement.waitForTransaction({ transactionHash: submittedTxn.hash });
   const endTime = performance.now();
   const builtLatency = buildTime - start;
   const signLatency = signTime - buildTime;
@@ -78,8 +78,8 @@ const example = async () => {
   console.log("This example will show you how to increase performance of known entry functions");
 
   // Set up the client
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   // Create two accounts
   const alice = Account.generate();
@@ -92,12 +92,12 @@ const example = async () => {
   // Fund the accounts
   console.log("\n=== Funding accounts ===\n");
 
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: ALICE_INITIAL_BALANCE,
   });
 
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: bob.accountAddress,
     amount: BOB_INITIAL_BALANCE,
   });
@@ -121,7 +121,7 @@ const example = async () => {
   const aliceAddressString = alice.accountAddress.toString();
   const bobAddressString = bob.accountAddress.toString();
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: aliceAddressString,
       data: {
         function: "0x1::coin::transfer",
@@ -133,7 +133,7 @@ const example = async () => {
 
   console.log("\n=== Remote ABI, BCS inputs ===\n");
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
@@ -145,7 +145,7 @@ const example = async () => {
 
   console.log("\n=== Local ABI, normal inputs ===\n");
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
@@ -158,7 +158,7 @@ const example = async () => {
 
   console.log("\n=== Local ABI, BCS inputs ===\n");
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
@@ -170,10 +170,10 @@ const example = async () => {
   );
 
   console.log("\n=== Local ABI, BCS inputs, sequence number already cached ===\n");
-  const accountData = await aptos.account.getAccountInfo({ accountAddress: alice.accountAddress });
+  const accountData = await movement.account.getAccountInfo({ accountAddress: alice.accountAddress });
   const sequenceNumber = BigInt(accountData.sequence_number);
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
@@ -189,7 +189,7 @@ const example = async () => {
 
   console.log("\n=== Local ABI, BCS inputs, sequence number and gas already cached ===\n");
   await timeSubmission(aptos, alice, async () =>
-    aptos.transaction.build.simple({
+    movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",

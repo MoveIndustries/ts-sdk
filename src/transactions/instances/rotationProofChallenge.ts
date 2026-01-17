@@ -1,11 +1,11 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Serializer, Serializable } from "../../bcs/serializer";
-import { AccountAddress } from "../../core/accountAddress";
-import { AnyNumber } from "../../types";
-import { PublicKey } from "../../core/crypto";
 import { MoveString, MoveVector, U64, U8 } from "../../bcs";
+import { Serializable, Serializer } from "../../bcs/serializer";
+import { AccountAddress } from "../../core/accountAddress";
+import { PublicKey } from "../../core/crypto";
+import { AnyNumber } from "../../types";
 
 /**
  * Represents a challenge required for the account owner to sign in order to rotate the authentication key.

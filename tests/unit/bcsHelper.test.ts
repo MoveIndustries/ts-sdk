@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -6,6 +6,7 @@ import {
   Bool,
   Deserializable,
   Deserializer,
+  EntryFunctionArgument,
   FixedBytes,
   MoveOption,
   MoveString,
@@ -18,7 +19,6 @@ import {
   U32,
   U64,
   U8,
-  EntryFunctionArgument,
 } from "../../src";
 /* eslint-disable @typescript-eslint/no-shadow */
 

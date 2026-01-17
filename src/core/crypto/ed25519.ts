@@ -1,12 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { ed25519 } from "@noble/curves/ed25519";
 import { Deserializer } from "../../bcs/deserializer";
 import { Serializable, Serializer } from "../../bcs/serializer";
+import { SigningScheme as AuthenticationKeyScheme, HexInput, PrivateKeyVariants } from "../../types";
 import { AuthenticationKey } from "../authenticationKey";
 import { Hex } from "../hex";
-import { HexInput, SigningScheme as AuthenticationKeyScheme, PrivateKeyVariants } from "../../types";
 import { CKDPriv, deriveKey, HARDENED_OFFSET, isValidHardenedPath, mnemonicToSeed, splitPath } from "./hdKey";
 import { PrivateKey } from "./privateKey";
 import { AccountPublicKey, PublicKey, VerifySignatureArgs, VerifySignatureAsyncArgs } from "./publicKey";
@@ -30,7 +30,7 @@ const L: number[] = [
  * @param signature - The signature to be checked for canonicality.
  * @returns A boolean indicating whether the signature is non-canonical.
  *
- * Comes from Aptos Core
+ * Comes from Movement Core
  * https://github.com/aptos-labs/aptos-core/blob/main/crates/aptos-crypto/src/ed25519/ed25519_sigs.rs#L47-L85
  * @group Implementation
  * @category Serialization
@@ -52,7 +52,7 @@ export function isCanonicalEd25519Signature(signature: Signature): boolean {
 /**
  * Represents the public key of an Ed25519 key pair.
  *
- * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263) Aptos supports
+ * Since [AIP-55](https://github.com/aptos-foundation/AIPs/pull/263) Movement supports
  * `Legacy` and `Unified` authentication keys.
  *
  * Ed25519 scheme is represented in the SDK as `Legacy authentication key` and also
@@ -127,7 +127,7 @@ export class Ed25519PublicKey extends AccountPublicKey {
    * This function helps ensure the integrity and authenticity of the message by confirming that the signature is valid.
    *
    * @param args - The arguments for signature verification.
-   * @param args.aptosConfig - The configuration object for connecting to the Aptos network
+   * @param args.movementConfig - The configuration object for connecting to the Movement network
    * @param args.message - The message that was signed.
    * @param args.signature - The signature to verify, which must be an instance of Secp256k1Signature.
    * @returns A boolean indicating whether the signature is valid for the given message.

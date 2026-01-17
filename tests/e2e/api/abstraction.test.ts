@@ -20,11 +20,11 @@ describe("abstraction api", () => {
       const authenticationFunction = "0x1::permissioned_delegation::authenticate";
 
       beforeAll(async () => {
-        await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
       });
 
       it("should fetch account abstraction is enabled to be false", async () => {
-        const status = await aptos.abstraction.isAccountAbstractionEnabled({
+        const status = await movement.abstraction.isAccountAbstractionEnabled({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
@@ -32,17 +32,17 @@ describe("abstraction api", () => {
       });
 
       it("should enable account abstraction", async () => {
-        const txn = await aptos.abstraction.enableAccountAbstractionTransaction({
+        const txn = await movement.abstraction.enableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
       });
 
       it("should fetch whether account abstraction is enabled to be true", async () => {
-        const status = await aptos.abstraction.isAccountAbstractionEnabled({
+        const status = await movement.abstraction.isAccountAbstractionEnabled({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
@@ -50,12 +50,12 @@ describe("abstraction api", () => {
       });
 
       it("should disable account abstraction", async () => {
-        const txn = await aptos.abstraction.disableAccountAbstractionTransaction({
+        const txn = await movement.abstraction.disableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
       });
     });
@@ -67,18 +67,18 @@ describe("abstraction api", () => {
       const authenticationFunction = `${deployer.accountAddress}::any_authenticator::authenticate`;
 
       beforeAll(async () => {
-        await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
-        await aptos.fundAccount({ accountAddress: deployer.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: deployer.accountAddress, amount: FUND_AMOUNT });
         await publishAnyAuthenticatorAAPackage(aptos, deployer);
       });
 
       it("should enable account abstraction", async () => {
-        const txn = await aptos.abstraction.enableAccountAbstractionTransaction({
+        const txn = await movement.abstraction.enableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
       });
 
@@ -89,29 +89,29 @@ describe("abstraction api", () => {
           authenticationFunction,
         });
 
-        const txn = await aptos.transaction.signAndSubmitTransaction({
+        const txn = await movement.transaction.signAndSubmitTransaction({
           signer: abstractAccount,
-          transaction: await aptos.transferCoinTransaction({
+          transaction: await movement.transferCoinTransaction({
             sender: alice.accountAddress,
             recipient: recipient.accountAddress,
             amount: 100,
           }),
         });
 
-        const response = await aptos.waitForTransaction({ transactionHash: txn.hash });
+        const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await aptos.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
       });
 
       it("should disable account abstraction without specifying authentication function", async () => {
-        const txn = await aptos.abstraction.disableAccountAbstractionTransaction({
+        const txn = await movement.abstraction.disableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
 
-        const status = await aptos.abstraction.isAccountAbstractionEnabled({
+        const status = await movement.abstraction.isAccountAbstractionEnabled({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
@@ -127,18 +127,18 @@ describe("abstraction api", () => {
       const authenticationFunction = `${deployer.accountAddress}::hello_world_authenticator::authenticate`;
 
       beforeAll(async () => {
-        await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
-        await aptos.fundAccount({ accountAddress: deployer.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: deployer.accountAddress, amount: FUND_AMOUNT });
         await publishHelloWorldAAPackage(aptos, deployer);
       });
 
       it("should enable account abstraction", async () => {
-        const txn = await aptos.abstraction.enableAccountAbstractionTransaction({
+        const txn = await movement.abstraction.enableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
           authenticationFunction,
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
       });
 
@@ -149,18 +149,18 @@ describe("abstraction api", () => {
           authenticationFunction,
         });
 
-        const txn = await aptos.transaction.signAndSubmitTransaction({
+        const txn = await movement.transaction.signAndSubmitTransaction({
           signer: abstractAccount,
-          transaction: await aptos.transferCoinTransaction({
+          transaction: await movement.transferCoinTransaction({
             sender: alice.accountAddress,
             recipient: recipient.accountAddress,
             amount: 100,
           }),
         });
 
-        const response = await aptos.waitForTransaction({ transactionHash: txn.hash });
+        const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await aptos.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
       });
 
       it("should fail to send a transaction with wrong custom signer", async () => {
@@ -171,9 +171,9 @@ describe("abstraction api", () => {
         });
 
         expect(async () => {
-          await aptos.transaction.signAndSubmitTransaction({
+          await movement.transaction.signAndSubmitTransaction({
             signer: abstractAccount,
-            transaction: await aptos.transferCoinTransaction({
+            transaction: await movement.transferCoinTransaction({
               sender: alice.accountAddress,
               recipient: alice.accountAddress,
               amount: 100,
@@ -190,23 +190,23 @@ describe("abstraction api", () => {
       const recipient = Ed25519Account.generate();
 
       beforeAll(async () => {
-        await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
-        await aptos.fundAccount({ accountAddress: recipient.accountAddress, amount: FUND_AMOUNT });
-        let txn = await aptos.transaction.build.simple({
+        await movement.fundAccount({ accountAddress: alice.accountAddress, amount: FUND_AMOUNT });
+        await movement.fundAccount({ accountAddress: recipient.accountAddress, amount: FUND_AMOUNT });
+        let txn = await movement.transaction.build.simple({
           sender: alice.accountAddress,
           data: {
             bytecode: addPermissionDelegationScriptBytecode,
             functionArguments: [MoveVector.U8(bob.publicKey.toUint8Array())],
           },
         });
-        let pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
-        txn = await aptos.abstraction.enableAccountAbstractionTransaction({
+        let pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
+        txn = await movement.abstraction.enableAccountAbstractionTransaction({
           accountAddress: alice.accountAddress,
           authenticationFunction: "0x1::permissioned_delegation::authenticate",
         });
-        pendingTxn = await aptos.signAndSubmitTransaction({ signer: alice, transaction: txn });
-        await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        pendingTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: txn });
+        await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
       });
 
       it("should be able to send a transaction with permissioned signer", async () => {
@@ -214,7 +214,7 @@ describe("abstraction api", () => {
           signer: bob,
           accountAddress: bob.accountAddress,
         });
-        const txn = await aptos.transaction.build.simple({
+        const txn = await movement.transaction.build.simple({
           sender: alice.accountAddress,
           data: {
             function: "0x1::primary_fungible_store::transfer",
@@ -222,8 +222,8 @@ describe("abstraction api", () => {
             functionArguments: ["0xa", recipient.accountAddress, "100"],
           },
         });
-        const pendingTxn = await aptos.signAndSubmitTransaction({ signer: abstractedAccount, transaction: txn });
-        const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+        const pendingTxn = await movement.signAndSubmitTransaction({ signer: abstractedAccount, transaction: txn });
+        const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
         expect(response.success).toBe(true);
       });
     });
@@ -259,19 +259,19 @@ describe("abstraction api", () => {
       });
 
       const recipient = Account.generate();
-      await aptos.fundAccount({ accountAddress: recipient.accountAddress, amount: FUND_AMOUNT });
-      await aptos.fundAccount({ accountAddress: daa.accountAddress, amount: FUND_AMOUNT });
+      await movement.fundAccount({ accountAddress: recipient.accountAddress, amount: FUND_AMOUNT });
+      await movement.fundAccount({ accountAddress: daa.accountAddress, amount: FUND_AMOUNT });
 
-      const pendingTxn = await aptos.transaction.signAndSubmitTransaction({
+      const pendingTxn = await movement.transaction.signAndSubmitTransaction({
         signer: daa,
-        transaction: await aptos.transferCoinTransaction({
+        transaction: await movement.transferCoinTransaction({
           sender: daa.accountAddress,
           recipient: recipient.accountAddress,
           amount: 100,
         }),
       });
 
-      const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+      const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
       expect(response.success).toBe(true);
     });
   });

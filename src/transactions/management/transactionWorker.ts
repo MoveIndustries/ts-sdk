@@ -1,15 +1,15 @@
 /* eslint-disable no-await-in-loop */
 
 import EventEmitter from "eventemitter3";
-import { AptosConfig } from "../../api/aptosConfig";
 import { Account } from "../../account";
+import { MovementConfig } from "../../api/movementConfig";
 import { waitForTransaction } from "../../internal/transaction";
 import { generateTransaction, signAndSubmitTransaction } from "../../internal/transactionSubmission";
 import { PendingTransactionResponse, TransactionResponse } from "../../types";
+import { SimpleTransaction } from "../instances/simpleTransaction";
 import { InputGenerateTransactionOptions, InputGenerateTransactionPayloadData } from "../types";
 import { AccountSequenceNumber } from "./accountSequenceNumber";
 import { AsyncQueue, AsyncQueueCancelledError } from "./asyncQueue";
-import { SimpleTransaction } from "../instances/simpleTransaction";
 
 /**
  * @group Implementation
@@ -92,7 +92,7 @@ export type FailureEventData = {
  * @category Transactions
  */
 export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
-  readonly aptosConfig: AptosConfig;
+  readonly movementConfig: MovementConfig;
 
   readonly account: Account;
 
@@ -140,7 +140,7 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
   /**
    * Initializes a new instance of the class, providing a framework for receiving payloads to be processed.
    *
-   * @param aptosConfig - A configuration object for Aptos.
+   * @param movementConfig - A configuration object for Movement.
    * @param account - The account that will be used for sending transactions.
    * @param maxWaitTime - The maximum wait time to wait before re-syncing the sequence number to the current on-chain state,
    * default is 30 seconds.
@@ -151,18 +151,18 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
    * @category Transactions
    */
   constructor(
-    aptosConfig: AptosConfig,
+    movementConfig: MovementConfig,
     account: Account,
     maxWaitTime: number = 30,
     maximumInFlight: number = 100,
     sleepTime: number = 10,
   ) {
     super();
-    this.aptosConfig = aptosConfig;
+    this.movementConfig = movementConfig;
     this.account = account;
     this.started = false;
     this.accountSequnceNumber = new AccountSequenceNumber(
-      aptosConfig,
+      movementConfig,
       account,
       maxWaitTime,
       maximumInFlight,
@@ -188,7 +188,7 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
         const transaction = await this.generateNextTransaction(this.account, sequenceNumber);
         if (!transaction) return;
         const pendingTransaction = signAndSubmitTransaction({
-          aptosConfig: this.aptosConfig,
+          movementConfig: this.movementConfig,
           transaction,
           signer: this.account,
         });
@@ -278,7 +278,7 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
   async checkTransaction(sentTransaction: PromiseFulfilledResult<PendingTransactionResponse>, sequenceNumber: bigint) {
     try {
       const waitFor: Array<Promise<TransactionResponse>> = [];
-      waitFor.push(waitForTransaction({ aptosConfig: this.aptosConfig, transactionHash: sentTransaction.value.hash }));
+      waitFor.push(waitForTransaction({ movementConfig: this.movementConfig, transactionHash: sentTransaction.value.hash }));
       const sentTransactions = await Promise.allSettled(waitFor);
 
       for (let i = 0; i < sentTransactions.length; i += 1) {
@@ -327,7 +327,7 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
   /**
    * Generates a signed transaction that can be submitted to the chain.
    *
-   * @param account - An Aptos account used as the sender of the transaction.
+   * @param account - An Movement account used as the sender of the transaction.
    * @param sequenceNumber - A sequence number the transaction will be generated with.
    * @returns A signed transaction object or undefined if the transaction queue is empty.
    * @group Implementation
@@ -337,7 +337,7 @@ export class TransactionWorker extends EventEmitter<TransactionWorkerEvents> {
     if (this.transactionsQueue.isEmpty()) return undefined;
     const [transactionData, options] = await this.transactionsQueue.dequeue();
     return generateTransaction({
-      aptosConfig: this.aptosConfig,
+      movementConfig: this.movementConfig,
       sender: account.accountAddress,
       data: transactionData,
       options: { ...options, accountSequenceNumber: sequenceNumber, replayProtectionNonce: undefined },

@@ -21,7 +21,7 @@ fi
 # --options typedoc.json - Loads options from the typedoc.json configuration file
 # --out "docs/@moveindustries/ts-sdk-$npm_package_version" - Specifies the output directory for the generated documentation, 
 #   dynamically including the current npm package version in the path using the $npm_package_version variable
-# --plugin typedoc-plugin-missing-exports - Includes the plugin to include private code in the generated docs (needed to show the reference docs for the Aptos mixin implementation details)
+# --plugin typedoc-plugin-missing-exports - Includes the plugin to include private code in the generated docs (needed to show the reference docs for the Movement mixin implementation details)
 # --cleanOutputDir - Clears the output directory before generating new documentation
 # --excludeInternal - Excludes internal symbols from the generated documentation (symbols marked with @internal in comments)
 # --includeVersion - Includes the version of the package in the generated documentation

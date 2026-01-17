@@ -1,10 +1,10 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable no-bitwise */
-import { MAX_U32_NUMBER } from "./consts";
-import { Uint8, Uint16, Uint32, Uint64, Uint128, Uint256, HexInput } from "../types";
 import { Hex } from "../core/hex";
+import { HexInput, Uint128, Uint16, Uint256, Uint32, Uint64, Uint8 } from "../types";
+import { MAX_U32_NUMBER } from "./consts";
 
 /**
  * This interface exists to define Deserializable<T> inputs for functions that

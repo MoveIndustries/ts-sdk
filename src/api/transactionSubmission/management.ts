@@ -1,46 +1,46 @@
 import EventEmitter from "eventemitter3";
-import { TransactionWorkerEvents, TransactionWorker, TransactionWorkerEventsEnum } from "../../transactions/management";
-import { InputGenerateTransactionPayloadData, InputGenerateTransactionOptions } from "../../transactions";
-import { AptosConfig } from "../aptosConfig";
 import { Account } from "../../account";
+import { InputGenerateTransactionOptions, InputGenerateTransactionPayloadData } from "../../transactions";
+import { TransactionWorker, TransactionWorkerEvents, TransactionWorkerEventsEnum } from "../../transactions/management";
+import { MovementConfig } from "../movementConfig";
 
 export class TransactionManagement extends EventEmitter<TransactionWorkerEvents> {
   account!: Account;
 
   transactionWorker!: TransactionWorker;
 
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Initializes a new instance of the Aptos client with the provided configuration settings.
-   * This allows you to interact with the Aptos blockchain using the specified network and options.
+   * Initializes a new instance of the Movement client with the provided configuration settings.
+   * This allows you to interact with the Movement blockchain using the specified network and options.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., TESTNET, MAINNET).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    * @param config.account - Optional account settings for authentication.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({
    *         network: Network.TESTNET, // specify the network to use
-   *         nodeUrl: "https://testnet.aptos.dev" // replace with your node URL
+   *         nodeUrl: "https://testnet.movement.dev" // replace with your node URL
    *     });
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized successfully.");
+   *     console.log("Movement client initialized successfully.");
    * }
    * runExample().catch(console.error);
    * ```
    * @group Implementation
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     super();
     this.config = config;
   }
@@ -54,16 +54,16 @@ export class TransactionManagement extends EventEmitter<TransactionWorkerEvents>
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *     const sender = Account.generate(); // Generate a new account for sending transactions
    *
    *     // Start the transaction worker with the sender account
-   *     aptos.start({ sender });
+   *     movement.start({ sender });
    *
    *     console.log("Transaction worker started with sender:", sender.accountAddress);
    * }
@@ -88,10 +88,10 @@ export class TransactionManagement extends EventEmitter<TransactionWorkerEvents>
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Prepare transaction payloads
@@ -101,7 +101,7 @@ export class TransactionManagement extends EventEmitter<TransactionWorkerEvents>
    *   ];
    *
    *   // Push transaction data to the worker
-   *   aptos.push({
+   *   movement.push({
    *     data: payloads,
    *     {}, // Specify options as needed
    *   });
@@ -129,20 +129,20 @@ export class TransactionManagement extends EventEmitter<TransactionWorkerEvents>
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Register to listen for transaction events
-   *   aptos.registerToEvents();
+   *   movement.registerToEvents();
    *
    *   // You can send a transaction here to see the events in action
    *   const sender = Account.generate(); // replace with a real account
    *   const destination = Account.generate(); // replace with a real account
    *
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -150,7 +150,7 @@ export class TransactionManagement extends EventEmitter<TransactionWorkerEvents>
    *     },
    *   });
    *
-   *   await aptos.transaction.send(transaction);
+   *   await movement.transaction.send(transaction);
    *
    *   console.log("Transaction sent and events registered.");
    * }

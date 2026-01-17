@@ -12,20 +12,20 @@
  * 5. Create a liquidity pool with Alice's FA and Bob's FA
  * 6. Swap between Alice's FA and Bob's FA
  */
-import "dotenv";
 import {
   Account,
   AccountAddress,
-  Aptos,
-  AptosConfig,
   Ed25519PrivateKey,
   InputViewFunctionData,
+  Movement,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
 } from "@moveindustries/ts-sdk";
+import "dotenv";
 import { createInterface } from "readline";
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 const readline = createInterface({
   input: process.stdin,
@@ -33,7 +33,7 @@ const readline = createInterface({
 });
 
 const getOptimalLpAmount = async (
-  aptos: Aptos,
+  aptos: Movement,
   swap: AccountAddress,
   token1Addr: AccountAddress,
   token2Addr: AccountAddress,
@@ -42,32 +42,32 @@ const getOptimalLpAmount = async (
     function: `${swap.toString()}::router::optimal_liquidity_amounts`,
     functionArguments: [token1Addr, token2Addr, false, "200000", "300000", "200", "300"],
   };
-  const result = await aptos.view({ payload });
+  const result = await movement.view({ payload });
   console.log("Optimal LP amount: ", result);
 };
 
 const addLiquidity = async (
-  aptos: Aptos,
+  aptos: Movement,
   swap: AccountAddress,
   deployer: Account,
   token1Addr: AccountAddress,
   token2Addr: AccountAddress,
 ): Promise<string> => {
-  const rawTxn = await aptos.transaction.build.simple({
+  const rawTxn = await movement.transaction.build.simple({
     sender: deployer.accountAddress,
     data: {
       function: `${swap.toString()}::router::add_liquidity_entry`,
       functionArguments: [token1Addr, token2Addr, false, 200000, 300000, 200, 300],
     },
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log("Add liquidity succeed. - ", response.hash);
   return response.hash;
 };
 
 const swapAssets = async (
-  aptos: Aptos,
+  aptos: Movement,
   swap: AccountAddress,
   deployer: Account,
   fromToken: AccountAddress,
@@ -76,21 +76,21 @@ const swapAssets = async (
   amountOutMin: number,
   recipient: AccountAddress,
 ): Promise<string> => {
-  const rawTxn = await aptos.transaction.build.simple({
+  const rawTxn = await movement.transaction.build.simple({
     sender: deployer.accountAddress.toString(),
     data: {
       function: `${swap.toString()}::router::swap_entry`,
       functionArguments: [amountIn, amountOutMin, fromToken, toToken, false, recipient],
     },
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log("Swap succeed. - ", response.hash);
   return response.hash;
 };
 
-const getAssetType = async (aptos: Aptos, owner: Account): Promise<any> => {
-  const data = await aptos.getFungibleAssetMetadata({
+const getAssetType = async (aptos: Movement, owner: Account): Promise<any> => {
+  const data = await movement.getFungibleAssetMetadata({
     options: {
       where: {
         creator_address: { _eq: owner.accountAddress.toStringLong() },
@@ -107,8 +107,8 @@ const getAssetType = async (aptos: Aptos, owner: Account): Promise<any> => {
   };
 };
 
-const getFaBalance = async (aptos: Aptos, owner: Account, assetType: string): Promise<number> => {
-  const data = await aptos.getCurrentFungibleAssetBalances({
+const getFaBalance = async (aptos: Movement, owner: Account, assetType: string): Promise<number> => {
+  const data = await movement.getCurrentFungibleAssetBalances({
     options: {
       where: {
         owner_address: { _eq: owner.accountAddress.toStringLong() },
@@ -121,41 +121,41 @@ const getFaBalance = async (aptos: Aptos, owner: Account, assetType: string): Pr
 };
 
 const createLiquidityPool = async (
-  aptos: Aptos,
+  aptos: Movement,
   swap: AccountAddress,
   deployer: Account,
   dogCoinAddr: AccountAddress,
   catCoinAddr: AccountAddress,
 ): Promise<string> => {
-  const rawTxn = await aptos.transaction.build.simple({
+  const rawTxn = await movement.transaction.build.simple({
     sender: deployer.accountAddress,
     data: {
       function: `${swap.toString()}::router::create_pool`,
       functionArguments: [dogCoinAddr, catCoinAddr, false],
     },
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log("Creating liquidity pool successful. - ", response.hash);
   return response.hash;
 };
 
-const initLiquidityPool = async (aptos: Aptos, swap: AccountAddress, deployer: Account): Promise<string> => {
-  const rawTxn = await aptos.transaction.build.simple({
+const initLiquidityPool = async (aptos: Movement, swap: AccountAddress, deployer: Account): Promise<string> => {
+  const rawTxn = await movement.transaction.build.simple({
     sender: deployer.accountAddress,
     data: {
       function: `${swap.toString()}::liquidity_pool::initialize`,
       functionArguments: [],
     },
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: deployer, transaction: rawTxn });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log("Init LP Pool success. - ", response.hash);
   return response.hash;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const createFungibleAsset = async (aptos: Aptos, admin: Account): Promise<void> => {
+const createFungibleAsset = async (aptos: Movement, admin: Account): Promise<void> => {
   await new Promise<void>((resolve) => {
     readline.question(
       "Follow the steps to publish the Dog and Cat Coin module with Admin's address, and press enter. \n" +
@@ -172,16 +172,16 @@ const createFungibleAsset = async (aptos: Aptos, admin: Account): Promise<void> 
 /**
  *  Admin mint the coin
  */
-const mintCoin = async (aptos: Aptos, admin: Account, amount: number | bigint, coinName: string): Promise<string> => {
-  const rawTxn = await aptos.transaction.build.simple({
+const mintCoin = async (aptos: Movement, admin: Account, amount: number | bigint, coinName: string): Promise<string> => {
+  const rawTxn = await movement.transaction.build.simple({
     sender: admin.accountAddress,
     data: {
       function: `${admin.accountAddress.toString()}::${coinName}::mint`,
       functionArguments: [admin.accountAddress, amount],
     },
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: admin, transaction: rawTxn });
-  const response = await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: admin, transaction: rawTxn });
+  const response = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log(`Minting ${coinName} coin successful. - `, response.hash);
   return response.hash;
 };
@@ -202,8 +202,8 @@ const example = async () => {
     process.exit(1);
   }
 
-  const aptosConfig = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(aptosConfig);
+  const movementConfig = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(movementConfig);
   // Create three accounts
   const swapAddress = AccountAddress.from(process.argv[2]);
   const admin = Account.fromPrivateKey({
@@ -215,7 +215,7 @@ const example = async () => {
   console.log(`Admin's address is: ${admin.accountAddress.toString()}`);
   console.log(`Swap address is: ${swapAddress.toString()}`);
   // Fund Admin account
-  await aptos.fundAccount({ accountAddress: admin.accountAddress, amount: 100_000_000 });
+  await movement.fundAccount({ accountAddress: admin.accountAddress, amount: 100_000_000 });
 
   console.log("\n====== Create Fungible Asset -> (Dog and Cat coin) ======\n");
   await createFungibleAsset(aptos, admin);

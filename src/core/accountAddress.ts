@@ -1,12 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
-import { Serializable, Serializer } from "../bcs/serializer";
 import { Deserializer } from "../bcs/deserializer";
-import { ParsingError, ParsingResult } from "./common";
+import { Serializable, Serializer } from "../bcs/serializer";
 import { TransactionArgument } from "../transactions/instances/transactionArgument";
 import { HexInput, ScriptTransactionArgumentVariants } from "../types";
+import { ParsingError, ParsingResult } from "./common";
 
 /**
  * Provides reasons for an address was invalid.

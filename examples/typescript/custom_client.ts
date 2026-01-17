@@ -10,14 +10,14 @@
  * `<Req, Res>(requestOptions: ClientRequest<Req>): Promise<ClientResponse<Res>>;`
  *
  */
-import { Aptos, AptosConfig, ClientResponse, ClientRequest, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import { ClientRequest, ClientResponse, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 // eslint-disable-next-line import/no-commonjs
 const superagent = require("superagent");
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 export async function superagentCustomClient<Req, Res>(
   requestOptions: ClientRequest<Req>,
@@ -55,12 +55,12 @@ const example = async () => {
   console.log("This example demonstrate how one can config for a custom client to be used by the SDK");
 
   async function withSuperagentClient() {
-    const config = new AptosConfig({ network: APTOS_NETWORK, client: { provider: superagentCustomClient } });
-    const aptos = new Aptos(config);
+    const config = new MovementConfig({ network: MOVEMENT_NETWORK, client: { provider: superagentCustomClient } });
+    const movement = new Movement(config);
 
     console.log(`\nclient being used ${config.client.provider.name}`);
 
-    const chainInfo = await aptos.getLedgerInfo();
+    const chainInfo = await movement.getLedgerInfo();
     console.log(`${chainInfo}`);
   }
 

@@ -1,17 +1,14 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { Deserializer } from "../../bcs/deserializer";
-import { Serializable, Serializer } from "../../bcs/serializer";
 import { EntryFunctionBytes } from "../../bcs/serializable/entryFunctionBytes";
 import { Bool, U128, U16, U256, U32, U64, U8 } from "../../bcs/serializable/movePrimitives";
 import { MoveVector, Serialized } from "../../bcs/serializable/moveStructs";
-import { AccountAddress, Hex } from "../../core";
-import { Identifier } from "./identifier";
-import { ModuleId } from "./moduleId";
-import type { EntryFunctionArgument, ScriptFunctionArgument, TransactionArgument } from "./transactionArgument";
+import { Serializable, Serializer } from "../../bcs/serializer";
+import { AccountAddress } from "../../core";
 import {
   AnyNumber,
   MoveModuleId,
@@ -22,6 +19,9 @@ import {
   TransactionPayloadVariants,
 } from "../../types";
 import { TypeTag } from "../typeTag";
+import { Identifier } from "./identifier";
+import { ModuleId } from "./moduleId";
+import type { EntryFunctionArgument, ScriptFunctionArgument, TransactionArgument } from "./transactionArgument";
 
 /**
  * Deserialize a Script Transaction Argument.
@@ -348,7 +348,7 @@ export class EntryFunction {
 
 /**
  * Represents a Script that can be serialized and deserialized.
- * Scripts contain the Move bytecode payload that can be submitted to the Aptos chain for execution.
+ * Scripts contain the Move bytecode payload that can be submitted to the Movement chain for execution.
  * @group Implementation
  * @category Transactions
  */
@@ -375,7 +375,7 @@ export class Script {
   public readonly args: Array<ScriptFunctionArgument>;
 
   /**
-   * Scripts contain the Move bytecodes payload that can be submitted to Aptos chain for execution.
+   * Scripts contain the Move bytecodes payload that can be submitted to Movement chain for execution.
    *
    * @param bytecode The move module bytecode
    * @param type_args The type arguments that the bytecode function requires.
@@ -523,7 +523,7 @@ export class MultiSigTransactionPayload extends Serializable {
 }
 
 /**
- * Represents any transaction payload that can be submitted to the Aptos chain for execution.
+ * Represents any transaction payload that can be submitted to the Movement chain for execution.
  *
  * This is specifically required for orderless transactions, but can be used for any transaction payload.
  */

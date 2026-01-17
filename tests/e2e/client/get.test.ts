@@ -1,7 +1,7 @@
-import { AptosConfig, LedgerInfo, getAptosFullNode } from "../../../src";
+import { LedgerInfo, MovementConfig, getAptosFullNode } from "../../../src";
 import { getAptosClient } from "../helper";
 
-const partialConfig = new AptosConfig({
+const partialConfig = new MovementConfig({
   clientConfig: {
     HEADERS: { clientConfig: "clientConfig-header" },
     API_KEY: "api-key",
@@ -10,7 +10,7 @@ const partialConfig = new AptosConfig({
   indexerConfig: { HEADERS: { indexerHeader: "indexer-header" } },
   faucetConfig: { HEADERS: { faucetHeader: "faucet-header" }, AUTH_TOKEN: "auth-token" },
 });
-const { config: aptosConfig } = getAptosClient(partialConfig);
+const { config: movementConfig } = getAptosClient(partialConfig);
 
 // All tests are expected to catch becuase server call will fail
 // due to a fake API_KEY. But that is ok because we just want
@@ -20,7 +20,7 @@ describe("get request", () => {
     test("it sets correct headers on get request", async () => {
       try {
         await getAptosFullNode<{}, LedgerInfo>({
-          aptosConfig,
+          movementConfig,
           originMethod: "testGetFullnodeQuery",
           path: "",
         });

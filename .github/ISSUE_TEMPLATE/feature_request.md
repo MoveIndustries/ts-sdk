@@ -1,6 +1,6 @@
 ---
 name: "\U0001F680 Feature request"
-about: Suggest a new feature in the Aptos Typescript SDK
+about: Suggest a new feature in the Movement Typescript SDK
 title: "[Feature Request] <Feature Title>"
 labels: enhancement
 assignees: ''

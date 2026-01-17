@@ -1,19 +1,19 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Network, GraphqlQuery, ProcessorType, InputViewFunctionData, InputViewFunctionJsonData } from "../../../src";
+import { GraphqlQuery, InputViewFunctionData, InputViewFunctionJsonData, Network, ProcessorType } from "../../../src";
 import { getAptosClient } from "../helper";
 
 describe("general api", () => {
   const { aptos } = getAptosClient();
 
   test("it fetches ledger info", async () => {
-    const ledgerInfo = await aptos.getLedgerInfo();
+    const ledgerInfo = await movement.getLedgerInfo();
     expect(ledgerInfo.chain_id).toBe(4);
   });
 
   test("it fetches chain id", async () => {
-    const chainId = await aptos.getChainId();
+    const chainId = await movement.getChainId();
     expect(chainId).toBe(4);
   });
 
@@ -23,7 +23,7 @@ describe("general api", () => {
         function: "0x1::chain_id::get",
       };
 
-      const chainId = (await aptos.view({ payload }))[0];
+      const chainId = (await movement.view({ payload }))[0];
 
       expect(chainId).toEqual(4);
     });
@@ -33,7 +33,7 @@ describe("general api", () => {
         function: "0x1::chain_id::get",
       };
 
-      const chainId = (await aptos.view<[number]>({ payload }))[0];
+      const chainId = (await movement.view<[number]>({ payload }))[0];
 
       expect(chainId).toEqual(4);
     });
@@ -44,7 +44,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const exists = (await aptos.view<[boolean]>({ payload }))[0];
+      const exists = (await movement.view<[boolean]>({ payload }))[0];
 
       expect(exists).toBe(true);
     });
@@ -55,7 +55,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const sequenceNumber = (await aptos.view<[string]>({ payload }))[0];
+      const sequenceNumber = (await movement.view<[string]>({ payload }))[0];
 
       expect(BigInt(sequenceNumber)).toEqual(BigInt(0));
 
@@ -64,7 +64,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const authKey = (await aptos.view<[string]>({ payload: payload2 }))[0];
+      const authKey = (await movement.view<[string]>({ payload: payload2 }))[0];
 
       expect(authKey).toEqual("0x0000000000000000000000000000000000000000000000000000000000000001");
     });
@@ -75,7 +75,7 @@ describe("general api", () => {
         typeArguments: ["0x1::aptos_coin::AptosCoin"],
       };
 
-      const symbol = (await aptos.view<[string]>({ payload }))[0];
+      const symbol = (await movement.view<[string]>({ payload }))[0];
       expect(symbol).toEqual("APT");
 
       const payload2: InputViewFunctionData = {
@@ -84,7 +84,7 @@ describe("general api", () => {
         functionArguments: [],
       };
 
-      const decimals = (await aptos.view<[number]>({ payload: payload2 }))[0];
+      const decimals = (await movement.view<[number]>({ payload: payload2 }))[0];
       expect(decimals).toEqual(8);
 
       const payload3: InputViewFunctionData = {
@@ -92,7 +92,7 @@ describe("general api", () => {
         typeArguments: ["0x1::aptos_coin::AptosCoin"],
       };
 
-      const supply = (await aptos.view<[{ vec: [string] }]>({ payload: payload3 }))[0].vec[0];
+      const supply = (await movement.view<[{ vec: [string] }]>({ payload: payload3 }))[0].vec[0];
       expect(BigInt(supply)).toBeGreaterThan(BigInt(0));
     });
   });
@@ -102,7 +102,7 @@ describe("general api", () => {
         function: "0x1::chain_id::get",
       };
 
-      const chainId = (await aptos.viewJson({ payload }))[0];
+      const chainId = (await movement.viewJson({ payload }))[0];
 
       expect(chainId).toEqual(4);
     });
@@ -112,7 +112,7 @@ describe("general api", () => {
         function: "0x1::chain_id::get",
       };
 
-      const chainId = (await aptos.viewJson<[number]>({ payload }))[0];
+      const chainId = (await movement.viewJson<[number]>({ payload }))[0];
 
       expect(chainId).toEqual(4);
     });
@@ -123,7 +123,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const exists = (await aptos.viewJson<[boolean]>({ payload }))[0];
+      const exists = (await movement.viewJson<[boolean]>({ payload }))[0];
 
       expect(exists).toBe(true);
     });
@@ -134,7 +134,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const sequenceNumber = (await aptos.viewJson<[string]>({ payload }))[0];
+      const sequenceNumber = (await movement.viewJson<[string]>({ payload }))[0];
 
       expect(BigInt(sequenceNumber)).toEqual(BigInt(0));
 
@@ -143,7 +143,7 @@ describe("general api", () => {
         functionArguments: ["0x1"],
       };
 
-      const authKey = (await aptos.viewJson<[string]>({ payload: payload2 }))[0];
+      const authKey = (await movement.viewJson<[string]>({ payload: payload2 }))[0];
 
       expect(authKey).toEqual("0x0000000000000000000000000000000000000000000000000000000000000001");
     });
@@ -154,7 +154,7 @@ describe("general api", () => {
         typeArguments: ["0x1::aptos_coin::AptosCoin"],
       };
 
-      const symbol = (await aptos.viewJson<[string]>({ payload }))[0];
+      const symbol = (await movement.viewJson<[string]>({ payload }))[0];
       expect(symbol).toEqual("APT");
 
       const payload2: InputViewFunctionJsonData = {
@@ -163,7 +163,7 @@ describe("general api", () => {
         functionArguments: [],
       };
 
-      const decimals = (await aptos.viewJson<[number]>({ payload: payload2 }))[0];
+      const decimals = (await movement.viewJson<[number]>({ payload: payload2 }))[0];
       expect(decimals).toEqual(8);
 
       const payload3: InputViewFunctionJsonData = {
@@ -171,13 +171,13 @@ describe("general api", () => {
         typeArguments: ["0x1::aptos_coin::AptosCoin"],
       };
 
-      const supply = (await aptos.viewJson<[{ vec: [string] }]>({ payload: payload3 }))[0].vec[0];
+      const supply = (await movement.viewJson<[{ vec: [string] }]>({ payload: payload3 }))[0].vec[0];
       expect(BigInt(supply)).toBeGreaterThan(BigInt(0));
     });
   });
 
   test("it should get the processor statuses for one", async () => {
-    const processor = await aptos.getProcessorStatus(ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR);
+    const processor = await movement.getProcessorStatus(ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR);
     expect(processor.processor).toEqual(ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR);
   });
 });
@@ -193,7 +193,7 @@ describe("general api (requires testnet)", () => {
       }`,
     };
 
-    const chainId = await aptos.queryIndexer<{
+    const chainId = await movement.queryIndexer<{
       ledger_infos: [
         {
           chain_id: number;
@@ -205,7 +205,7 @@ describe("general api (requires testnet)", () => {
   });
 
   test("it should fetch chain top user transactions", async () => {
-    const topUserTransactions = await aptos.getChainTopUserTransactions({ limit: 3 });
+    const topUserTransactions = await movement.getChainTopUserTransactions({ limit: 3 });
     expect(topUserTransactions.length).toEqual(3);
   });
 });

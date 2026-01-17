@@ -1,8 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { p256 } from "@noble/curves/nist.js";
-import { singleSignerSecp256r1 } from "./helper";
 import {
   Deserializer,
   Hex,
@@ -13,6 +12,7 @@ import {
   Secp256r1Signature,
   Serializer,
 } from "../../src";
+import { singleSignerSecp256r1 } from "./helper";
 
 /* eslint-disable max-len */
 describe("Secp256r1PublicKey", () => {

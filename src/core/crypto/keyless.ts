@@ -1,46 +1,46 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 // eslint-disable-next-line max-classes-per-file
-import { JwtPayload, jwtDecode } from "jwt-decode";
+import { Fp2 } from "@noble/curves/abstract/tower";
+import { bytesToNumberBE } from "@noble/curves/abstract/utils";
+import { ProjPointType } from "@noble/curves/abstract/weierstrass";
+import { bn254 } from "@noble/curves/bn254";
 import { sha3_256 } from "@noble/hashes/sha3";
-import { AccountPublicKey, PublicKey } from "./publicKey";
-import { Signature } from "./signature";
+import { encode } from "js-base64";
+import { JwtPayload, jwtDecode } from "jwt-decode";
+import { generateSigningMessage } from "../..";
+import { MovementConfig } from "../../api/movementConfig";
 import { Deserializer, Serializable, Serializer } from "../../bcs";
-import { Hex, hexToAsciiString } from "../hex";
+import { getAptosFullNode } from "../../client";
+import { KeylessError, KeylessErrorType } from "../../errors";
 import {
-  HexInput,
-  EphemeralCertificateVariant,
   AnyPublicKeyVariant,
-  SigningScheme,
-  ZkpVariant,
+  EphemeralCertificateVariant,
+  HexInput,
   LedgerVersionArg,
   MoveResource,
+  SigningScheme,
+  ZkpVariant,
 } from "../../types";
-import { EphemeralPublicKey, EphemeralSignature } from "./ephemeral";
-import { bigIntToBytesLE, bytesToBigIntLE, hashStrToField, padAndPackBytesWithLen, poseidonHash } from "./poseidon";
-import { AuthenticationKey } from "../authenticationKey";
-import { Proof } from "./proof";
-import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
 import {
   Groth16VerificationKeyResponse,
   KeylessConfigurationResponse,
   MoveAnyStruct,
   PatchedJWKsResponse,
 } from "../../types/keyless";
-import { AptosConfig } from "../../api/aptosConfig";
-import { getAptosFullNode } from "../../client";
+import { base64UrlToBytes, getErrorMessage, nowInSeconds } from "../../utils";
 import { memoizeAsync } from "../../utils/memoize";
 import { AccountAddress, AccountAddressInput } from "../accountAddress";
-import { base64UrlToBytes, getErrorMessage, nowInSeconds } from "../../utils";
-import { KeylessError, KeylessErrorType } from "../../errors";
-import { bn254 } from "@noble/curves/bn254";
-import { bytesToNumberBE } from "@noble/curves/abstract/utils";
+import { AuthenticationKey } from "../authenticationKey";
+import { Hex, hexToAsciiString } from "../hex";
+import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
+import { EphemeralPublicKey, EphemeralSignature } from "./ephemeral";
 import { FederatedKeylessPublicKey } from "./federatedKeyless";
-import { encode } from "js-base64";
-import { generateSigningMessage } from "../..";
-import { ProjPointType } from "@noble/curves/abstract/weierstrass";
-import { Fp2 } from "@noble/curves/abstract/tower";
+import { bigIntToBytesLE, bytesToBigIntLE, hashStrToField, padAndPackBytesWithLen, poseidonHash } from "./poseidon";
+import { Proof } from "./proof";
+import { AccountPublicKey, PublicKey } from "./publicKey";
+import { Signature } from "./signature";
 
 /**
  * @group Implementation
@@ -188,16 +188,16 @@ export class KeylessPublicKey extends AccountPublicKey {
 
   /**
    * Verifies a keyless signature for a given message.  It will fetch the keyless configuration and the JWK to
-   * use for verification from the appropriate network as defined by the aptosConfig.
+   * use for verification from the appropriate network as defined by the movementConfig.
    *
-   * @param args.aptosConfig The aptos config to use for fetching the keyless configuration.
+   * @param args.movementConfig The aptos config to use for fetching the keyless configuration.
    * @param args.message The message to verify the signature against.
    * @param args.signature The signature to verify.
    * @param args.options.throwErrorWithReason Whether to throw an error with the reason for the failure instead of returning false.
    * @returns true if the signature is valid
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Signature;
     options?: { throwErrorWithReason?: boolean };
@@ -338,7 +338,7 @@ export class KeylessPublicKey extends AccountPublicKey {
 
 export async function verifyKeylessSignature(args: {
   publicKey: KeylessPublicKey | FederatedKeylessPublicKey;
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   message: HexInput;
   signature: Signature;
   keylessConfig?: KeylessConfiguration;
@@ -346,12 +346,12 @@ export async function verifyKeylessSignature(args: {
   options?: { throwErrorWithReason?: boolean };
 }): Promise<boolean> {
   const {
-    aptosConfig,
+    movementConfig,
     publicKey,
     message,
     signature,
     jwk,
-    keylessConfig = await getKeylessConfig({ aptosConfig }),
+    keylessConfig = await getKeylessConfig({ movementConfig }),
     options,
   } = args;
   try {
@@ -365,7 +365,7 @@ export async function verifyKeylessSignature(args: {
       message,
       publicKey,
       signature,
-      jwk: jwk ? jwk : await fetchJWK({ aptosConfig, publicKey, kid: signature.getJwkKid() }),
+      jwk: jwk ? jwk : await fetchJWK({ movementConfig, publicKey, kid: signature.getJwkKid() }),
       keylessConfig,
     });
     return true;
@@ -515,18 +515,18 @@ function getPublicInputsHash(args: {
  * @throws {KeylessError} If the JWK cannot be fetched
  */
 export async function fetchJWK(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   publicKey: KeylessPublicKey | FederatedKeylessPublicKey;
   kid: string;
 }): Promise<MoveJWK> {
-  const { aptosConfig, publicKey, kid } = args;
+  const { movementConfig, publicKey, kid } = args;
   const keylessPubKey = publicKey instanceof KeylessPublicKey ? publicKey : publicKey.keylessPublicKey;
   const { iss } = keylessPubKey;
 
   let allJWKs: Map<string, MoveJWK[]>;
   const jwkAddr = publicKey instanceof FederatedKeylessPublicKey ? publicKey.jwkAddress : undefined;
   try {
-    allJWKs = await getKeylessJWKs({ aptosConfig, jwkAddr });
+    allJWKs = await getKeylessJWKs({ movementConfig, jwkAddr });
   } catch (error) {
     throw KeylessError.fromErrorType({
       type: KeylessErrorType.FULL_NODE_JWKS_LOOKUP_ERROR,
@@ -1420,7 +1420,7 @@ export class Groth16VerificationKey {
  * expiry horizon.
  *
  * @param args - The arguments for retrieving the keyless configuration.
- * @param args.aptosConfig - The Aptos configuration object containing network details.
+ * @param args.movementConfig - The Movement configuration object containing network details.
  * @param args.options - Optional parameters for the request.
  * @param args.options.ledgerVersion - The ledger version to query; if not provided, the latest version will be used.
  * @returns KeylessConfiguration - The configuration object containing the verifying key and maximum expiry horizon.
@@ -1428,10 +1428,10 @@ export class Groth16VerificationKey {
  * @category Serialization
  */
 export async function getKeylessConfig(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   options?: LedgerVersionArg;
 }): Promise<KeylessConfiguration> {
-  const { aptosConfig } = args;
+  const { movementConfig } = args;
   try {
     return await memoizeAsync(
       async () => {
@@ -1441,7 +1441,7 @@ export async function getKeylessConfig(args: {
         ]);
         return KeylessConfiguration.create(vk, config);
       },
-      `keyless-configuration-${aptosConfig.network}`,
+      `keyless-configuration-${movementConfig.network}`,
       1000 * 60 * 5, // 5 minutes
     )();
   } catch (error) {
@@ -1498,7 +1498,7 @@ export function getIssAudAndUidVal(args: { jwt: string; uidKey?: string }): {
  * Retrieves the KeylessConfiguration set on chain.
  *
  * @param args - The arguments for retrieving the configuration.
- * @param args.aptosConfig - The configuration for connecting to the Aptos network.
+ * @param args.movementConfig - The configuration for connecting to the Movement network.
  * @param args.options - Optional parameters for the request.
  * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
  * @returns KeylessConfigurationResponse - The response containing the keyless configuration data.
@@ -1506,14 +1506,14 @@ export function getIssAudAndUidVal(args: { jwt: string; uidKey?: string }): {
  * @category Serialization
  */
 async function getKeylessConfigurationResource(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   options?: LedgerVersionArg;
 }): Promise<KeylessConfigurationResponse> {
-  const { aptosConfig, options } = args;
+  const { movementConfig, options } = args;
   const resourceType = "0x1::keyless_account::Configuration";
   try {
     const { data } = await getAptosFullNode<{}, MoveResource<KeylessConfigurationResponse>>({
-      aptosConfig,
+      movementConfig,
       originMethod: "getKeylessConfigurationResource",
       path: `accounts/${AccountAddress.from("0x1").toString()}/resource/${resourceType}`,
       params: { ledger_version: options?.ledgerVersion },
@@ -1531,7 +1531,7 @@ async function getKeylessConfigurationResource(args: {
  * Retrieves the Groth16VerificationKey set on the blockchain.
  *
  * @param args - The arguments for retrieving the verification key.
- * @param args.aptosConfig - The Aptos configuration object.
+ * @param args.movementConfig - The Movement configuration object.
  * @param args.options - Optional parameters for the request.
  * @param args.options.ledgerVersion - The ledger version to query; if not provided, it will get the latest version.
  * @returns Groth16VerificationKeyResponse - The response containing the Groth16 verification key data.
@@ -1539,14 +1539,14 @@ async function getKeylessConfigurationResource(args: {
  * @category Serialization
  */
 async function getGroth16VerificationKeyResource(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   options?: LedgerVersionArg;
 }): Promise<Groth16VerificationKeyResponse> {
-  const { aptosConfig, options } = args;
+  const { movementConfig, options } = args;
   const resourceType = "0x1::keyless_account::Groth16VerificationKey";
   try {
     const { data } = await getAptosFullNode<{}, MoveResource<Groth16VerificationKeyResponse>>({
-      aptosConfig,
+      movementConfig,
       originMethod: "getGroth16VerificationKeyResource",
       path: `accounts/${AccountAddress.from("0x1").toString()}/resource/${resourceType}`,
       params: { ledger_version: options?.ledgerVersion },
@@ -1561,16 +1561,16 @@ async function getGroth16VerificationKeyResource(args: {
 }
 
 export async function getKeylessJWKs(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   jwkAddr?: AccountAddressInput;
   options?: LedgerVersionArg;
 }): Promise<Map<string, MoveJWK[]>> {
-  const { aptosConfig, jwkAddr, options } = args;
+  const { movementConfig, jwkAddr, options } = args;
   let resource: MoveResource<PatchedJWKsResponse>;
   if (!jwkAddr) {
     const resourceType = "0x1::jwks::PatchedJWKs";
     const { data } = await getAptosFullNode<{}, MoveResource<PatchedJWKsResponse>>({
-      aptosConfig,
+      movementConfig,
       originMethod: "getKeylessJWKs",
       path: `accounts/0x1/resource/${resourceType}`,
       params: { ledger_version: options?.ledgerVersion },
@@ -1579,7 +1579,7 @@ export async function getKeylessJWKs(args: {
   } else {
     const resourceType = "0x1::jwks::FederatedJWKs";
     const { data } = await getAptosFullNode<{}, MoveResource<PatchedJWKsResponse>>({
-      aptosConfig,
+      movementConfig,
       originMethod: "getKeylessJWKs",
       path: `accounts/${AccountAddress.from(jwkAddr).toString()}/resource/${resourceType}`,
       params: { ledger_version: options?.ledgerVersion },

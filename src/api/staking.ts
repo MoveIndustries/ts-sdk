@@ -1,48 +1,48 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
+import { AccountAddressInput } from "../core";
 import {
   getDelegatedStakingActivities,
   getNumberOfDelegators,
   getNumberOfDelegatorsForAllPools,
 } from "../internal/staking";
 import { AnyNumber, GetDelegatedStakingActivitiesResponse, GetNumberOfDelegatorsResponse, OrderByArg } from "../types";
-import { AccountAddressInput } from "../core";
 import { ProcessorType } from "../utils/const";
-import { AptosConfig } from "./aptosConfig";
+import { MovementConfig } from "./movementConfig";
 import { waitForIndexerOnVersion } from "./utils";
 
 /**
- * A class to query all `Staking` related queries on Aptos.
+ * A class to query all `Staking` related queries on Movement.
  * @group Staking
  */
 export class Staking {
   /**
-   * Creates an instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Creates an instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., TESTNET, MAINNET).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // Specify your network
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // Specify your network
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Staking
    */
-  constructor(readonly config: AptosConfig) { }
+  constructor(readonly config: MovementConfig) { }
 
   /**
    * Queries the current number of delegators in a specified pool. Throws an error if the pool is not found.
@@ -54,14 +54,14 @@ export class Staking {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the number of delegators for a specific pool
-   *   const delegators = await aptos.getNumberOfDelegators({ poolAddress: "0x1" }); // replace with a real pool address
+   *   const delegators = await movement.getNumberOfDelegators({ poolAddress: "0x1" }); // replace with a real pool address
    *   console.log(`Number of delegators: ${delegators}`);
    * }
    * runExample().catch(console.error);
@@ -77,7 +77,7 @@ export class Staking {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.STAKE_PROCESSOR,
     });
-    return getNumberOfDelegators({ aptosConfig: this.config, ...args });
+    return getNumberOfDelegators({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -90,14 +90,14 @@ export class Staking {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve the number of delegators for all pools
-   *   const delegators = await aptos.getNumberOfDelegatorsForAllPools();
+   *   const delegators = await movement.getNumberOfDelegatorsForAllPools();
    *   console.log(delegators);
    * }
    * runExample().catch(console.error);
@@ -113,7 +113,7 @@ export class Staking {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.STAKE_PROCESSOR,
     });
-    return getNumberOfDelegatorsForAllPools({ aptosConfig: this.config, ...args });
+    return getNumberOfDelegatorsForAllPools({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -127,14 +127,14 @@ export class Staking {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get delegated staking activities for a specific delegator and pool
-   *   const activities = await aptos.getDelegatedStakingActivities({
+   *   const activities = await movement.getDelegatedStakingActivities({
    *     delegatorAddress: "0x1", // replace with a real delegator address
    *     poolAddress: "0x2", // replace with a real pool address
    *     minimumLedgerVersion: 1, // specify your own if needed
@@ -156,6 +156,6 @@ export class Staking {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.STAKE_PROCESSOR,
     });
-    return getDelegatedStakingActivities({ aptosConfig: this.config, ...args });
+    return getDelegatedStakingActivities({ movementConfig: this.config, ...args });
   }
 }

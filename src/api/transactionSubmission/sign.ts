@@ -1,41 +1,41 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account } from "../../account";
 import { signTransaction } from "../../internal/transactionSubmission";
 import { AccountAuthenticator, AnyRawTransaction } from "../../transactions";
-import { AptosConfig } from "../aptosConfig";
+import { MovementConfig } from "../movementConfig";
 
 /**
  * A class to handle all `Sign` transaction operations.
  *
- * @param config - The configuration object for Aptos.
+ * @param config - The configuration object for Movement.
  * @group Implementation
  */
 export class Sign {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Creates an instance of the Aptos client with the specified configuration.
+   * Creates an instance of the Movement client with the specified configuration.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a new Aptos client with testnet configuration
-   *     const config = new AptosConfig({ network: Network.TESTNET });
-   *     const aptos = new Aptos(config);
+   *     // Create a new Movement client with testnet configuration
+   *     const config = new MovementConfig({ network: Network.TESTNET });
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client created with config:", config);
+   *     console.log("Movement client created with config:", config);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Implementation
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
   }
 
@@ -49,14 +49,14 @@ export class Sign {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new account for signing
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -65,7 +65,7 @@ export class Sign {
    *   });
    *
    *   // Sign the transaction
-   *   const signedTransaction = await aptos.transaction.sign({
+   *   const signedTransaction = await movement.transaction.sign({
    *     signer: sender,
    *     transaction: transaction,
    *   });
@@ -95,14 +95,14 @@ export class Sign {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   const sender = Account.generate(); // Generate a new account for signing
-   *   const transaction = await aptos.transaction.build.simple({
+   *   const transaction = await movement.transaction.build.simple({
    *     sender: sender.accountAddress,
    *     data: {
    *       function: "0x1::aptos_account::transfer",
@@ -113,7 +113,7 @@ export class Sign {
    *   // Set the fee payer for the transaction
    *   transaction.feePayerAddress = "0x1"; // replace with a real fee payer address
    *
-   *   const signedTransaction = await aptos.transactionAsFeePayer({ signer: sender, transaction });
+   *   const signedTransaction = await movement.transactionAsFeePayer({ signer: sender, transaction });
    *
    *   console.log("Signed Transaction:", signedTransaction);
    * }

@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { AnyPublicKey, Ed25519PublicKey, KeylessPublicKey, Secp256k1PublicKey, Secp256r1PublicKey } from "../../src";

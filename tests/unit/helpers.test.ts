@@ -1,9 +1,9 @@
-import { pairedFaMetadataAddress } from "../../src/utils/helpers";
 import { AccountAddress } from "../../src/core/accountAddress";
+import { pairedFaMetadataAddress } from "../../src/utils/helpers";
 
 describe("pairedFaMetadataAddress", () => {
   test("matches the ground truth cases on chain", () => {
-    // Test case 1: Aptos Coin should return APT_METADATA_ADDRESS_HEX
+    // Test case 1: Movement Coin should return APT_METADATA_ADDRESS_HEX
     expect(pairedFaMetadataAddress("0x1::aptos_coin::AptosCoin")).toEqual(AccountAddress.A);
 
     // Test case 2: Moon Coin should match the specific hash
@@ -18,7 +18,7 @@ describe("pairedFaMetadataAddress", () => {
       pairedFaMetadataAddress("0x7fd500c11216f0fe3095d0c4b8aa4d64a4e2e04f83758462f2b127255643615::thl_coin::THL"),
     ).toEqual(AccountAddress.from("0x377adc4848552eb2ea17259be928001923efe12271fef1667e2b784f04a7cf3a"));
 
-    // Test case 4: LP Coin with USDC and AptosCoin should match the specific hash
+    // Test case 4: LP Coin with USDC and MovementCoin should match the specific hash
     expect(
       pairedFaMetadataAddress(
         "0x5a97986a9d031c4567e15b797be516910cfcb4156312482efc6a19c0a30c948::lp_coin::LP<0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC, 0x1::aptos_coin::AptosCoin, 0x190d44266241744264b964a37b8f09863167a12d3e70cda39376cfb4e3561e12::curves::Uncorrelated>",
@@ -37,7 +37,7 @@ describe("pairedFaMetadataAddress", () => {
       // Simple forms
       {
         input: "0x1::aptos_coin::AptosCoin",
-        expected: AccountAddress.A, // Special case for Aptos Coin
+        expected: AccountAddress.A, // Special case for Movement Coin
       },
       {
         input: "0x0000000000000000000000000000000000000000000000000000000000000001::aptos_coin::AptosCoin", // long form

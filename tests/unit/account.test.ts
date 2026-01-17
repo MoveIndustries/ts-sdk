@@ -1,38 +1,38 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   Account,
   AccountAddress,
+  AccountPublicKey,
+  AnyPublicKey,
+  AuthenticationKey,
+  SigningScheme as AuthenticationKeyScheme,
+  Ed25519Account,
   Ed25519PrivateKey,
   Ed25519PublicKey,
+  KeylessAccount,
+  MultiEd25519PublicKey,
+  MultiKey,
+  MultiKeyAccount,
   Secp256k1PrivateKey,
   Secp256k1PublicKey,
   Secp256r1PrivateKey,
-  SigningScheme as AuthenticationKeyScheme,
   SigningSchemeInput,
-  AnyPublicKey,
-  Ed25519Account,
   SingleKeyAccount,
-  MultiKey,
-  MultiKeyAccount,
-  MultiEd25519PublicKey,
-  KeylessAccount,
-  AuthenticationKey,
-  AccountPublicKey,
 } from "../../src";
 import { MultiEd25519Account } from "../../src/account/MultiEd25519Account";
 
 import {
   ed25519,
+  Ed25519WalletTestObject,
+  EPHEMERAL_KEY_PAIR,
+  keylessTestObject,
   secp256k1TestObject,
   secp256k1WalletTestObject,
   singleSignerED25519,
   singleSignerSecp256r1,
   wallet,
-  Ed25519WalletTestObject,
-  keylessTestObject,
-  EPHEMERAL_KEY_PAIR,
 } from "./helper";
 
 describe("Account", () => {

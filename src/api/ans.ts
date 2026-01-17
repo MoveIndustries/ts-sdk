@@ -1,32 +1,32 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account } from "../account";
 import { AccountAddress, AccountAddressInput } from "../core";
 import {
-  RegisterNameParameters,
-  getExpiration,
-  getOwnerAddress,
-  registerName,
-  getPrimaryName,
-  setPrimaryName,
-  getTargetAddress,
-  setTargetAddress,
-  renewDomain,
-  getName,
   getAccountDomains,
   GetAccountDomainsArgs,
-  GetAccountSubdomainsArgs,
-  getAccountSubdomains,
   getAccountNames,
   GetAccountNamesArgs,
+  getAccountSubdomains,
+  GetAccountSubdomainsArgs,
   getDomainSubdomains,
   GetDomainSubdomainsArgs,
+  getExpiration,
+  getName,
+  getOwnerAddress,
+  getPrimaryName,
+  getTargetAddress,
+  registerName,
+  RegisterNameParameters,
+  renewDomain,
+  setPrimaryName,
+  setTargetAddress,
 } from "../internal/ans";
-import { GetANSNameResponse } from "../types";
-import { InputGenerateTransactionOptions } from "../transactions/types";
-import { AptosConfig } from "./aptosConfig";
 import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
+import { InputGenerateTransactionOptions } from "../transactions/types";
+import { GetANSNameResponse } from "../types";
+import { MovementConfig } from "./movementConfig";
 
 /**
  * A class to handle all `ANS` operations.
@@ -34,32 +34,32 @@ import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
  */
 export class ANS {
   /**
-   * Initializes a new instance of the Aptos class with the provided configuration.
-   * This allows you to interact with the Aptos blockchain using the specified network settings.
+   * Initializes a new instance of the Movement class with the provided configuration.
+   * This allows you to interact with the Movement blockchain using the specified network settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    * @param config.network - The network to connect to (e.g., mainnet, testnet).
-   * @param config.nodeUrl - The URL of the Aptos node to connect to.
+   * @param config.nodeUrl - The URL of the Movement node to connect to.
    * @param config.faucetUrl - The URL of the faucet to use for funding accounts.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for connecting to the Aptos testnet
-   *     const config = new AptosConfig({ network: Network.TESTNET });
+   *     // Create a configuration for connecting to the Movement testnet
+   *     const config = new MovementConfig({ network: Network.TESTNET });
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group ANS
    */
-  constructor(readonly config: AptosConfig) { }
+  constructor(readonly config: MovementConfig) { }
 
   /**
    * Retrieve the owner address of a specified domain name or subdomain name from the contract.
@@ -71,14 +71,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve the owner address of "test.aptos"
-   *   const owner = await aptos.getOwnerAddress({ name: "test.aptos" });
+   *   const owner = await movement.getOwnerAddress({ name: "test.aptos" });
    *   console.log(owner); // Logs the owner address or undefined if not owned
    * }
    * runExample().catch(console.error);
@@ -86,7 +86,7 @@ export class ANS {
    * @group ANS
    */
   async getOwnerAddress(args: { name: string }): Promise<AccountAddress | undefined> {
-    return getOwnerAddress({ aptosConfig: this.config, ...args });
+    return getOwnerAddress({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -99,14 +99,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Get the expiration time for the domain "test.aptos"
-   *   const exp = await aptos.getExpiration({ name: "test.aptos" });
+   *   const exp = await movement.getExpiration({ name: "test.aptos" });
    *
    *   // Log the expiration date
    *   console.log(new Date(exp)); // Outputs the expiration date
@@ -116,7 +116,7 @@ export class ANS {
    * @group ANS
    */
   async getExpiration(args: { name: string }): Promise<number | undefined> {
-    return getExpiration({ aptosConfig: this.config, ...args });
+    return getExpiration({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -131,14 +131,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve the target address for the specified domain name
-   *   const targetAddr = await aptos.getTargetAddress({ name: "test.aptos" });
+   *   const targetAddr = await movement.getTargetAddress({ name: "test.aptos" });
    *
    *   console.log(targetAddr); // Logs the target address, e.g., 0x123...
    * }
@@ -147,7 +147,7 @@ export class ANS {
    * @group ANS
    */
   async getTargetAddress(args: { name: string }): Promise<AccountAddress | undefined> {
-    return getTargetAddress({ aptosConfig: this.config, ...args });
+    return getTargetAddress({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -164,23 +164,23 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Setting the target address for a domain name
    *   const sender = Account.generate(); // replace with a real account
    *   const address = "0x1"; // replace with a real account address
    *
-   *   await aptos.setTargetAddress({
+   *   await movement.setTargetAddress({
    *     sender: sender,
    *     name: "test.aptos",
    *     address: address,
    *   });
    *
-   *   const targetAddress = await aptos.getTargetAddress({ name: "test.aptos" });
+   *   const targetAddress = await movement.getTargetAddress({ name: "test.aptos" });
    *   console.log(targetAddress); // Should log the address set for "test.aptos"
    * }
    * runExample().catch(console.error);
@@ -193,7 +193,7 @@ export class ANS {
     address: AccountAddressInput;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return setTargetAddress({ aptosConfig: this.config, ...args });
+    return setTargetAddress({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -206,14 +206,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve the primary name for the specified account address
-   *   const name = await aptos.getPrimaryName({ address: "0x1" }); // replace with a real account address
+   *   const name = await movement.getPrimaryName({ address: "0x1" }); // replace with a real account address
    *   console.log(name);
    * }
    * runExample().catch(console.error);
@@ -221,7 +221,7 @@ export class ANS {
    * @group ANS
    */
   async getPrimaryName(args: { address: AccountAddressInput }): Promise<string | undefined> {
-    return getPrimaryName({ aptosConfig: this.config, ...args });
+    return getPrimaryName({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -237,17 +237,17 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Set the primary name for the sender account
    *   const sender = Account.generate(); // replace with a real account
-   *   await aptos.setPrimaryName({ sender, name: "test.aptos" });
+   *   await movement.setPrimaryName({ sender, name: "test.aptos" });
    *
-   *   const primaryName = await aptos.getPrimaryName({ address: sender.accountAddress });
+   *   const primaryName = await movement.getPrimaryName({ address: sender.accountAddress });
    *   console.log("Primary Name:", primaryName); // Should log: "Primary Name: test.aptos"
    * }
    * runExample().catch(console.error);
@@ -259,7 +259,7 @@ export class ANS {
     name?: string;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return setPrimaryName({ aptosConfig: this.config, ...args });
+    return setPrimaryName({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -269,7 +269,7 @@ export class ANS {
    *
    * @param args.sender - The sender account.
    * @param args.name - A string of the name to register. This can be inclusive or exclusive of the .apt suffix. Examples include:
-   * "test", "test.apt", "test.aptos.apt", etc.
+   * "test", "test.apt", "test.movement.apt", etc.
    * @param args.expiration  - An object with the expiration policy of the name.
    * @param args.expiration.policy - 'domain' | 'subdomain:follow-domain' | 'subdomain:independent'.
    * - domain: Years is required and the name will expire after the given number of years.
@@ -287,16 +287,16 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Registering a subdomain name assuming def.apt is already registered and belongs to the sender alice.
-   *   const txn = await aptos.registerName({
+   *   const txn = await movement.registerName({
    *     sender: "0x1", // replace with a real sender account
-   *     name: "test.aptos.apt",
+   *     name: "test.movement.apt",
    *     expiration: {
    *       policy: "subdomain:independent",
    *       expirationDate: Date.now() + 30 * 24 * 60 * 60 * 1000, // expires in 30 days
@@ -309,8 +309,8 @@ export class ANS {
    * ```
    * @group ANS
    */
-  async registerName(args: Omit<RegisterNameParameters, "aptosConfig">): Promise<SimpleTransaction> {
-    return registerName({ aptosConfig: this.config, ...args });
+  async registerName(args: Omit<RegisterNameParameters, "movementConfig">): Promise<SimpleTransaction> {
+    return registerName({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -327,14 +327,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Renew the domain "test" for one year
-   *   const transaction = await aptos.renewDomain({
+   *   const transaction = await movement.renewDomain({
    *     sender: Account.generate(), // replace with a real account
    *     name: "test"
    *   });
@@ -351,28 +351,28 @@ export class ANS {
     years?: 1;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return renewDomain({ aptosConfig: this.config, ...args });
+    return renewDomain({ movementConfig: this.config, ...args });
   }
 
   /**
    * Fetches a single name from the indexer based on the provided name argument.
    *
    * @param args - The arguments for retrieving the name.
-   * @param args.name - A string of the name to retrieve, e.g. "test.aptos.apt" or "test.apt" or "test".
+   * @param args.name - A string of the name to retrieve, e.g. "test.movement.apt" or "test.apt" or "test".
    *                    Can be inclusive or exclusive of the .apt suffix and can be a subdomain.
    *
    * @returns A promise of an ANSName or undefined if the name is not active.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *     // Fetching a name from the indexer
-   *     const name = await aptos.getName({ name: "test.aptos" }); // replace with a real name
+   *     const name = await movement.getName({ name: "test.aptos" }); // replace with a real name
    *     console.log(name);
    * }
    * runExample().catch(console.error);
@@ -380,7 +380,7 @@ export class ANS {
    * @group ANS
    */
   async getName(args: { name: string }): Promise<GetANSNameResponse[0] | undefined> {
-    return getName({ aptosConfig: this.config, ...args });
+    return getName({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -398,14 +398,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetch account names for a specific address
-   *   const accountNames = await aptos.getAccountNames({
+   *   const accountNames = await movement.getAccountNames({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       limit: 10, // specify how many names to fetch
@@ -420,7 +420,7 @@ export class ANS {
    * @group ANS
    */
   async getAccountNames(args: GetAccountNamesArgs): Promise<GetANSNameResponse> {
-    return getAccountNames({ aptosConfig: this.config, ...args });
+    return getAccountNames({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -437,14 +437,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching all top-level domain names for a specific account
-   *   const domains = await aptos.getAccountDomains({
+   *   const domains = await movement.getAccountDomains({
    *     accountAddress: "0x1", // replace with a real account address
    *     options: {
    *       limit: 10, // specify the number of names to fetch
@@ -463,7 +463,7 @@ export class ANS {
    * @group ANS
    */
   async getAccountDomains(args: GetAccountDomainsArgs): Promise<GetANSNameResponse> {
-    return getAccountDomains({ aptosConfig: this.config, ...args });
+    return getAccountDomains({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -481,14 +481,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *     // Fetching subdomain names for a specific account
-   *     const subdomains = await aptos.getAccountSubdomains({
+   *     const subdomains = await movement.getAccountSubdomains({
    *         accountAddress: "0x1", // replace with a real account address
    *         options: {
    *             limit: 10, // specify the number of subdomains to fetch
@@ -504,7 +504,7 @@ export class ANS {
    * @group ANS
    */
   async getAccountSubdomains(args: GetAccountSubdomainsArgs): Promise<GetANSNameResponse> {
-    return getAccountSubdomains({ aptosConfig: this.config, ...args });
+    return getAccountSubdomains({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -522,14 +522,14 @@ export class ANS {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching subdomains for a specific domain
-   *   const subdomains = await aptos.getDomainSubdomains({
+   *   const subdomains = await movement.getDomainSubdomains({
    *     domain: "test", // replace with your domain
    *     options: {
    *       limit: 10, // specify the number of subdomains to fetch
@@ -545,6 +545,6 @@ export class ANS {
    * @group ANS
    */
   async getDomainSubdomains(args: GetDomainSubdomainsArgs): Promise<GetANSNameResponse> {
-    return getDomainSubdomains({ aptosConfig: this.config, ...args });
+    return getDomainSubdomains({ movementConfig: this.config, ...args });
   }
 }

@@ -1,8 +1,11 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   AccountAddress,
+  APTOS_COIN,
+  aptosCoinStructTag,
+  Identifier,
   objectStructTag,
   optionStructTag,
   parseTypeTag,
@@ -12,6 +15,15 @@ import {
   TypeTagAddress,
   TypeTagBool,
   TypeTagGeneric,
+  TypeTagI128,
+  TypeTagI16,
+  TypeTagI256,
+  TypeTagI32,
+  TypeTagI64,
+  TypeTagI8,
+  TypeTagParserError,
+  TypeTagParserErrorType,
+  TypeTagReference,
   TypeTagSigner,
   TypeTagStruct,
   TypeTagU128,
@@ -20,19 +32,7 @@ import {
   TypeTagU32,
   TypeTagU64,
   TypeTagU8,
-  TypeTagI8,
-  TypeTagI16,
-  TypeTagI32,
-  TypeTagI64,
-  TypeTagI128,
-  TypeTagI256,
   TypeTagVector,
-  TypeTagParserError,
-  TypeTagParserErrorType,
-  TypeTagReference,
-  aptosCoinStructTag,
-  Identifier,
-  APTOS_COIN,
 } from "../../src";
 
 const TAG_STRUCT_NAME = "0x1::tag::Tag";

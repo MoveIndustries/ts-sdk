@@ -1,15 +1,15 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
+import { AccountAddress, Serializable, Serializer, outOfRangeErrorMessage } from "../../src";
 import {
   MAX_U128_BIG_INT,
   MAX_U16_NUMBER,
+  MAX_U256_BIG_INT,
   MAX_U32_NUMBER,
   MAX_U64_BIG_INT,
   MAX_U8_NUMBER,
-  MAX_U256_BIG_INT,
 } from "../../src/bcs/consts";
-import { AccountAddress, Serializable, Serializer, outOfRangeErrorMessage } from "../../src";
 /* eslint-disable @typescript-eslint/no-shadow */
 describe("BCS Serializer", () => {
   let serializer: Serializer;

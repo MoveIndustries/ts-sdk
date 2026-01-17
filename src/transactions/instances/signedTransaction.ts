@@ -1,18 +1,18 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import { TransactionAuthenticator } from "../authenticator/transaction";
 import { Deserializer } from "../../bcs/deserializer";
 import { Serializable, Serializer } from "../../bcs/serializer";
+import { TransactionAuthenticator } from "../authenticator/transaction";
 import { RawTransaction } from "./rawTransaction";
 
 /**
  * Represents a signed transaction that includes a raw transaction and an authenticator.
  * The authenticator contains a client's public key and the signature of the raw transaction.
  *
- * @see {@link https://aptos.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
+ * @see {@link https://movement.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
  * @param raw_txn - The raw transaction to be signed.
  * @param authenticator - Contains a client's public key and the signature of the raw transaction.
  * Authenticator can have three variations: single signature, multi-signature, and multi-agent.
@@ -33,7 +33,7 @@ export class SignedTransaction extends Serializable {
    * @param raw_txn The raw transaction to be signed.
    * @param authenticator Contains a client's public key and the signature of the raw transaction. The authenticator has 3
    * flavors: single signature, multi-signature and multi-agent.
-   * @see {@link https://aptos.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
+   * @see {@link https://movement.dev/integration/creating-a-signed-transaction | Creating a Signed Transaction}
    * @see {@link https://github.com/aptos-labs/aptos-core/blob/main/types/src/transaction/authenticator.rs} for details.
    * @group Implementation
    * @category Transactions

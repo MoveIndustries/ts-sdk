@@ -5,16 +5,16 @@
  * Example to submit a simple sponsored transaction where Alice transfers APT coin to Bob
  * with a sponsor account to pay for the gas fee
  */
+import { Account, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
-import { Account, Aptos, AptosConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const SPONSOR_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 0;
 const TRANSFER_AMOUNT = 10;
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK] || Network.DEVNET;
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK] || Network.DEVNET;
 
 const example = async () => {
   console.log(
@@ -22,8 +22,8 @@ const example = async () => {
   );
 
   // Set up the client
-  const aptosConfig = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(aptosConfig);
+  const movementConfig = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(movementConfig);
 
   // Create three accounts
   const alice = Account.generate();
@@ -41,12 +41,12 @@ const example = async () => {
   console.log(`Sponsor's address is: ${sponsorAddress}`);
 
   // Fund Alice and sponsor accounts
-  await aptos.fundAccount({ accountAddress: aliceAddress, amount: ALICE_INITIAL_BALANCE });
-  await aptos.fundAccount({ accountAddress: sponsorAddress, amount: SPONSOR_INITIAL_BALANCE });
+  await movement.fundAccount({ accountAddress: aliceAddress, amount: ALICE_INITIAL_BALANCE });
+  await movement.fundAccount({ accountAddress: sponsorAddress, amount: SPONSOR_INITIAL_BALANCE });
 
   // Show account balances
-  const aliceBalanceBefore = await aptos.getAccountCoinsData({ accountAddress: aliceAddress });
-  const sponsorBalanceBefore = await aptos.getAccountCoinsData({ accountAddress: sponsorAddress });
+  const aliceBalanceBefore = await movement.getAccountCoinsData({ accountAddress: aliceAddress });
+  const sponsorBalanceBefore = await movement.getAccountCoinsData({ accountAddress: sponsorAddress });
 
   console.log("\n=== Balances ===\n");
   console.log(`Alice's balance is: ${aliceBalanceBefore[0].amount}`);
@@ -59,7 +59,7 @@ const example = async () => {
   // Generate a fee payer (aka sponsor) transaction
   // with Alice as the sender and sponsor as the fee payer
   console.log("\n=== Submitting Transaction ===\n");
-  const transaction = await aptos.transaction.build.simple({
+  const transaction = await movement.transaction.build.simple({
     sender: aliceAddress,
     withFeePayer: true,
     data: {
@@ -69,28 +69,28 @@ const example = async () => {
   });
 
   // Alice signs
-  const senderSignature = aptos.transaction.sign({ signer: alice, transaction });
+  const senderSignature = movement.transaction.sign({ signer: alice, transaction });
 
   // Sponsor signs
-  const sponsorSignature = aptos.transaction.signAsFeePayer({ signer: sponsor, transaction });
+  const sponsorSignature = movement.transaction.signAsFeePayer({ signer: sponsor, transaction });
 
   // Submit the transaction to chain
-  const committedTxn = await aptos.transaction.submit.simple({
+  const committedTxn = await movement.transaction.submit.simple({
     transaction,
     senderAuthenticator: senderSignature,
     feePayerAuthenticator: sponsorSignature,
   });
 
   console.log(`Submitted transaction: ${committedTxn.hash}`);
-  const response = await aptos.waitForTransaction({ transactionHash: committedTxn.hash });
+  const response = await movement.waitForTransaction({ transactionHash: committedTxn.hash });
 
   console.log("\n=== Balances after transfer ===\n");
-  const aliceBalanceAfter = await aptos.getAccountCoinsData({
+  const aliceBalanceAfter = await movement.getAccountCoinsData({
     accountAddress: aliceAddress,
     minimumLedgerVersion: BigInt(response.version),
   });
-  const bobBalanceAfter = await aptos.getAccountCoinsData({ accountAddress: bobAddress });
-  const sponsorBalanceAfter = await aptos.getAccountCoinsData({ accountAddress: sponsorAddress });
+  const bobBalanceAfter = await movement.getAccountCoinsData({ accountAddress: bobAddress });
+  const sponsorBalanceAfter = await movement.getAccountCoinsData({ accountAddress: sponsorAddress });
 
   // Bob should have the transfer amount
   if (bobBalanceAfter[0].amount !== TRANSFER_AMOUNT) throw new Error("Bob's balance after transfer is incorrect");

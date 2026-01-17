@@ -1,8 +1,8 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { keylessTestConfig, keylessTestObject } from "./helper";
 import { Deserializer, Hex, KeylessAccount, KeylessPublicKey, KeylessSignature } from "../../src";
+import { keylessTestConfig, keylessTestObject } from "./helper";
 describe("Keyless", () => {
   describe("keylessPublicKey", () => {
     it("should create the instance correctly without error", () => {

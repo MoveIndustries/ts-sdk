@@ -1,8 +1,8 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { Serializer, Serializable } from "../../bcs/serializer";
 import { Deserializer } from "../../bcs/deserializer";
+import { Serializable, Serializer } from "../../bcs/serializer";
 
 /**
  * Represents a ChainId that can be serialized and deserialized.

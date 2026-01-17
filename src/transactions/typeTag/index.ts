@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -7,8 +7,8 @@
 import { Deserializer } from "../../bcs/deserializer";
 import { Serializable, Serializer } from "../../bcs/serializer";
 import { AccountAddress } from "../../core";
-import { Identifier } from "../instances/identifier";
 import { TypeTagVariants } from "../../types";
+import { Identifier } from "../instances/identifier";
 
 /**
  * Represents a type tag in the serialization framework, serving as a base class for various specific type tags.
@@ -740,9 +740,8 @@ export class TypeTagStruct extends TypeTag {
       typePredicate = `<${this.value.typeArgs.map((typeArg) => typeArg.toString()).join(", ")}>`;
     }
 
-    return `${this.value.address.toString()}::${this.value.moduleName.identifier}::${
-      this.value.name.identifier
-    }${typePredicate}`;
+    return `${this.value.address.toString()}::${this.value.moduleName.identifier}::${this.value.name.identifier
+      }${typePredicate}`;
   }
 
   constructor(public readonly value: StructTag) {
@@ -881,14 +880,14 @@ export class StructTag extends Serializable {
 }
 
 /**
- * Retrieves the StructTag for the AptosCoin, which represents the Aptos Coin in the Aptos blockchain.
+ * Retrieves the StructTag for the MovementCoin, which represents the Movement Coin in the Movement blockchain.
  *
- * @returns {StructTag} The StructTag for the AptosCoin.
+ * @returns {StructTag} The StructTag for the MovementCoin.
  * @group Implementation
  * @category Transactions
  */
 export function aptosCoinStructTag(): StructTag {
-  return new StructTag(AccountAddress.ONE, new Identifier("aptos_coin"), new Identifier("AptosCoin"), []);
+  return new StructTag(AccountAddress.ONE, new Identifier("aptos_coin"), new Identifier("MovementCoin"), []);
 }
 
 /**

@@ -1,12 +1,12 @@
-import type { AccountAuthenticator } from "../transactions/authenticator/account";
-import { HexInput, SigningScheme, SigningSchemeInput } from "../types";
+import { MovementConfig } from "../api";
 import type { AccountAddress, AccountAddressInput } from "../core/accountAddress";
 import { AuthenticationKey } from "../core/authenticationKey";
 import { AccountPublicKey, Ed25519PrivateKey, PrivateKeyInput, Signature, VerifySignatureArgs } from "../core/crypto";
+import type { AccountAuthenticator } from "../transactions/authenticator/account";
+import { AnyRawTransaction } from "../transactions/types";
+import { HexInput, SigningScheme, SigningSchemeInput } from "../types";
 import { Ed25519Account } from "./Ed25519Account";
 import { SingleKeyAccount } from "./SingleKeyAccount";
-import { AnyRawTransaction } from "../transactions/types";
-import { AptosConfig } from "../api";
 
 /**
  * Arguments for creating an `Ed25519Account` from an `Ed25519PrivateKey`.
@@ -139,7 +139,7 @@ export interface PrivateKeyFromDerivationPathArgs {
 }
 
 /**
- * Abstract class representing a generic Aptos account.
+ * Abstract class representing a generic Movement account.
  *
  * This class serves as a single entry point for account generation, allowing accounts to be created
  * either through `Account.generate()` or `Account.fromDerivationPath`. Although it is defined as an
@@ -269,7 +269,7 @@ export abstract class Account {
    * Retrieve the authentication key for the associated account using the provided public key.
    * This key enables account owners to rotate their private key(s) associated with the account without changing the address that
    * hosts their account.
-   * See here for more info: {@link https://aptos.dev/concepts/accounts#single-signer-authentication}
+   * See here for more info: {@link https://movement.dev/concepts/accounts#single-signer-authentication}
    *
    * @param args - The arguments for retrieving the authentication key.
    * @param args.publicKey - The public key of the account.
@@ -337,7 +337,7 @@ export abstract class Account {
    * Verify the given message and signature with the public key. It fetches any on chain state if needed for verification.
    *
    * @param args - The arguments for verifying the signature.
-   * @param args.aptosConfig - The configuration object for connecting to the Aptos network
+   * @param args.movementConfig - The configuration object for connecting to the Movement network
    * @param args.message - Raw message data in HexInput format.
    * @param args.signature - Signed message signature.
    * @returns A boolean indicating whether the signature is valid.
@@ -345,7 +345,7 @@ export abstract class Account {
    * @category Account (On-Chain Model)
    */
   async verifySignatureAsync(args: {
-    aptosConfig: AptosConfig;
+    movementConfig: MovementConfig;
     message: HexInput;
     signature: Signature;
   }): Promise<boolean> {

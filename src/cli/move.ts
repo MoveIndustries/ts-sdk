@@ -5,7 +5,7 @@ import { AccountAddress } from "../core";
 import { Network } from "../utils";
 
 /**
- * Class representing a Move package management utility for the Aptos blockchain.
+ * Class representing a Move package management utility for the Movement blockchain.
  * This class provides methods to initialize directories, compile packages, run tests, publish modules, create objects, upgrade
  * packages, build transaction payloads, and run scripts.
  * @group Implementation
@@ -13,7 +13,7 @@ import { Network } from "../utils";
  */
 export class Move {
   /**
-   * Initialize the current directory for Aptos by configuring the necessary settings.
+   * Initialize the current directory for Movement by configuring the necessary settings.
    * Configuration will be pushed into .aptos/config.yaml.
    *
    * @param args - The arguments for initialization.
@@ -108,7 +108,7 @@ export class Move {
   }
 
   /**
-   * Publishes the modules to the publisher account on the Aptos blockchain.
+   * Publishes the modules to the publisher account on the Movement blockchain.
    *
    * @param args - The arguments for publishing the modules.
    * @param args.packageDirectoryPath - The path to a move package (the folder with a Move.toml file).
@@ -149,7 +149,7 @@ export class Move {
   }
 
   /**
-   * Create a new object and publish the Move package to it on the Aptos blockchain.
+   * Create a new object and publish the Move package to it on the Movement blockchain.
    *
    * @param args - The arguments for creating the object and publishing the package.
    * @param args.packageDirectoryPath - Path to a Move package (the folder with a Move.toml file).
@@ -203,7 +203,7 @@ export class Move {
   }
 
   /**
-   * Upgrade a Move package previously published to an object on the Aptos blockchain.
+   * Upgrade a Move package previously published to an object on the Movement blockchain.
    * The caller must be the object owner to execute this function.
    *
    * @param args - The arguments for upgrading the object package.

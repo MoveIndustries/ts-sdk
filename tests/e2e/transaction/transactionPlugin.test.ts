@@ -1,17 +1,17 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   Account,
-  AptosConfig,
-  TransactionSubmitter,
+  InputSubmitTransactionData,
+  MovementConfig,
   PendingTransactionResponse,
   TransactionResponseType,
-  InputSubmitTransactionData,
+  TransactionSubmitter,
 } from "../../../src";
+import { longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 import { fundAccounts, publishTransferPackage } from "./helper";
-import { longTestTimeout } from "../../unit/helper";
 
 // Global state to track plugin calls
 interface PluginCallData {
@@ -40,11 +40,11 @@ function resetPluginTracker() {
 
 // Dummy TransactionSubmitter implementation for testing
 class MockTransactionSubmitter implements TransactionSubmitter {
-  constructor(private identifier: string = "default") {}
+  constructor(private identifier: string = "default") { }
 
   async submitTransaction(
     args: {
-      aptosConfig: AptosConfig;
+      movementConfig: MovementConfig;
     } & InputSubmitTransactionData,
   ): Promise<PendingTransactionResponse> {
     const { transaction, senderAuthenticator, feePayerAuthenticator, additionalSignersAuthenticators, pluginParams } =
@@ -85,7 +85,7 @@ const overridePluginCallTracker: PluginCallData = {
 class OverrideTransactionSubmitter implements TransactionSubmitter {
   async submitTransaction(
     args: {
-      aptosConfig: AptosConfig;
+      movementConfig: MovementConfig;
     } & InputSubmitTransactionData,
   ): Promise<PendingTransactionResponse> {
     const { transaction, senderAuthenticator, feePayerAuthenticator, additionalSignersAuthenticators, pluginParams } =
@@ -140,7 +140,7 @@ describe("transaction plugin", () => {
       });
 
       // First, verify plugin is used by default
-      let transaction = await aptos.transaction.build.simple({
+      let transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -148,19 +148,19 @@ describe("transaction plugin", () => {
         },
       });
 
-      let response = await aptos.transaction.submit.simple({
+      let response = await movement.transaction.submit.simple({
         transaction,
-        senderAuthenticator: aptos.transaction.sign({ signer: senderAccount, transaction }),
+        senderAuthenticator: movement.transaction.sign({ signer: senderAccount, transaction }),
       });
 
       expect(pluginCallTracker.callCount).toBe(1);
       expect(response.hash).toBe("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
 
       // Now ignore the plugin
-      aptos.setIgnoreTransactionSubmitter(true);
+      movement.setIgnoreTransactionSubmitter(true);
       resetPluginTracker();
 
-      transaction = await aptos.transaction.build.simple({
+      transaction = await movement.transaction.build.simple({
         sender: otherAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -168,7 +168,7 @@ describe("transaction plugin", () => {
         },
       });
 
-      response = await aptos.signAndSubmitTransaction({
+      response = await movement.signAndSubmitTransaction({
         signer: otherAccount,
         transaction,
       });
@@ -177,10 +177,10 @@ describe("transaction plugin", () => {
       expect(response.hash).not.toBe("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
 
       // Re-enable the plugin
-      aptos.setIgnoreTransactionSubmitter(false);
+      movement.setIgnoreTransactionSubmitter(false);
       resetPluginTracker();
 
-      transaction = await aptos.transaction.build.simple({
+      transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -188,9 +188,9 @@ describe("transaction plugin", () => {
         },
       });
 
-      response = await aptos.transaction.submit.simple({
+      response = await movement.transaction.submit.simple({
         transaction,
-        senderAuthenticator: aptos.transaction.sign({ signer: senderAccount, transaction }),
+        senderAuthenticator: movement.transaction.sign({ signer: senderAccount, transaction }),
       });
 
       expect(pluginCallTracker.callCount).toBe(1);
@@ -208,7 +208,7 @@ describe("transaction plugin", () => {
       });
 
       // Build a simple transaction
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -219,7 +219,7 @@ describe("transaction plugin", () => {
       // Use signAndSubmitTransaction to test plugin integration
       const testPluginParams = { recaptchaToken: "test-token", customParam: "test-value" };
 
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
         pluginParams: testPluginParams,
@@ -243,7 +243,7 @@ describe("transaction plugin", () => {
       });
 
       // Build a fee payer transaction
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -256,7 +256,7 @@ describe("transaction plugin", () => {
         userId: "12345",
       };
 
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
         pluginParams: testPluginParams,
@@ -282,7 +282,7 @@ describe("transaction plugin", () => {
       const secondarySignerAccount = Account.generate();
 
       // Build a multi-agent transaction
-      const transaction = await aptos.transaction.build.multiAgent({
+      const transaction = await movement.transaction.build.multiAgent({
         sender: senderAccount.accountAddress,
         secondarySignerAddresses: [secondarySignerAccount.accountAddress],
         data: {
@@ -293,10 +293,10 @@ describe("transaction plugin", () => {
 
       // For multi-agent, we need to use the Submit class directly since signAndSubmitTransaction
       // doesn't handle multi-agent. We'll just verify the plugin works for basic functionality.
-      const senderAuthenticator = aptos.transaction.sign({ signer: senderAccount, transaction });
-      const secondaryAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: senderAccount, transaction });
+      const secondaryAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-      const response = await aptos.transaction.submit.multiAgent({
+      const response = await movement.transaction.submit.multiAgent({
         transaction,
         senderAuthenticator,
         additionalSignersAuthenticators: [secondaryAuthenticator],
@@ -316,7 +316,7 @@ describe("transaction plugin", () => {
   describe("no plugin configured", () => {
     test("uses default submission when no plugin is configured", async () => {
       // Use default config without plugin
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -324,7 +324,7 @@ describe("transaction plugin", () => {
         },
       });
 
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
       });
@@ -336,7 +336,7 @@ describe("transaction plugin", () => {
       expect(response.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
 
       // Wait for transaction to complete to verify it was real
-      await aptos.waitForTransaction({ transactionHash: response.hash });
+      await movement.waitForTransaction({ transactionHash: response.hash });
     });
   });
 
@@ -351,7 +351,7 @@ describe("transaction plugin", () => {
       const overrideSubmitter = new OverrideTransactionSubmitter();
 
       // Build a simple transaction
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -360,7 +360,7 @@ describe("transaction plugin", () => {
       });
 
       // Submit with override submitter
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
         transactionSubmitter: overrideSubmitter,
@@ -385,7 +385,7 @@ describe("transaction plugin", () => {
       });
 
       // Build a simple transaction
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -394,7 +394,7 @@ describe("transaction plugin", () => {
       });
 
       // Submit with null transactionSubmitter to ignore configured submitter
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
         transactionSubmitter: null,
@@ -411,14 +411,14 @@ describe("transaction plugin", () => {
       expect(response.hash).not.toBe("0xoverride567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
 
       // Wait for transaction to complete to verify it was real
-      await aptos.waitForTransaction({ transactionHash: response.hash });
+      await movement.waitForTransaction({ transactionHash: response.hash });
     });
 
     test("uses override submitter when no default submitter is configured", async () => {
       // Use default config without plugin
       const overrideSubmitter = new OverrideTransactionSubmitter();
 
-      const transaction = await aptos.transaction.build.simple({
+      const transaction = await movement.transaction.build.simple({
         sender: senderAccount.accountAddress,
         data: {
           function: `${contractPublisherAccount.accountAddress}::transfer::transfer`,
@@ -427,7 +427,7 @@ describe("transaction plugin", () => {
       });
 
       // Submit with override submitter when no default is configured
-      const response = await aptos.signAndSubmitTransaction({
+      const response = await movement.signAndSubmitTransaction({
         signer: senderAccount,
         transaction,
         transactionSubmitter: overrideSubmitter,
@@ -455,7 +455,7 @@ describe("transaction plugin", () => {
       const secondarySignerAccount = Account.generate();
 
       // Build a multi-agent transaction
-      const transaction = await aptos.transaction.build.multiAgent({
+      const transaction = await movement.transaction.build.multiAgent({
         sender: senderAccount.accountAddress,
         secondarySignerAddresses: [secondarySignerAccount.accountAddress],
         data: {
@@ -464,10 +464,10 @@ describe("transaction plugin", () => {
         },
       });
 
-      const senderAuthenticator = aptos.transaction.sign({ signer: senderAccount, transaction });
-      const secondaryAuthenticator = aptos.transaction.sign({ signer: secondarySignerAccount, transaction });
+      const senderAuthenticator = movement.transaction.sign({ signer: senderAccount, transaction });
+      const secondaryAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
-      const response = await aptos.transaction.submit.multiAgent({
+      const response = await movement.transaction.submit.multiAgent({
         transaction,
         senderAuthenticator,
         additionalSignersAuthenticators: [secondaryAuthenticator],

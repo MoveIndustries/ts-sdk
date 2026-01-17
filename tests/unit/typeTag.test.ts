@@ -1,11 +1,19 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  Deserializer,
+  Serializer,
   StructTag,
   TypeTag,
   TypeTagAddress,
   TypeTagBool,
+  TypeTagI128,
+  TypeTagI16,
+  TypeTagI256,
+  TypeTagI32,
+  TypeTagI64,
+  TypeTagI8,
   TypeTagSigner,
   TypeTagStruct,
   TypeTagU128,
@@ -14,15 +22,7 @@ import {
   TypeTagU32,
   TypeTagU64,
   TypeTagU8,
-  TypeTagI8,
-  TypeTagI16,
-  TypeTagI32,
-  TypeTagI64,
-  TypeTagI128,
-  TypeTagI256,
   TypeTagVector,
-  Deserializer,
-  Serializer,
   parseTypeTag,
 } from "../../src";
 

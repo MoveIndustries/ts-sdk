@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AptosConfig } from "../api";
+import type { MovementConfig } from "../api";
 import { InputSubmitTransactionData } from "../transactions";
 import { Network } from "../utils/apiEndpoints";
 import { OrderBy, TokenStandard } from "./indexer";
@@ -21,8 +21,8 @@ export enum MimeType {
   /**
    * BCS representation, used for transaction submission in BCS input
    */
-  BCS_SIGNED_TRANSACTION = "application/x.aptos.signed_transaction+bcs",
-  BCS_VIEW_FUNCTION = "application/x.aptos.view_function+bcs",
+  BCS_SIGNED_TRANSACTION = "application/x.movement.signed_transaction+bcs",
+  BCS_VIEW_FUNCTION = "application/x.movement.view_function+bcs",
 }
 
 /**
@@ -288,9 +288,9 @@ export type Int256 = bigint;
 export type AnyNumber = number | bigint;
 
 /**
- * Configuration options for initializing the SDK, allowing customization of its behavior and interaction with the Aptos network.
+ * Configuration options for initializing the SDK, allowing customization of its behavior and interaction with the Movement network.
  */
-export type AptosSettings = {
+export type MovementSettings = {
   readonly network?: Network;
 
   readonly fullnode?: string;
@@ -426,7 +426,7 @@ export type PluginSettings = Omit<PluginConfig, "IGNORE_TRANSACTION_SUBMITTER">;
  * ```typescript
  * class MyGasStationClient implements TransactionSubmitter {
  *   async submitTransaction(
- *     args: { aptosConfig: AptosConfig } & InputSubmitTransactionData,
+ *     args: { movementConfig: MovementConfig } & InputSubmitTransactionData,
  *   ): Promise<PendingTransactionResponse> {
  *     // TODO: Implement the logic to submit the transaction to the gas station
  *   }
@@ -434,23 +434,23 @@ export type PluginSettings = Omit<PluginConfig, "IGNORE_TRANSACTION_SUBMITTER">;
  *
  * const network = Network.MAINNET;
  * const myGasStationClient = new MyGasStationClient(network);
- * const config = new AptosConfig({
+ * const config = new MovementConfig({
  *   network,
  *   pluginConfig: {
  *     transactionSubmitter: myGasStationClient,
  *   },
  * });
- * const aptos = new Aptos(config);
+ * const movement = new Movement(config);
  * ```
  */
 export interface TransactionSubmitter {
   /**
-   * Submit a transaction to the Aptos blockchain or something that will do it on your
+   * Submit a transaction to the Movement blockchain or something that will do it on your
    * behalf, for example a gas station. See the comments of {@link TransactionSubmitter} for more.
    *
    * @param args - The arguments for submitting the transaction.
-   * @param args.aptosConfig - The configuration for connecting to the Aptos network.
-   * @param args.transaction - The Aptos transaction data to be submitted.
+   * @param args.movementConfig - The configuration for connecting to the Movement network.
+   * @param args.transaction - The Movement transaction data to be submitted.
    * @param args.senderAuthenticator - The account authenticator of the transaction sender.
    * @param args.secondarySignerAuthenticators - Optional. Authenticators for additional signers in a multi-signer transaction.
    * @param args.pluginParams - Optional. Additional parameters for the plugin.
@@ -461,7 +461,7 @@ export interface TransactionSubmitter {
    */
   submitTransaction(
     args: {
-      aptosConfig: AptosConfig;
+      movementConfig: MovementConfig;
     } & Omit<InputSubmitTransactionData, "transactionSubmitter">,
   ): Promise<PendingTransactionResponse>;
 }
@@ -524,7 +524,7 @@ export interface Client {
  * @param originMethod (optional) - the local method the request came from
  * @param overrides (optional) - a `ClientConfig` object type to override request data
  */
-export type AptosRequest = {
+export type MovementRequest = {
   url: string;
   method: "GET" | "POST";
   path?: string;
@@ -547,7 +547,7 @@ export type AptosRequest = {
  * @param config (optional) - the request object
  * @param request (optional) - the request object
  */
-export interface AptosResponse<Req, Res> {
+export interface MovementResponse<Req, Res> {
   status: number;
   statusText: string;
   data: Res;
@@ -1620,7 +1620,7 @@ export type TableItemRequest = {
 };
 
 /**
- * A list of supported Authentication Key schemes in Aptos, consisting of combinations of signing schemes and derive schemes.
+ * A list of supported Authentication Key schemes in Movement, consisting of combinations of signing schemes and derive schemes.
  */
 export type AuthenticationKeyScheme = SigningScheme | DeriveScheme;
 

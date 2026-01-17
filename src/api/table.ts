@@ -1,54 +1,54 @@
 import { getTableItem, getTableItemsData, getTableItemsMetadata } from "../internal/table";
 import {
-  TableItemRequest,
-  LedgerVersionArg,
   AnyNumber,
-  PaginationArgs,
-  WhereArg,
-  OrderByArg,
   GetTableItemsDataResponse,
   GetTableItemsMetadataResponse,
+  LedgerVersionArg,
+  OrderByArg,
+  PaginationArgs,
+  TableItemRequest,
+  WhereArg,
 } from "../types";
 import { TableItemsBoolExp, TableMetadatasBoolExp } from "../types/generated/types";
 import { ProcessorType } from "../utils";
-import { AptosConfig } from "./aptosConfig";
+import { MovementConfig } from "./movementConfig";
 import { waitForIndexerOnVersion } from "./utils";
 
 /**
- * A class to query all `Table` Aptos related queries.
+ * A class to query all `Table` Movement related queries.
  * @group Table
  */
 export class Table {
-  readonly config: AptosConfig;
+  readonly config: MovementConfig;
 
   /**
-   * Initializes a new instance of the Aptos client with the specified configuration.
-   * This allows you to interact with the Aptos blockchain using the provided settings.
+   * Initializes a new instance of the Movement client with the specified configuration.
+   * This allows you to interact with the Movement blockchain using the provided settings.
    *
-   * @param config - The configuration settings for the Aptos client.
+   * @param config - The configuration settings for the Movement client.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a new Aptos client with testnet configuration
-   *     const config = new AptosConfig({ network: Network.TESTNET });
-   *     const aptos = new Aptos(config);
+   *     // Create a new Movement client with testnet configuration
+   *     const config = new MovementConfig({ network: Network.TESTNET });
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Table
    */
-  constructor(config: AptosConfig) {
+  constructor(config: MovementConfig) {
     this.config = config;
   }
 
   /**
    * Queries for a specific item in a table identified by the handle and the key for the item.
-   * This function allows you to retrieve structured data from a table in the Aptos blockchain.
+   * This function allows you to retrieve structured data from a table in the Movement blockchain.
    *
    * @param args.handle A pointer to where that table is stored.
    * @param args.data Object that describes the table item, including key and value types.
@@ -61,14 +61,14 @@ export class Table {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
-   *   // Retrieve a table item from the Aptos blockchain
-   *   const tableItem = await aptos.getTableItem({
+   *   // Retrieve a table item from the Movement blockchain
+   *   const tableItem = await movement.getTableItem({
    *     handle: "0x1b854694ae746cdbd8d44186ca4929b2b337df21d1c74633be19b2710552fdca",
    *     data: {
    *       key_type: "address", // Move type of table key
@@ -84,7 +84,7 @@ export class Table {
    * @group Table
    */
   async getTableItem<T>(args: { handle: string; data: TableItemRequest; options?: LedgerVersionArg }): Promise<T> {
-    return getTableItem<T>({ aptosConfig: this.config, ...args });
+    return getTableItem<T>({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -103,14 +103,14 @@ export class Table {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve table items data with specific filtering options
-   *   const data = await aptos.getTableItemsData({
+   *   const data = await movement.getTableItemsData({
    *     minimumLedgerVersion: 1, // specify your own minimum ledger version if needed
    *     options: {
    *       where: {
@@ -138,7 +138,7 @@ export class Table {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.DEFAULT,
     });
-    return getTableItemsData({ aptosConfig: this.config, ...args });
+    return getTableItemsData({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -156,14 +156,14 @@ export class Table {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching table items metadata with a filter condition
-   *   const data = await aptos.getTableItemsMetadata({
+   *   const data = await movement.getTableItemsMetadata({
    *     minimumLedgerVersion: 1, // specify your own minimum ledger version if needed
    *     options: {
    *       where: { handle: { _eq: "0x1b854694ae746cdbd8d44186ca4929b2b337df21d1c74633be19b2710552fdca" } },
@@ -188,6 +188,6 @@ export class Table {
       minimumLedgerVersion: args.minimumLedgerVersion,
       processorType: ProcessorType.DEFAULT,
     });
-    return getTableItemsMetadata({ aptosConfig: this.config, ...args });
+    return getTableItemsMetadata({ movementConfig: this.config, ...args });
   }
 }

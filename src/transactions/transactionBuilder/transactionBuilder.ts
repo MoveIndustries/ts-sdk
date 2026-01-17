@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -7,23 +7,25 @@
  * and a signed transaction that can be simulated, signed and submitted to chain.
  */
 import { sha3_256 as sha3Hash } from "@noble/hashes/sha3";
-import { AptosConfig } from "../../api/aptosConfig";
+import { MovementConfig } from "../../api/movementConfig";
 import { AccountAddress, AccountAddressInput, Hex, PublicKey } from "../../core";
 import {
   AnyPublicKey,
   AnySignature,
+  FederatedKeylessPublicKey,
   KeylessPublicKey,
   KeylessSignature,
-  Secp256k1PublicKey,
-  FederatedKeylessPublicKey,
   MultiKey,
   MultiKeySignature,
+  Secp256k1PublicKey,
 } from "../../core/crypto";
 import { Ed25519PublicKey, Ed25519Signature } from "../../core/crypto/ed25519";
-import { getInfo } from "../../internal/utils";
 import { getLedgerInfo } from "../../internal/general";
 import { getGasPriceEstimation } from "../../internal/transaction";
+import { getInfo } from "../../internal/utils";
 import { NetworkToChainId } from "../../utils/apiEndpoints";
+import { getFunctionParts } from "../../utils/helpers";
+import { memoizeAsync } from "../../utils/memoize";
 import { normalizeBundle } from "../../utils/normalizeBundle";
 import {
   AccountAuthenticator,
@@ -55,34 +57,9 @@ import {
   TransactionPayloadMultiSig,
   TransactionPayloadScript,
 } from "../instances";
-import { SignedTransaction } from "../instances/signedTransaction";
-import {
-  AnyRawTransaction,
-  AnyTransactionPayloadInstance,
-  EntryFunctionArgumentTypes,
-  InputGenerateMultiAgentRawTransactionArgs,
-  InputGenerateRawTransactionArgs,
-  InputGenerateSingleSignerRawTransactionArgs,
-  InputGenerateTransactionOptions,
-  InputScriptData,
-  InputSimulateTransactionData,
-  InputMultiSigDataWithRemoteABI,
-  InputEntryFunctionDataWithRemoteABI,
-  InputGenerateTransactionPayloadDataWithRemoteABI,
-  InputSubmitTransactionData,
-  InputGenerateTransactionPayloadDataWithABI,
-  InputEntryFunctionDataWithABI,
-  InputMultiSigDataWithABI,
-  InputViewFunctionDataWithRemoteABI,
-  InputViewFunctionDataWithABI,
-  FunctionABI,
-} from "../types";
-import { convertArgument, fetchEntryFunctionAbi, fetchViewFunctionAbi, standardizeTypeTags } from "./remoteAbi";
-import { memoizeAsync } from "../../utils/memoize";
-import { isScriptDataInput } from "./helpers";
-import { SimpleTransaction } from "../instances/simpleTransaction";
 import { MultiAgentTransaction } from "../instances/multiAgentTransaction";
-import { getFunctionParts } from "../../utils/helpers";
+import { SignedTransaction } from "../instances/signedTransaction";
+import { SimpleTransaction } from "../instances/simpleTransaction";
 import {
   TransactionExecutable,
   TransactionExecutableEmpty,
@@ -91,6 +68,29 @@ import {
   TransactionExtraConfigV1,
   TransactionInnerPayloadV1,
 } from "../instances/transactionPayload";
+import {
+  AnyRawTransaction,
+  AnyTransactionPayloadInstance,
+  EntryFunctionArgumentTypes,
+  FunctionABI,
+  InputEntryFunctionDataWithABI,
+  InputEntryFunctionDataWithRemoteABI,
+  InputGenerateMultiAgentRawTransactionArgs,
+  InputGenerateRawTransactionArgs,
+  InputGenerateSingleSignerRawTransactionArgs,
+  InputGenerateTransactionOptions,
+  InputGenerateTransactionPayloadDataWithABI,
+  InputGenerateTransactionPayloadDataWithRemoteABI,
+  InputMultiSigDataWithABI,
+  InputMultiSigDataWithRemoteABI,
+  InputScriptData,
+  InputSimulateTransactionData,
+  InputSubmitTransactionData,
+  InputViewFunctionDataWithABI,
+  InputViewFunctionDataWithRemoteABI,
+} from "../types";
+import { isScriptDataInput } from "./helpers";
+import { convertArgument, fetchEntryFunctionAbi, fetchViewFunctionAbi, standardizeTypeTags } from "./remoteAbi";
 
 /**
  * Builds a transaction payload based on the provided arguments and returns a transaction payload.
@@ -101,7 +101,7 @@ import {
  * @param args.function - The function to be called, specified in the format "moduleAddress::moduleName::functionName".
  * @param args.functionArguments - The arguments to pass to the function.
  * @param args.typeArguments - The type arguments for the function.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.abi - The ABI to use for the transaction, if not using the RemoteABI.
  *
  * @returns TransactionPayload - The generated transaction payload, which can be of type TransactionPayloadScript,
@@ -150,7 +150,7 @@ export async function generateTransactionPayload(
     moduleAddress,
     moduleName,
     functionName,
-    aptosConfig: args.aptosConfig,
+    movementConfig: args.movementConfig,
     abi: args.abi,
     fetch: fetchEntryFunctionAbi,
   });
@@ -253,7 +253,7 @@ export function generateTransactionPayloadWithABI(
  *
  * @param args - The input data required to generate the view function payload.
  * @param args.function - The function identifier in the format "moduleAddress::moduleName::functionName".
- * @param args.aptosConfig - Configuration settings for the Aptos client.
+ * @param args.movementConfig - Configuration settings for the Movement client.
  * @param args.abi - The ABI (Application Binary Interface) of the module.
  *
  * @returns The generated payload for the view function call.
@@ -268,7 +268,7 @@ export async function generateViewFunctionPayload(args: InputViewFunctionDataWit
     moduleAddress,
     moduleName,
     functionName,
-    aptosConfig: args.aptosConfig,
+    movementConfig: args.movementConfig,
     abi: args.abi,
     fetch: fetchViewFunctionAbi,
   });
@@ -346,10 +346,10 @@ function generateTransactionPayloadScript(args: InputScriptData) {
 }
 
 /**
- * Generates a raw transaction that can be sent to the Aptos network.
+ * Generates a raw transaction that can be sent to the Movement network.
  *
  * @param args - The arguments for generating the raw transaction.
- * @param args.aptosConfig - The configuration for the Aptos network.
+ * @param args.movementConfig - The configuration for the Movement network.
  * @param args.sender - The transaction's sender account address as a hex input.
  * @param args.payload - The transaction payload, which can be created using generateTransactionPayload().
  * @param args.options - Optional parameters for transaction generation.
@@ -360,23 +360,23 @@ function generateTransactionPayloadScript(args: InputScriptData) {
  * @category Transactions
  */
 export async function generateRawTransaction(args: {
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   sender: AccountAddressInput;
   payload: AnyTransactionPayloadInstance;
   options?: InputGenerateTransactionOptions;
   feePayerAddress?: AccountAddressInput;
 }): Promise<RawTransaction> {
-  const { aptosConfig, sender, payload, options, feePayerAddress } = args;
+  const { movementConfig, sender, payload, options, feePayerAddress } = args;
 
   if (options?.replayProtectionNonce !== undefined && options?.accountSequenceNumber !== undefined) {
     throw new Error("Cannot specify both replayProtectionNonce and accountSequenceNumber in options.");
   }
 
   const getChainId = async () => {
-    if (NetworkToChainId[aptosConfig.network]) {
-      return { chainId: NetworkToChainId[aptosConfig.network] };
+    if (NetworkToChainId[movementConfig.network]) {
+      return { chainId: NetworkToChainId[movementConfig.network] };
     }
-    const info = await getLedgerInfo({ aptosConfig });
+    const info = await getLedgerInfo({ movementConfig });
     return { chainId: info.chain_id };
   };
 
@@ -384,7 +384,7 @@ export async function generateRawTransaction(args: {
     if (options?.gasUnitPrice) {
       return { gasEstimate: options.gasUnitPrice };
     }
-    const estimation = await getGasPriceEstimation({ aptosConfig });
+    const estimation = await getGasPriceEstimation({ movementConfig });
     return { gasEstimate: estimation.gas_estimate };
   };
 
@@ -398,7 +398,7 @@ export async function generateRawTransaction(args: {
         return 0xdeadbeefn;
       }
 
-      return (await getInfo({ aptosConfig, accountAddress: sender })).sequence_number;
+      return (await getInfo({ movementConfig, accountAddress: sender })).sequence_number;
     };
 
     /**
@@ -427,10 +427,10 @@ export async function generateRawTransaction(args: {
   ]);
 
   const { maxGasAmount, gasUnitPrice, expireTimestamp, replayProtectionNonce } = {
-    maxGasAmount: options?.maxGasAmount ? BigInt(options.maxGasAmount) : BigInt(aptosConfig.getDefaultMaxGasAmount()),
+    maxGasAmount: options?.maxGasAmount ? BigInt(options.maxGasAmount) : BigInt(movementConfig.getDefaultMaxGasAmount()),
     gasUnitPrice: options?.gasUnitPrice ?? BigInt(gasEstimate),
     expireTimestamp:
-      options?.expireTimestamp ?? BigInt(Math.floor(Date.now() / 1000) + aptosConfig.getDefaultTxnExpirySecFromNow()),
+      options?.expireTimestamp ?? BigInt(Math.floor(Date.now() / 1000) + movementConfig.getDefaultTxnExpirySecFromNow()),
     replayProtectionNonce: options?.replayProtectionNonce ? BigInt(options.replayProtectionNonce) : undefined,
   };
 
@@ -491,7 +491,7 @@ export function convertPayloadToInnerPayload(
  * This function can create both simple and multi-agent transactions, allowing for flexible transaction handling.
  *
  * @param args - The input arguments for generating the transaction.
- * @param args.aptosConfig - The configuration settings for Aptos.
+ * @param args.movementConfig - The configuration settings for Movement.
  * @param args.sender - The transaction's sender account address as a hex input.
  * @param args.payload - The transaction payload, which can be created using `generateTransactionPayload()`.
  * @param args.options - Optional. Transaction options object.
@@ -514,7 +514,7 @@ export async function buildTransaction(args: InputGenerateMultiAgentRawTransacti
  * Note: we can start with one function to support all different payload/transaction types,
  * and if to complex to use, we could have function for each type
  *
- * @param args.aptosConfig AptosConfig
+ * @param args.movementConfig MovementConfig
  * @param args.sender The transaction's sender account address as a hex input
  * @param args.payload The transaction payload - can create by using generateTransactionPayload()
  * @param args.options optional. Transaction options object
@@ -533,10 +533,10 @@ export async function buildTransaction(args: InputGenerateMultiAgentRawTransacti
  * @category Transactions
  */
 export async function buildTransaction(args: InputGenerateRawTransactionArgs): Promise<AnyRawTransaction> {
-  const { aptosConfig, sender, payload, options, feePayerAddress } = args;
+  const { movementConfig, sender, payload, options, feePayerAddress } = args;
   // generate raw transaction
   const rawTxn = await generateRawTransaction({
-    aptosConfig,
+    movementConfig,
     sender,
     payload,
     options,
@@ -563,7 +563,7 @@ export async function buildTransaction(args: InputGenerateRawTransactionArgs): P
  * This function helps in preparing a transaction that can be simulated, allowing users to verify its validity and expected behavior.
  *
  * @param args - The input data required to generate the signed transaction for simulation.
- * @param args.transaction - An Aptos transaction type to sign.
+ * @param args.transaction - An Movement transaction type to sign.
  * @param args.signerPublicKey - The public key of the signer.
  * @param args.secondarySignersPublicKeys - Optional. The public keys of secondary signers if it is a multi-signer transaction.
  * @param args.feePayerPublicKey - Optional. The public key of the fee payer in a sponsored transaction.
@@ -720,7 +720,7 @@ export function getAuthenticatorForSimulation(publicKey?: PublicKey) {
  * This function prepares the transaction by authenticating the sender and any additional signers based on the provided arguments.
  *
  * @param args - The input data required to generate the signed transaction.
- * @param args.transaction - An Aptos transaction type containing the details of the transaction.
+ * @param args.transaction - An Movement transaction type containing the details of the transaction.
  * @param args.senderAuthenticator - The account authenticator of the transaction sender.
  * @param args.feePayerAuthenticator - The authenticator for the fee payer, required if the transaction has a fee payer address.
  * @param args.additionalSignersAuthenticators - Optional authenticators for additional signers in a multi-signer transaction.
@@ -827,7 +827,7 @@ export function generateUserTransactionHash(args: InputSubmitTransactionData): s
  * @param moduleAddress - The address of the module from which to fetch the ABI.
  * @param moduleName - The name of the module containing the function.
  * @param functionName - The name of the function whose ABI is being fetched.
- * @param aptosConfig - Configuration settings for Aptos.
+ * @param movementConfig - Configuration settings for Movement.
  * @param abi - An optional ABI to use if already available.
  * @param fetch - A function to fetch the ABI if it is not provided.
  * @group Implementation
@@ -838,7 +838,7 @@ async function fetchAbi<T extends FunctionABI>({
   moduleAddress,
   moduleName,
   functionName,
-  aptosConfig,
+  movementConfig,
   abi,
   fetch,
 }: {
@@ -846,9 +846,9 @@ async function fetchAbi<T extends FunctionABI>({
   moduleAddress: string;
   moduleName: string;
   functionName: string;
-  aptosConfig: AptosConfig;
+  movementConfig: MovementConfig;
   abi?: T;
-  fetch: (moduleAddress: string, moduleName: string, functionName: string, aptosConfig: AptosConfig) => Promise<T>;
+  fetch: (moduleAddress: string, moduleName: string, functionName: string, movementConfig: MovementConfig) => Promise<T>;
 }): Promise<T> {
   if (abi !== undefined) {
     return abi;
@@ -856,8 +856,8 @@ async function fetchAbi<T extends FunctionABI>({
 
   // We fetch the entry function ABI, and then pretend that we already had the ABI
   return memoizeAsync(
-    async () => fetch(moduleAddress, moduleName, functionName, aptosConfig),
-    `${key}-${aptosConfig.network}-${moduleAddress}-${moduleName}-${functionName}`,
+    async () => fetch(moduleAddress, moduleName, functionName, movementConfig),
+    `${key}-${movementConfig.network}-${moduleAddress}-${moduleName}-${functionName}`,
     1000 * 60 * 5, // 5 minutes
   )();
 }

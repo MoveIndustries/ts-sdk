@@ -1,7 +1,8 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 export * from "./abstraction";
+export * from "./deserializationUtils";
 export * from "./ed25519";
 export * from "./ephemeral";
 export * from "./federatedKeyless";
@@ -17,4 +18,4 @@ export * from "./secp256r1";
 export * from "./signature";
 export * from "./singleKey";
 export * from "./types";
-export * from "./deserializationUtils";
+

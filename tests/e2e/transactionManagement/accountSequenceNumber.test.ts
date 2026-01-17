@@ -1,21 +1,21 @@
-import { longTestTimeout } from "../../unit/helper";
 import { Account } from "../../../src/account";
 import * as AccountQueries from "../../../src/internal/account";
 import { AccountSequenceNumber } from "../../../src/transactions/management/accountSequenceNumber";
+import { longTestTimeout } from "../../unit/helper";
 import { getAptosClient } from "../helper";
 
-const { aptos, config: aptosConfig } = getAptosClient();
+const { aptos, config: movementConfig } = getAptosClient();
 
 const account = Account.generate();
 
-const accountSequenceNumber = new AccountSequenceNumber(aptosConfig, account, 30, 100, 10);
+const accountSequenceNumber = new AccountSequenceNumber(movementConfig, account, 30, 100, 10);
 let getAccountInfoSpy: jest.SpyInstance;
 
 let lastSeqNumber: bigint | null;
 
 describe("account sequence number", () => {
   beforeAll(async () => {
-    await aptos.fundAccount({ accountAddress: account.accountAddress, amount: 1000000000 });
+    await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1000000000 });
   }, longTestTimeout);
 
   beforeEach(() => {

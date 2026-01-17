@@ -1,15 +1,15 @@
-import { AptosApiError } from "../../src/errors";
-import { AptosApiType } from "../../src/utils/const.js";
+import { MovementApiError } from "../../src/errors";
+import { MovementApiType } from "../../src/utils/const.js";
 
-describe(AptosApiError.name, () => {
+describe(MovementApiError.name, () => {
   it("should generate pretty error messages", () => {
-    const err = new AptosApiError({
-      apiType: AptosApiType.PEPPER,
+    const err = new MovementApiError({
+      apiType: MovementApiType.PEPPER,
       aptosRequest: {
         url: "http://blabla.com/my/api:8080",
         method: "POST",
       },
-      aptosResponse: {
+      movementResponse: {
         data: { error: "something went wrong" },
         status: 400,
         statusText: "Bad Request",
@@ -20,13 +20,13 @@ describe(AptosApiError.name, () => {
 
     expect(err.message).toMatchSnapshot();
 
-    const err2 = new AptosApiError({
-      apiType: AptosApiType.INDEXER,
+    const err2 = new MovementApiError({
+      apiType: MovementApiType.INDEXER,
       aptosRequest: {
         url: "http://blabla.com/my/api:8080",
         method: "POST",
       },
-      aptosResponse: {
+      movementResponse: {
         data: {
           data: null,
           errors: [
@@ -44,13 +44,13 @@ describe(AptosApiError.name, () => {
 
     expect(err2.message).toMatchSnapshot();
 
-    const err3 = new AptosApiError({
-      apiType: AptosApiType.INDEXER,
+    const err3 = new MovementApiError({
+      apiType: MovementApiType.INDEXER,
       aptosRequest: {
         url: "http://blabla.com/my/api:8080",
         method: "POST",
       },
-      aptosResponse: {
+      movementResponse: {
         data: {
           // some kinda large response payload
           foo: "bar",

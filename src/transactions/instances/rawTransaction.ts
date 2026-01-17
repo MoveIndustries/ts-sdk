@@ -1,19 +1,19 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { Deserializer } from "../../bcs/deserializer";
 import { Serializable, Serializer } from "../../bcs/serializer";
-import { ChainId } from "./chainId";
 import { AccountAddress } from "../../core";
-import { TransactionPayload } from "./transactionPayload";
 import { TransactionVariants } from "../../types";
+import { ChainId } from "./chainId";
+import { TransactionPayload } from "./transactionPayload";
 
 /**
  * Represents a raw transaction that can be serialized and deserialized.
- * Raw transactions contain the metadata and payloads that can be submitted to the Aptos chain for execution.
- * They must be signed before the Aptos chain can execute them.
+ * Raw transactions contain the metadata and payloads that can be submitted to the Movement chain for execution.
+ * They must be signed before the Movement chain can execute them.
  * @group Implementation
  * @category Transactions
  */
@@ -33,13 +33,13 @@ export class RawTransaction extends Serializable {
   public readonly chain_id: ChainId;
 
   /**
-   * RawTransactions contain the metadata and payloads that can be submitted to Aptos chain for execution.
-   * RawTransactions must be signed before Aptos chain can execute them.
+   * RawTransactions contain the metadata and payloads that can be submitted to Movement chain for execution.
+   * RawTransactions must be signed before Movement chain can execute them.
    *
    * @param sender The sender Account Address
    * @param sequence_number Sequence number of this transaction. This must match the sequence number stored in
    *   the sender's account at the time the transaction executes.
-   * @param payload Instructions for the Aptos Blockchain, including publishing a module,
+   * @param payload Instructions for the Movement Blockchain, including publishing a module,
    *   execute an entry function or execute a script payload.
    * @param max_gas_amount Maximum total gas to spend for this transaction. The account must have more
    *   than this gas or the transaction will be discarded during validation.

@@ -1,10 +1,10 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { decode } from "js-base64";
-import { MoveFunctionId, MoveStructId } from "../types";
-import { AccountAddress } from "../core/accountAddress";
 import { createObjectAddress } from "../core/account/utils/address";
+import { AccountAddress } from "../core/accountAddress";
+import { MoveFunctionId, MoveStructId } from "../types";
 
 /**
  * Sleep for the specified amount of time in milliseconds.

@@ -8,40 +8,39 @@
  * it to another server (for example, backend) to deserialize and signs as the sponsor,
  * then sends it back to the other server (the frontend server) to submit the transaction.
  */
-import dotenv from "dotenv";
-dotenv.config();
 import {
   Account,
   AccountAuthenticator,
-  Aptos,
-  AptosConfig,
   Deserializer,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
-  SimpleTransaction,
+  SimpleTransaction
 } from "@moveindustries/ts-sdk";
+import dotenv from "dotenv";
+dotenv.config();
 
 const INITIAL_BALANCE = 100_000_000;
 const TRANSFER_AMOUNT = 100;
 
 // Default to devnet, but allow for overriding
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK] || Network.DEVNET;
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK] || Network.DEVNET;
 // Set up the client
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 
 // The sponsor server gets the serialized transaction to sign as the fee payer
 const sendToTheSponsorServer = async (transactionBytes: Uint8Array) => {
   const sponsor = Account.generate();
   console.log(`Sponsor's address is: ${sponsor.accountAddress}`);
-  await aptos.fundAccount({ accountAddress: sponsor.accountAddress, amount: INITIAL_BALANCE });
+  await movement.fundAccount({ accountAddress: sponsor.accountAddress, amount: INITIAL_BALANCE });
 
   // deserialize raw transaction
   const deserializer = new Deserializer(transactionBytes);
   const transaction = SimpleTransaction.deserialize(deserializer);
 
   // Sponsor signs
-  const sponsorAuth = aptos.transaction.signAsFeePayer({
+  const sponsorAuth = movement.transaction.signAsFeePayer({
     signer: sponsor,
     transaction,
   });
@@ -63,14 +62,14 @@ const example = async () => {
   // Fund the accounts
   console.log("\n=== Funding accounts ===\n");
 
-  await aptos.fundAccount({
+  await movement.fundAccount({
     accountAddress: alice.accountAddress,
     amount: INITIAL_BALANCE,
   });
 
   console.log("\n=== Accounts funded ===\n");
 
-  const transaction = await aptos.transaction.build.simple({
+  const transaction = await movement.transaction.build.simple({
     sender: alice.accountAddress,
     withFeePayer: true,
     data: {
@@ -80,7 +79,7 @@ const example = async () => {
   });
 
   // Alice signs
-  const senderAuth = aptos.transaction.sign({ signer: alice, transaction });
+  const senderAuth = movement.transaction.sign({ signer: alice, transaction });
 
   // Send the serialized transaction to the sponsor server to sign
   const { sponsorAuthBytes, signedTransaction } = await sendToTheSponsorServer(transaction.bcsToBytes());
@@ -89,13 +88,13 @@ const example = async () => {
   const deserializer = new Deserializer(sponsorAuthBytes);
   const feePayerAuthenticator = AccountAuthenticator.deserialize(deserializer);
 
-  const response = await aptos.transaction.submit.simple({
+  const response = await movement.transaction.submit.simple({
     transaction: signedTransaction,
     senderAuthenticator: senderAuth,
     feePayerAuthenticator,
   });
 
-  const executedTransaction = await aptos.waitForTransaction({ transactionHash: response.hash });
+  const executedTransaction = await movement.waitForTransaction({ transactionHash: response.hash });
   console.log("executed transaction", executedTransaction.hash);
 };
 

@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountAddress, Serializable, Serializer, Deserializer } from "../../src";
+import { AccountAddress, Deserializer, Serializable, Serializer } from "../../src";
 
 describe("BCS Deserializer", () => {
   it("deserializes a non-empty string", () => {

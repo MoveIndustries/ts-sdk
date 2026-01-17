@@ -10,29 +10,28 @@
  * or get an execution validation error.
  *
  * The TransactionWorker constructor accepts
- * @param aptosConfig - a config object
+ * @param movementConfig - a config object
  * @param sender - the sender account
  * @param maxWaitTime - the max wait time to wait before restarting the local sequence number to the current on-chain state
  * @param maximumInFlight - submit up to `maximumInFlight` transactions per account
  * @param sleepTime - If `maximumInFlight` are in flight, wait `sleepTime` seconds before re-evaluating
  *
- * Read more about it here {@link https://aptos.dev/guides/transaction-management}
+ * Read more about it here {@link https://movement.dev/guides/transaction-management}
  */
 import {
   Account,
-  Aptos,
-  AptosConfig,
   InputGenerateTransactionPayloadData,
+  MovementConfig,
   Network,
   NetworkToNetworkName,
-  UserTransactionResponse,
   TransactionWorkerEventsEnum,
+  UserTransactionResponse
 } from "@moveindustries/ts-sdk";
 
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
-const config = new AptosConfig({ network: APTOS_NETWORK });
-const aptos = new Aptos(config);
+const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+const movement = new Movement(config);
 const COLLECTION_NAME = "My batch collection!";
 const tokensToMint = 100;
 
@@ -43,20 +42,20 @@ async function main() {
   // fund sender accounts
   const funds: Array<Promise<UserTransactionResponse>> = [];
 
-  funds.push(aptos.fundAccount({ accountAddress: sender.accountAddress, amount: 10000000000 }));
+  funds.push(movement.fundAccount({ accountAddress: sender.accountAddress, amount: 10000000000 }));
 
   await Promise.all(funds);
 
   // First need to create a collection on chain
   console.log("creating collection...");
-  const transaction = await aptos.createCollectionTransaction({
+  const transaction = await movement.createCollectionTransaction({
     creator: sender,
     description: "Batch Collection",
     name: COLLECTION_NAME,
-    uri: "https://aptos.dev",
+    uri: "https://movement.dev",
   });
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer: sender, transaction });
-  await aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer: sender, transaction });
+  await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   console.log("collection has been created");
 
   const payloads: InputGenerateTransactionPayloadData[] = [];
@@ -68,7 +67,7 @@ async function main() {
         COLLECTION_NAME,
         `my ${i} token description`,
         `my ${i} token`,
-        "https://aptos.dev/nft",
+        "https://movement.dev/nft",
         [],
         [],
         [],
@@ -78,18 +77,18 @@ async function main() {
   }
 
   // batch mint token transactions
-  aptos.transaction.batch.forSingleAccount({ sender, data: payloads });
+  movement.transaction.batch.forSingleAccount({ sender, data: payloads });
 
-  aptos.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data) => {
+  movement.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data) => {
     // log event output
     console.log(data);
 
     // verify account sequence number
-    const account = await aptos.getAccountInfo({ accountAddress: sender.accountAddress });
+    const account = await movement.getAccountInfo({ accountAddress: sender.accountAddress });
     console.log(`account sequence number is 101: ${account.sequence_number === "101"}`);
 
     // worker finished execution, we can now unsubscribe from event listeners
-    aptos.transaction.batch.removeAllListeners();
+    movement.transaction.batch.removeAllListeners();
     process.exit(0);
   });
 }

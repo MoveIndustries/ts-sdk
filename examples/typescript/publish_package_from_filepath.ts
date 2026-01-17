@@ -1,9 +1,9 @@
 /**
- * This example demonstrates how we can use `aptos.publishPackageTransaction()` method to publish a move package
+ * This example demonstrates how we can use `movement.publishPackageTransaction()` method to publish a move package
  * read from a local path.
  *
  * Before running this example, we should compile the package locally:
- * 1. Acquire the Aptos CLI, see https://aptos.dev/cli-tools/aptos-cli/use-cli/install-aptos-cli
+ * 1. Acquire the Movement CLI, see https://movement.dev/cli-tools/aptos-cli/use-cli/install-aptos-cli
  * 2. cd `~/aptos-ts-sdk/examples/typescript`
  * 3. Run `pnpm run publish_package_from_filepath` and follow the prompt
  */
@@ -12,23 +12,23 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import { Account, Hex, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import assert from "assert";
-import { Account, Aptos, AptosConfig, Hex, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import { compilePackage, getPackageBytesToPublish } from "./utils";
 
-const APTOS_NETWORK: Network = NetworkToNetworkName[process.env.APTOS_NETWORK ?? Network.DEVNET];
+const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
 /** run our demo! */
 async function main() {
-  const config = new AptosConfig({ network: APTOS_NETWORK });
-  const aptos = new Aptos(config);
+  const config = new MovementConfig({ network: MOVEMENT_NETWORK });
+  const movement = new Movement(config);
 
   const alice = Account.generate();
 
   console.log("\n=== Addresses ===");
   console.log(`Alice: ${alice.accountAddress}`);
 
-  await aptos.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+  await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
 
   // Please ensure you have the aptos CLI installed
   console.log("\n=== Compiling the package locally ===");
@@ -39,22 +39,22 @@ async function main() {
   const { metadataBytes, byteCode } = getPackageBytesToPublish("move/facoin/publish_payload.json");
 
   console.log("\n===Publishing FAcoin package===");
-  const transaction = await aptos.publishPackageTransaction({
+  const transaction = await movement.publishPackageTransaction({
     account: alice.accountAddress,
     metadataBytes,
     moduleBytecode: byteCode,
   });
-  const response = await aptos.signAndSubmitTransaction({
+  const response = await movement.signAndSubmitTransaction({
     signer: alice,
     transaction,
   });
   console.log(`Transaction hash: ${response.hash}`);
-  await aptos.waitForTransaction({
+  await movement.waitForTransaction({
     transactionHash: response.hash,
   });
 
   console.log("\n===Checking modules onchain===");
-  const accountModules = await aptos.getAccountModules({
+  const accountModules = await movement.getAccountModules({
     accountAddress: alice.accountAddress,
   });
   // published 4 modules

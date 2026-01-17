@@ -1,6 +1,17 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
+import { Account } from "../account";
+import { AccountAddress, AccountAddressInput } from "../core";
+import {
+  getCurrentFungibleAssetBalances,
+  getFungibleAssetActivities,
+  getFungibleAssetMetadata,
+  transferFungibleAsset,
+  transferFungibleAssetBetweenStores,
+} from "../internal/fungibleAsset";
+import { InputGenerateTransactionOptions } from "../transactions";
+import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 import {
   AnyNumber,
   GetCurrentFungibleAssetBalancesResponse,
@@ -10,54 +21,43 @@ import {
   WhereArg,
 } from "../types";
 import {
-  getCurrentFungibleAssetBalances,
-  getFungibleAssetActivities,
-  getFungibleAssetMetadata,
-  transferFungibleAsset,
-  transferFungibleAssetBetweenStores,
-} from "../internal/fungibleAsset";
-import {
   CurrentFungibleAssetBalancesBoolExp,
   FungibleAssetActivitiesBoolExp,
   FungibleAssetMetadataBoolExp,
 } from "../types/generated/types";
 import { ProcessorType } from "../utils/const";
-import { AptosConfig } from "./aptosConfig";
+import { MovementConfig } from "./movementConfig";
 import { waitForIndexerOnVersion } from "./utils";
-import { Account } from "../account";
-import { AccountAddress, AccountAddressInput } from "../core";
-import { InputGenerateTransactionOptions } from "../transactions";
-import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 
 /**
- * A class for querying and managing fungible asset-related operations on the Aptos blockchain.
+ * A class for querying and managing fungible asset-related operations on the Movement blockchain.
  * @group FungibleAsset
  */
 export class FungibleAsset {
   /**
-   * Initializes a new instance of the Aptos class with the provided configuration.
-   * This allows you to interact with the Aptos blockchain using the specified network settings.
+   * Initializes a new instance of the Movement class with the provided configuration.
+   * This allows you to interact with the Movement blockchain using the specified network settings.
    *
-   * @param config - The configuration settings for connecting to the Aptos network.
+   * @param config - The configuration settings for connecting to the Movement network.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
    * async function runExample() {
-   *     // Create a configuration for the Aptos client
-   *     const config = new AptosConfig({ network: Network.TESTNET }); // Specify your own network if needed
+   *     // Create a configuration for the Movement client
+   *     const config = new MovementConfig({ network: Network.TESTNET }); // Specify your own network if needed
    *
-   *     // Initialize the Aptos client with the configuration
-   *     const aptos = new Aptos(config);
+   *     // Initialize the Movement client with the configuration
+   *     const movement = new Movement(config);
    *
-   *     console.log("Aptos client initialized:", aptos);
+   *     console.log("Movement client initialized:", aptos);
    * }
    * runExample().catch(console.error);
    * ```
    * @group FungibleAsset
    */
-  constructor(readonly config: AptosConfig) { }
+  constructor(readonly config: MovementConfig) { }
 
   /**
    * Queries all fungible asset metadata.
@@ -70,14 +70,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching fungible asset metadata
-   *   const fungibleAssets = await aptos.getFungibleAssetMetadata();
+   *   const fungibleAssets = await movement.getFungibleAssetMetadata();
    *   console.log(fungibleAssets);
    * }
    * runExample().catch(console.error);
@@ -93,7 +93,7 @@ export class FungibleAsset {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
-    return getFungibleAssetMetadata({ aptosConfig: this.config, ...args });
+    return getFungibleAssetMetadata({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -101,21 +101,21 @@ export class FungibleAsset {
    * This function helps retrieve detailed information about a fungible asset based on its type.
    *
    * @param args - The parameters for the query.
-   * @param args.assetType - The asset type of the fungible asset, e.g., "0x1::aptos_coin::AptosCoin" for Aptos Coin.
+   * @param args.assetType - The asset type of the fungible asset, e.g., "0x1::aptos_coin::AptosCoin" for Movement Coin.
    * @param args.minimumLedgerVersion - Optional ledger version to sync up to before querying.
    *
    * @returns A fungible asset metadata item.
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve fungible asset metadata by asset type
-   *   const fungibleAsset = await aptos.getFungibleAssetMetadataByAssetType({
+   *   const fungibleAsset = await movement.getFungibleAssetMetadataByAssetType({
    *     assetType: "0x1::aptos_coin::AptosCoin" // replace with your asset type
    *   });
    *
@@ -135,7 +135,7 @@ export class FungibleAsset {
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
     const data = await getFungibleAssetMetadata({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       options: {
         where: {
           asset_type: { _eq: args.assetType },
@@ -159,14 +159,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Retrieve fungible asset metadata by creator address
-   *   const fungibleAsset = await aptos.getFungibleAssetMetadataByCreatorAddress({
+   *   const fungibleAsset = await movement.getFungibleAssetMetadataByCreatorAddress({
    *     creatorAddress: "0x123", // replace with a real creator address
    *   });
    *
@@ -186,7 +186,7 @@ export class FungibleAsset {
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
     const data = await getFungibleAssetMetadata({
-      aptosConfig: this.config,
+      movementConfig: this.config,
       options: {
         where: {
           creator_address: { _eq: AccountAddress.from(args.creatorAddress).toStringLong() },
@@ -207,14 +207,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching fungible asset activities
-   *   const fungibleAssetActivities = await aptos.getFungibleAssetActivities();
+   *   const fungibleAssetActivities = await movement.getFungibleAssetActivities();
    *   console.log(fungibleAssetActivities);
    * }
    * runExample().catch(console.error);
@@ -230,7 +230,7 @@ export class FungibleAsset {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
-    return getFungibleAssetActivities({ aptosConfig: this.config, ...args });
+    return getFungibleAssetActivities({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -244,14 +244,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Fetching current fungible asset balances
-   *   const fungibleAssetBalances = await aptos.getCurrentFungibleAssetBalances();
+   *   const fungibleAssetBalances = await movement.getCurrentFungibleAssetBalances();
    *
    *   console.log(fungibleAssetBalances);
    * }
@@ -268,7 +268,7 @@ export class FungibleAsset {
       minimumLedgerVersion: args?.minimumLedgerVersion,
       processorType: ProcessorType.FUNGIBLE_ASSET_PROCESSOR,
     });
-    return getCurrentFungibleAssetBalances({ aptosConfig: this.config, ...args });
+    return getCurrentFungibleAssetBalances({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -287,14 +287,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function runExample() {
    *   // Transfer fungible asset from sender to recipient
-   *   const transaction = await aptos.transferFungibleAsset({
+   *   const transaction = await movement.transferFungibleAsset({
    *     sender: Account.generate(), // replace with a real sender account
    *     fungibleAssetMetadataAddress: "0x123", // replace with a real fungible asset address
    *     recipient: "0x456", // replace with a real recipient account
@@ -314,7 +314,7 @@ export class FungibleAsset {
     amount: AnyNumber;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return transferFungibleAsset({ aptosConfig: this.config, ...args });
+    return transferFungibleAsset({ movementConfig: this.config, ...args });
   }
 
   /**
@@ -338,14 +338,14 @@ export class FungibleAsset {
    *
    * @example
    * ```typescript
-   * import { Aptos, AptosConfig, Network, Account } from "@moveindustries/ts-sdk";
+   * import { Movement, MovementConfig, Network, Account } from "@moveindustries/ts-sdk";
    *
-   * const config = new AptosConfig({ network: Network.TESTNET });
-   * const aptos = new Aptos(config);
+   * const config = new MovementConfig({ network: Network.TESTNET });
+   * const movement = new Movement(config);
    *
    * async function transferAssets() {
    *   // Transfer 100 units of the asset from senderStore to recipientStore
-   *   const transaction = await aptos.transferFungibleAssetBetweenStores({
+   *   const transaction = await movement.transferFungibleAssetBetweenStores({
    *     sender: Account.generate(), // replace with a real sender account
    *     fromStore: "0x123", // replace with a real fungible store address
    *     toStore: "0x456", // replace with a real fungible store address
@@ -366,6 +366,6 @@ export class FungibleAsset {
     amount: AnyNumber;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    return transferFungibleAssetBetweenStores({ aptosConfig: this.config, ...args });
+    return transferFungibleAssetBetweenStores({ movementConfig: this.config, ...args });
   }
 }
