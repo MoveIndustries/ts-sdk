@@ -22,7 +22,7 @@ import { ed25519 } from "@noble/curves/ed25519";
 import dotenv from "dotenv";
 dotenv.config();
 
-const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
+const MOVEMENT_COIN = "0x1::aptos_coin::AptosCoin";
 const COLD_INITIAL_BALANCE = 100_000_000;
 const HOT_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
@@ -146,7 +146,7 @@ const example = async () => {
     sender: cold.address(),
     data: {
       function: "0x1::coin::transfer",
-      typeArguments: [APTOS_COIN],
+      typeArguments: [MOVEMENT_COIN],
       functionArguments: [hot.accountAddress, TRANSFER_AMOUNT],
     },
   });

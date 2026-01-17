@@ -16,8 +16,8 @@ import {
 import dotenv from "dotenv";
 dotenv.config();
 
-// TODO: There currently isn't a way to use the APTOS_COIN in the COIN_STORE due to a regex
-const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
+// TODO: There currently isn't a way to use the MOVEMENT_COIN in the COIN_STORE due to a regex
+const MOVEMENT_COIN = "0x1::aptos_coin::AptosCoin";
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
@@ -88,7 +88,7 @@ const example = async () => {
     sender: alice.accountAddress,
     data: {
       function: "0x1::coin::transfer",
-      typeArguments: [parseTypeTag(APTOS_COIN)],
+      typeArguments: [parseTypeTag(MOVEMENT_COIN)],
       functionArguments: [bob.accountAddress, TRANSFER_AMOUNT],
     },
   });

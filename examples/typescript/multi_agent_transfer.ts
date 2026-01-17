@@ -18,8 +18,8 @@ import {
 import dotenv from "dotenv";
 dotenv.config();
 
-// TODO: There currently isn't a way to use the APTOS_COIN in the COIN_STORE due to a regex
-const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
+// TODO: There currently isn't a way to use the MOVEMENT_COIN in the COIN_STORE due to a regex
+const MOVEMENT_COIN = "0x1::aptos_coin::AptosCoin";
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100_000_000;
 const TRANSFER_AMOUNT = 10;
@@ -123,7 +123,7 @@ const example = async () => {
     secondarySignerAddresses: [bob.accountAddress],
     data: {
       bytecode: TRANSFER_SCRIPT,
-      typeArguments: [parseTypeTag(APTOS_COIN)],
+      typeArguments: [parseTypeTag(MOVEMENT_COIN)],
       functionArguments: [AccountAddress.fromString(objectAddress), new U64(TRANSFER_AMOUNT)],
     },
   });

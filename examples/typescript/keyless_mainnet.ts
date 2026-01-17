@@ -20,7 +20,7 @@ const GAS_UNIT_PRICE = 100; // octas / gas unit
  *
  */
 const balance = async (aptos: Movement, address: AccountAddress): Promise<any> =>
-  movement.getAccountAPTAmount({
+  movement.getAccountMOVEAmount({
     accountAddress: address,
   });
 
@@ -61,7 +61,7 @@ const example = async () => {
   console.log(`Alice's ephemeral public key is: ${aliceEphem.getPublicKey().toString()}`);
 
   // Example:
-  // Funded 0x3e42a237d4e6a504d1ce00fb12446be69cff8910e9e226e892558c094353c7dd with 0.03 APT and balance was 3,000,000
+  // Funded 0x3e42a237d4e6a504d1ce00fb12446be69cff8910e9e226e892558c094353c7dd with 0.03 MOVE and balance was 3,000,000
   // After the transfer(-to-self) of 10 octas with max gas 200 (gas units), the balance was 2,996,000 because TXN took 40 gas units of 100 octas each => 4,000 octas
   // https://explorer.aptoslabs.com/txn/0x52f6f117baa09b4afd50e3a1a77e89191a07bbf96ba7402211330eb510c62e72/userTxnOverview?network=mainnet
   let aliceBalance = await balance(aptos, alice.accountAddress);
@@ -86,7 +86,7 @@ const example = async () => {
   console.log("\n=== Balances ===\n");
   console.log(`Alice's balance is: ${aliceBalance}`);
 
-  // Transfer to yourself to not waste APT
+  // Transfer to yourself to not waste MOVE
   const transaction = await movement.transferCoinTransaction({
     sender: alice.accountAddress,
     recipient: alice.accountAddress,

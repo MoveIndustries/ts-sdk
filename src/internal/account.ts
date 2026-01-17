@@ -91,7 +91,7 @@ import {
   GetObjectData,
 } from "../types/generated/queries";
 import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
-import { APTOS_COIN } from "../utils";
+import { MOVEMENT_COIN } from "../utils";
 import { queryIndexer } from "./general";
 import { getTableItem } from "./table";
 import { generateTransaction } from "./transactionSubmission";
@@ -623,7 +623,7 @@ export async function getAccountCoinAmount(args: {
     faAddress = AccountAddress.from(faMetadataAddress).toStringLong();
   } else if (coinType !== undefined && faMetadataAddress === undefined) {
     // TODO Move to a separate function as defined in the AIP for coin migration
-    if (coinType === APTOS_COIN) {
+    if (coinType === MOVEMENT_COIN) {
       faAddress = AccountAddress.A.toStringLong();
     } else {
       faAddress = createObjectAddress(AccountAddress.A, coinType).toStringLong();
@@ -632,7 +632,7 @@ export async function getAccountCoinAmount(args: {
     const addr = AccountAddress.from(faMetadataAddress);
     faAddress = addr.toStringLong();
     if (addr === AccountAddress.A) {
-      coinAssetType = APTOS_COIN;
+      coinAssetType = MOVEMENT_COIN;
     }
     // The paired CoinType should be populated outside of this function in another
     // async call. We cannot do this internally due to dependency cycles issue.

@@ -6,10 +6,10 @@
 import {
   Account,
   AccountAddress,
-  APTOS_COIN,
   EntryFunctionABI,
   InputViewFunctionJsonData,
   Movement,
+  MOVEMENT_COIN,
   MovementConfig,
   Network,
   NetworkToNetworkName,
@@ -22,7 +22,7 @@ import {
 import dotenv from "dotenv";
 dotenv.config();
 
-const APTOS_COIN_TYPE = parseTypeTag(APTOS_COIN);
+const MOVE_COIN_TYPE = parseTypeTag(MOVEMENT_COIN);
 const ALICE_INITIAL_BALANCE = 100_000_000;
 const BOB_INITIAL_BALANCE = 100;
 const TRANSFER_AMOUNT = 100;
@@ -125,7 +125,7 @@ const example = async () => {
       sender: aliceAddressString,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bobAddressString, TRANSFER_AMOUNT],
       },
     }),
@@ -137,7 +137,7 @@ const example = async () => {
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bob.accountAddress, new U64(TRANSFER_AMOUNT)],
       },
     }),
@@ -149,7 +149,7 @@ const example = async () => {
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bobAddressString, TRANSFER_AMOUNT],
         abi: transferAbi,
       },
@@ -162,7 +162,7 @@ const example = async () => {
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bob.accountAddress, new U64(TRANSFER_AMOUNT)],
         abi: transferAbi,
       },
@@ -177,7 +177,7 @@ const example = async () => {
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bob.accountAddress, new U64(TRANSFER_AMOUNT)],
         abi: transferAbi,
       },
@@ -193,7 +193,7 @@ const example = async () => {
       sender: alice.accountAddress,
       data: {
         function: "0x1::coin::transfer",
-        typeArguments: [APTOS_COIN_TYPE],
+        typeArguments: [MOVE_COIN_TYPE],
         functionArguments: [bob.accountAddress, new U64(TRANSFER_AMOUNT)],
         abi: transferAbi,
       },

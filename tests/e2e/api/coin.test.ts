@@ -1,9 +1,6 @@
 import {
   Account,
   Deserializer,
-  Movement,
-  MovementConfig,
-  Network,
   RawTransaction,
   TransactionPayloadEntryFunction
 } from "../../../src";
@@ -71,7 +68,7 @@ describe("coin", () => {
   });
 
   test(
-    "it transfers APT coin amount from sender to recipient",
+    "it transfers MOVE coin amount from sender to recipient",
     async () => {
       const { movement } = getMovementClient();
       const sender = Account.generate();

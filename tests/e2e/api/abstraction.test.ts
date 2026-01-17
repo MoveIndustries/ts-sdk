@@ -1,4 +1,4 @@
-import { AbstractedAccount, Account, AccountAddress, Ed25519PrivateKey, Hex, MoveVector, Network } from "../../../src";
+import { AbstractedAccount, Account, AccountAddress, Ed25519PrivateKey, Hex, MoveVector } from "../../../src";
 import { DerivableAbstractedAccount } from "../../../src/account/DerivableAbstractedAccount";
 import { Ed25519Account } from "../../../src/account/Ed25519Account";
 import { ed25519, FUND_AMOUNT } from "../../unit/helper";
@@ -100,7 +100,7 @@ describe("abstraction api", () => {
 
         const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await movement.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100);
       });
 
       it("should disable account abstraction without specifying authentication function", async () => {
@@ -160,7 +160,7 @@ describe("abstraction api", () => {
 
         const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await movement.getAccountAPTAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100);
       });
 
       it("should fail to send a transaction with wrong custom signer", async () => {

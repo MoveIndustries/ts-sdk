@@ -56,8 +56,8 @@ import { Submit } from "./transactionSubmission/submit";
  * ```typescript
  * import { Account, Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
  *
- * const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
- * const COIN_STORE = `0x1::coin::CoinStore<${APTOS_COIN}>`;
+ * const MOVEMENT_COIN = "0x1::aptos_coin::AptosCoin";
+ * const COIN_STORE = `0x1::coin::CoinStore<${MOVEMENT_COIN}>`;
  * const ALICE_INITIAL_BALANCE = 100_000_000;
  * const TRANSFER_AMOUNT = 100;
  *

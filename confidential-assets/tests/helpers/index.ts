@@ -1,38 +1,33 @@
-import path from "path";
-import fs from "fs";
 import {
-  Network,
-  NetworkToNetworkName,
-  AptosConfig,
-  Aptos,
+  Account,
   AccountAddress,
   AnyRawTransaction,
-  Account,
+  Aptos,
+  AptosConfig,
   CommittedTransactionResponse,
-  InputGenerateTransactionPayloadData,
-  TransactionWorkerEventsEnum,
+  Ed25519Account,
   Ed25519PrivateKey,
+  InputGenerateTransactionPayloadData,
+  InputSubmitTransactionData,
+  Network,
+  PendingTransactionResponse,
   PrivateKey,
   PrivateKeyVariants,
-  Ed25519Account,
-  AptosApiType,
-  SimpleTransaction,
-  PendingTransactionResponse,
-  InputSubmitTransactionData,
   TransactionSubmitter,
+  TransactionWorkerEventsEnum
 } from "@moveindustries/ts-sdk";
-import { ConfidentialAssetTransactionBuilder } from "../../src";
-import { TwistedEd25519PrivateKey } from "../../src";
-import { ConfidentialAsset } from "../../src";
+import fs from "fs";
+import path from "path";
+import { ConfidentialAsset, TwistedEd25519PrivateKey } from "../../src";
 
 export const longTestTimeout = 120 * 1000;
 
 /**
- * Address APT token to be used for testing.
+ * Address MOVE token to be used for testing.
  */
 export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000000000000000000a";
 
-const APTOS_NETWORK: Network = Network.LOCAL;
+const MOVEMENT_NETWORK: Network = Network.LOCAL;
 
 export const feePayerAccount = Account.generate();
 
@@ -57,7 +52,7 @@ class CustomTransactionSubmitter implements TransactionSubmitter {
 }
 
 const config = new AptosConfig({
-  network: APTOS_NETWORK,
+  network: MOVEMENT_NETWORK,
   pluginSettings: {
     TRANSACTION_SUBMITTER: new CustomTransactionSubmitter(),
   },

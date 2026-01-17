@@ -4,7 +4,7 @@ import { TypeTagAddress, TypeTagU64 } from "../transactions";
 import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 import { EntryFunctionABI, InputGenerateTransactionOptions } from "../transactions/types";
 import { AnyNumber, MoveStructId } from "../types";
-import { APTOS_COIN } from "../utils/const";
+import { MOVEMENT_COIN } from "../utils/const";
 import { generateTransaction } from "./transactionSubmission";
 
 const coinTransferAbi: EntryFunctionABI = {
@@ -34,7 +34,7 @@ export async function transferCoinTransaction(args: {
   options?: InputGenerateTransactionOptions;
 }): Promise<SimpleTransaction> {
   const { movementConfig, sender, recipient, amount, coinType, options } = args;
-  const coinStructType = coinType ?? APTOS_COIN;
+  const coinStructType = coinType ?? MOVEMENT_COIN;
   return generateTransaction({
     movementConfig,
     sender,

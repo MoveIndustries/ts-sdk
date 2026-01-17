@@ -76,7 +76,7 @@ describe("general api", () => {
       };
 
       const symbol = (await movement.view<[string]>({ payload }))[0];
-      expect(symbol).toEqual("APT");
+      expect(symbol).toEqual("MOVE");
 
       const payload2: InputViewFunctionData = {
         function: "0x1::coin::decimals",
@@ -155,7 +155,7 @@ describe("general api", () => {
       };
 
       const symbol = (await movement.viewJson<[string]>({ payload }))[0];
-      expect(symbol).toEqual("APT");
+      expect(symbol).toEqual("MOVE");
 
       const payload2: InputViewFunctionJsonData = {
         function: "0x1::coin::decimals",

@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  APTOS_COIN,
   Account,
   AccountAddress,
   CommittedTransactionResponse,
   Ed25519PrivateKey,
-  Movement,
+  MOVEMENT_COIN,
   MovementConfig,
   MultiEd25519Account,
   MultiEd25519PublicKey,
@@ -275,27 +274,27 @@ describe("account api", () => {
       });
       expect(getOtherCoinAmount).toBe(0);
 
-      // APT Movement coin
-      const accountAPTAmount = await movement.getAccountCoinAmount({
+      // MOVE Movement coin
+      const accountMOVEAmount = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
-        coinType: APTOS_COIN,
+        coinType: MOVEMENT_COIN,
       });
-      expect(accountAPTAmount).toBe(100000000);
+      expect(accountMOVEAmount).toBe(100000000);
 
-      // APT Movement coin by fungible asset metadata
-      const accountAPTAmount2 = await movement.getAccountCoinAmount({
+      // MOVE Movement coin by fungible asset metadata
+      const accountMOVEAmount2 = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         faMetadataAddress: AccountAddress.A,
       });
-      expect(accountAPTAmount2).toBe(100000000);
+      expect(accountMOVEAmount2).toBe(100000000);
       // By both
-      // APT Movement coin by fungible asset metadata
-      const accountAPTAmount3 = await movement.getAccountCoinAmount({
+      // MOVE Movement coin by fungible asset metadata
+      const accountMOVEAmount3 = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
-        coinType: APTOS_COIN,
+        coinType: MOVEMENT_COIN,
         faMetadataAddress: "0xA",
       });
-      expect(accountAPTAmount3).toBe(100000000);
+      expect(accountMOVEAmount3).toBe(100000000);
       // By neither
       const failForNoCoinTypeGiven = movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
@@ -303,7 +302,7 @@ describe("account api", () => {
       await expect(failForNoCoinTypeGiven).rejects.toThrow();
     });
 
-    test("it fetches account balance by coin type (APT)", async () => {
+    test("it fetches account balance by coin type (MOVE)", async () => {
       const { movement, config } = getMovementClient();
       const account = Account.generate();
 
@@ -315,12 +314,12 @@ describe("account api", () => {
 
       const balance = await movement.getBalance({
         accountAddress: account.accountAddress,
-        asset: APTOS_COIN,
+        asset: MOVEMENT_COIN,
       });
       expect(balance).toBe(FUND_AMOUNT);
     });
 
-    test("it fetches account balance by FA metadata address (APT)", async () => {
+    test("it fetches account balance by FA metadata address (MOVE)", async () => {
       const { movement, config } = getMovementClient();
       const account = Account.generate();
 

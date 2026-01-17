@@ -240,8 +240,8 @@ export function truncateAddress(address: string, start: number = 6, end: number 
 /**
  * Constants for metadata address calculation
  */
-const APTOS_COIN_TYPE_STR = "0x1::aptos_coin::AptosCoin";
-const APT_METADATA_ADDRESS_HEX = AccountAddress.A.toStringLong();
+const MOVE_COIN_TYPE_STR = "0x1::aptos_coin::AptosCoin";
+const MOVE_METADATA_ADDRESS_HEX = AccountAddress.A.toStringLong();
 
 /**
  * Helper function to standardize Move type string by converting all addresses to short form,
@@ -281,7 +281,7 @@ export function pairedFaMetadataAddress(coinType: `0x${string}::${string}::${str
   // Standardize the coin type string to handle any address format
   const standardizedMoveTypeName = standardizeMoveTypeString(coinType);
 
-  return standardizedMoveTypeName === APTOS_COIN_TYPE_STR
+  return standardizedMoveTypeName === MOVE_COIN_TYPE_STR
     ? AccountAddress.A
     : createObjectAddress(AccountAddress.A, standardizedMoveTypeName);
 }

@@ -55,7 +55,7 @@ import {
 } from "../types";
 import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
 import { isEncodedStruct, parseEncodedStruct } from "../utils";
-import { APTOS_COIN, APTOS_FA, ProcessorType } from "../utils/const";
+import { MOVEMENT_COIN, MOVEMENT_FA, ProcessorType } from "../utils/const";
 import { memoizeAsync } from "../utils/memoize";
 import { AccountAbstraction } from "./account/abstraction";
 import { MovementConfig } from "./movementConfig";
@@ -747,12 +747,12 @@ export class Account {
   }
 
   /**
-   * Retrieves the current amount of APT for a specified account. If the account does not exist, it will return 0.
+   * Retrieves the current amount of MOVE for a specified account. If the account does not exist, it will return 0.
    *
    * @param args The arguments for the account query.
-   * @param args.accountAddress The account address for which to retrieve the APT amount.
+   * @param args.accountAddress The account address for which to retrieve the MOVE amount.
    * @param args.minimumLedgerVersion Optional ledger version to sync up to before querying.
-   * @returns The current amount of APT for the specified account.
+   * @returns The current amount of MOVE for the specified account.
    *
    * @example
    * ```typescript
@@ -762,19 +762,19 @@ export class Account {
    * const movement = new Movement(config);
    *
    * async function runExample() {
-   *   // Get the APT amount for a specific account
-   *   const accountAPTAmount = await movement.getAccountAPTAmount({ accountAddress: "0x1" }); // replace with a real account address
-   *   console.log("Account APT Amount:", accountAPTAmount);
+   *   // Get the MOVE amount for a specific account
+   *   const accountMOVEAmount = await movement.getAccountMOVEAmount({ accountAddress: "0x1" }); // replace with a real account address
+   *   console.log("Account MOVE Amount:", accountMOVEAmount);
    * }
    * runExample().catch(console.error);
    * ```
    * @group Account
    */
-  async getAccountAPTAmount(args: {
+  async getAccountMOVEAmount(args: {
     accountAddress: AccountAddressInput;
     minimumLedgerVersion?: AnyNumber;
   }): Promise<number> {
-    return this.getAccountCoinAmount({ coinType: APTOS_COIN, faMetadataAddress: APTOS_FA, ...args });
+    return this.getAccountCoinAmount({ coinType: MOVEMENT_COIN, faMetadataAddress: MOVEMENT_FA, ...args });
   }
 
   /**
@@ -848,7 +848,7 @@ export class Account {
       faAddress = AccountAddress.from(faMetadataAddress).toStringLong();
     } else if (coinType !== undefined && faMetadataAddress === undefined) {
       // TODO Move to a separate function as defined in the AIP for coin migration
-      if (coinType === APTOS_COIN) {
+      if (coinType === MOVEMENT_COIN) {
         faAddress = AccountAddress.A.toStringLong();
       } else {
         faAddress = createObjectAddress(AccountAddress.A, coinType).toStringLong();
@@ -857,7 +857,7 @@ export class Account {
       const addr = AccountAddress.from(faMetadataAddress);
       faAddress = addr.toStringLong();
       if (addr === AccountAddress.A) {
-        coinAssetType = APTOS_COIN;
+        coinAssetType = MOVEMENT_COIN;
       }
       // The paired CoinType should be populated outside of this function in another
       // async call. We cannot do this internally due to dependency cycles issue.
@@ -900,7 +900,7 @@ export class Account {
    * @example
    * ```ts
    * const movement = new Movement(new MovementConfig());
-   * // APT coin by type
+   * // MOVE coin by type
    * const apt = await movement.getBalance({ accountAddress: "0x1", asset: "0x1::aptos_coin::AptosCoin" });
    * // Some FA by metadata address
    * const fa = await movement.getBalance({ accountAddress: "0x1", asset: "0xa" });

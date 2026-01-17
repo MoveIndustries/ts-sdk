@@ -20,8 +20,8 @@ const TRANSFER_AMOUNT = 10_000;
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
-  const amount = await movement.getAccountAPTAmount({
+const balance = async (movement: Movement, name: string, address: AccountAddress): Promise<any> => {
+  const amount = await movement.getAccountMOVEAmount({
     accountAddress: address,
   });
   console.log(`${name}'s balance is: ${amount}`);

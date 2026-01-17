@@ -3,7 +3,7 @@ import { pairedFaMetadataAddress } from "../../src/utils/helpers";
 
 describe("pairedFaMetadataAddress", () => {
   test("matches the ground truth cases on chain", () => {
-    // Test case 1: Movement Coin should return APT_METADATA_ADDRESS_HEX
+    // Test case 1: Movement Coin should return MOVE_METADATA_ADDRESS_HEX
     expect(pairedFaMetadataAddress("0x1::aptos_coin::AptosCoin")).toEqual(AccountAddress.A);
 
     // Test case 2: Moon Coin should match the specific hash

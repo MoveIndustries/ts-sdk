@@ -162,11 +162,11 @@ export async function simpleCoinTransactionHeler(movement: Movement, sender: Acc
     amount: FUND_AMOUNT,
   });
 
-  const senderOldBalance = await movement.getAccountAPTAmount({
+  const senderOldBalance = await movement.getAccountMOVEAmount({
     accountAddress: sender.accountAddress,
     minimumLedgerVersion: Number(senderFundTxn.version),
   });
-  const recipientOldBalance = await movement.getAccountAPTAmount({
+  const recipientOldBalance = await movement.getAccountMOVEAmount({
     accountAddress: recipient.accountAddress,
     minimumLedgerVersion: Number(recipientFundTxn.version),
   });
@@ -181,11 +181,11 @@ export async function simpleCoinTransactionHeler(movement: Movement, sender: Acc
   const committedTxn = await movement.waitForTransaction({ transactionHash: pendingTxn.hash });
   const version = Number(committedTxn.version);
 
-  const senderNewBalance = await movement.getAccountAPTAmount({
+  const senderNewBalance = await movement.getAccountMOVEAmount({
     accountAddress: sender.accountAddress,
     minimumLedgerVersion: version,
   });
-  const recipientNewBalance = await movement.getAccountAPTAmount({
+  const recipientNewBalance = await movement.getAccountMOVEAmount({
     accountAddress: recipient.accountAddress,
     minimumLedgerVersion: version,
   });

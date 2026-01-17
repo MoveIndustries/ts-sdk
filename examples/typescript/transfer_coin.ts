@@ -27,7 +27,7 @@ const movement = new Movement(config);
  *
  */
 const balance = async (name: string, accountAddress: AccountAddress, versionToWaitFor?: bigint): Promise<number> => {
-  const amount = await movement.getAccountAPTAmount({
+  const amount = await movement.getAccountMOVEAmount({
     accountAddress,
     minimumLedgerVersion: versionToWaitFor,
   });

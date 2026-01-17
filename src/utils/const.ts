@@ -53,12 +53,12 @@ export const DEFAULT_TXN_TIMEOUT_SEC = 20;
  * @group Implementation
  * @category Utils
  */
-export const APTOS_COIN = "0x1::aptos_coin::AptosCoin";
+export const MOVEMENT_COIN = "0x1::aptos_coin::AptosCoin";
 /**
  * @group Implementation
  * @category Utils
  */
-export const APTOS_FA = "0x000000000000000000000000000000000000000000000000000000000000000a";
+export const MOVEMENT_FA = "0x000000000000000000000000000000000000000000000000000000000000000a";
 /**
  * @group Implementation
  * @category Utils
