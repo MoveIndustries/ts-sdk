@@ -201,7 +201,7 @@ describe("general api (requires testnet)", () => {
       ];
     }>({ query });
 
-    expect(chainId.ledger_infos[0].chain_id).toBe(2);
+    expect(Number(chainId.ledger_infos[0].chain_id)).toBe(250);
   });
 
   test("it should fetch chain top user transactions", async () => {

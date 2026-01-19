@@ -49,7 +49,7 @@ describe("aptos request", () => {
               path: "transactions",
               body: signedTransaction,
               originMethod: "test request includes all headers",
-              contentType: "application/x.movement.signed_transaction+bcs",
+              contentType: "application/x.aptos.signed_transaction+bcs",
               overrides: { HEADERS: { my: "header" } },
             },
             config,
@@ -57,7 +57,7 @@ describe("aptos request", () => {
           );
           expect(response.config.headers).toHaveProperty("x-aptos-client", `aptos-typescript-sdk/${VERSION}`);
           expect(response.config.headers).toHaveProperty("my", "header");
-          expect(response.config.headers).toHaveProperty("content-type", "application/x.movement.signed_transaction+bcs");
+          expect(response.config.headers).toHaveProperty("content-type", "application/x.aptos.signed_transaction+bcs");
           expect(response.config.headers).toHaveProperty(
             "x-aptos-typescript-sdk-origin-method",
             "test request includes all headers",
@@ -218,7 +218,7 @@ describe("aptos request", () => {
                 path: "transactions",
                 body: new Uint8Array([1, 2, 3]),
                 originMethod: "test transaction submission error",
-                contentType: "application/x.movement.signed_transaction+bcs",
+                contentType: "application/x.aptos.signed_transaction+bcs",
               },
               config,
               MovementApiType.FULLNODE,
@@ -239,7 +239,7 @@ describe("aptos request", () => {
               originMethod: "test transaction submission error",
               path: "transactions",
               body: new Uint8Array([1, 2, 3]),
-              contentType: "application/x.movement.signed_transaction+bcs",
+              contentType: "application/x.aptos.signed_transaction+bcs",
             });
           }
         },

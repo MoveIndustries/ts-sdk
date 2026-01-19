@@ -209,12 +209,27 @@ export async function customClient<Req, Res>(requestOptions: ClientRequest<Req>)
     headers: customHeaders,
     body:
       // weird fetch issue
-      headers!["content-type"] === "application/x.movement.signed_transaction+bcs" ? (body as any) : JSON.stringify(body),
+      headers!["content-type"] === "application/x.aptos.signed_transaction+bcs" ? (body as any) : JSON.stringify(body),
     method,
   };
 
-  const response = await fetch(`${url}?${params}`, request);
-  const data = await response.json();
+  // Convert params object to URL query string
+  const queryString = params ? new URLSearchParams(params as Record<string, string>).toString() : "";
+  const fullUrl = queryString ? `${url}?${queryString}` : url;
+  const response = await fetch(fullUrl, request);
+  const contentType = response.headers.get("content-type");
+  let data;
+  if (contentType && contentType.includes("application/json")) {
+    data = await response.json();
+  } else {
+    // Try to parse as JSON, fall back to text if it fails
+    const text = await response.text();
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  }
   return {
     status: response.status,
     statusText: response.statusText,

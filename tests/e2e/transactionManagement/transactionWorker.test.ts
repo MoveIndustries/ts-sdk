@@ -9,10 +9,12 @@ const { movement, config: movementConfig } = getMovementClient();
 
 const sender = Account.generate();
 const recipient = Account.generate();
+const batchSender = Account.generate(); // Separate account for batch test to avoid sequence number conflicts
 
 describe("transactionWorker", () => {
   beforeAll(async () => {
     await movement.fundAccount({ accountAddress: sender.accountAddress, amount: 1000000000 });
+    await movement.fundAccount({ accountAddress: batchSender.accountAddress, amount: 1000000000 });
   });
 
   test(
@@ -78,8 +80,8 @@ describe("transactionWorker", () => {
       };
       const payloads = [...Array(5).fill(txn), ...Array(5).fill(txnWithAbi)];
 
-      // start transactions worker
-      const transactionWorker = new TransactionWorker(movementConfig, sender);
+      // start transactions worker - use batchSender to avoid sequence number conflicts with other tests
+      const transactionWorker = new TransactionWorker(movementConfig, batchSender);
       transactionWorker.start();
 
       // push transactions to queue
@@ -90,14 +92,14 @@ describe("transactionWorker", () => {
       // stop transaction worker for testing purposes.
       setTimeout(async () => {
         transactionWorker.stop();
-        const accountData = await movement.getAccountInfo({ accountAddress: sender.accountAddress });
+        const accountData = await movement.getAccountInfo({ accountAddress: batchSender.accountAddress });
         // call done() when all asynchronous operations are finished
         done();
-        // expect sender sequence number to be 10
+        // expect batchSender sequence number to be 10
         expect(accountData.sequence_number).toBe("10");
 
         // Check all are successful
-        const txns = await movement.getAccountTransactions({ accountAddress: sender.accountAddress });
+        const txns = await movement.getAccountTransactions({ accountAddress: batchSender.accountAddress });
         txns.forEach((userTxn) => {
           if (userTxn.type === TransactionResponseType.User) {
             expect(userTxn.success).toBe(true);
