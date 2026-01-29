@@ -1,4 +1,5 @@
 .aptos/
+.movement/
 .DS_Store
 */**/.DS_Store
 .env

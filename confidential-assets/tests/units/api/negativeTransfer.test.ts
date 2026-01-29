@@ -1,6 +1,6 @@
 import { Account } from "@moveindustries/ts-sdk";
 import {
-  aptos,
+  movement,
   confidentialAsset,
   getBalances,
   getTestConfidentialAccount,
@@ -40,7 +40,7 @@ describe("Transfer", () => {
   );
 
   it("should fund Alice's account", async () => {
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: alice.accountAddress,
       amount: fundAmount,
     });

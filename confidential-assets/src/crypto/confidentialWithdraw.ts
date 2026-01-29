@@ -319,8 +319,8 @@ export class ConfidentialWithdraw {
     );
   }
 
-  async genRangeProof() {
-    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
+  async genRangeProof(): Promise<Uint8Array[]> {
+    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
       v: this.senderEncryptedAvailableBalanceAfterWithdrawal.getAmountChunks(),
       rs: this.randomness.map((chunk) => numberToBytesLE(chunk, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -328,14 +328,14 @@ export class ConfidentialWithdraw {
       num_bits: CHUNK_BITS,
     });
 
-    return rangeProof.proof;
+    return proofs;
   }
 
   async authorizeWithdrawal(): Promise<
     [
       {
         sigmaProof: ConfidentialWithdrawSigmaProof;
-        rangeProof: Uint8Array;
+        rangeProof: Uint8Array[];
       },
       EncryptedAmount,
     ]
@@ -347,15 +347,21 @@ export class ConfidentialWithdraw {
   }
 
   static async verifyRangeProof(opts: {
-    rangeProof: Uint8Array;
+    rangeProof: Uint8Array[];
     senderEncryptedAvailableBalanceAfterWithdrawal: EncryptedAmount;
   }) {
-    return RangeProofExecutor.verifyBatchRangeZKP({
-      proof: opts.rangeProof,
-      comm: opts.senderEncryptedAvailableBalanceAfterWithdrawal.getCipherText().map((el) => el.C.toRawBytes()),
-      val_base: RistrettoPoint.BASE.toRawBytes(),
-      rand_base: H_RISTRETTO.toRawBytes(),
-      num_bits: CHUNK_BITS,
-    });
+    const cipherTexts = opts.senderEncryptedAvailableBalanceAfterWithdrawal.getCipherText();
+    const results = await Promise.all(
+      opts.rangeProof.map((proof, index) =>
+        RangeProofExecutor.verifyRangeZKP({
+          proof,
+          commitment: cipherTexts[index].C.toRawBytes(),
+          valBase: RistrettoPoint.BASE.toRawBytes(),
+          randBase: H_RISTRETTO.toRawBytes(),
+          bits: CHUNK_BITS,
+        }),
+      ),
+    );
+    return results.every((result) => result);
   }
 }

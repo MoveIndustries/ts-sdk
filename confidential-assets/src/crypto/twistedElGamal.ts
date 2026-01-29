@@ -1,16 +1,15 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { ed25519, RistrettoPoint } from "@noble/curves/ed25519";
-import { bytesToNumberLE } from "@noble/curves/abstract/utils";
-import { H_RISTRETTO, RistPoint, TwistedEd25519PrivateKey, TwistedEd25519PublicKey } from "./twistedEd25519";
-import { ed25519GenRandom, ed25519modN } from "../utils";
+import initWasm, { create_kangaroo, WASMKangaroo } from "@moveindustries/confidential-asset-wasm-bindings/pollard-kangaroo";
 import { HexInput } from "@moveindustries/ts-sdk";
-import { create_kangaroo, WASMKangaroo } from "@aptos-labs/confidential-asset-wasm-bindings/pollard-kangaroo";
-import initWasm from "@aptos-labs/confidential-asset-wasm-bindings/pollard-kangaroo";
+import { bytesToNumberLE } from "@noble/curves/abstract/utils";
+import { ed25519, RistrettoPoint } from "@noble/curves/ed25519";
+import { ed25519GenRandom, ed25519modN } from "../utils";
+import { H_RISTRETTO, RistPoint, TwistedEd25519PrivateKey, TwistedEd25519PublicKey } from "./twistedEd25519";
 
 const POLLARD_KANGAROO_WASM_URL =
-  "https://unpkg.com/@aptos-labs/confidential-asset-wasm-bindings@0.0.2/pollard-kangaroo/aptos_pollard_kangaroo_wasm_bg.wasm";
+  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.3/pollard-kangaroo/movement_pollard_kangaroo_wasm_bg.wasm";
 
 export async function createKangaroo(secret_size: number) {
   await initWasm({ module_or_path: POLLARD_KANGAROO_WASM_URL });

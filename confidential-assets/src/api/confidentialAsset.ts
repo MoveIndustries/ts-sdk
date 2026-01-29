@@ -1,11 +1,11 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   Account,
   AccountAddressInput,
   AnyNumber,
-  AptosConfig,
+  MovementConfig,
   CommittedTransactionResponse,
   InputGenerateTransactionOptions,
   LedgerVersionArg,
@@ -74,7 +74,7 @@ type NormalizeBalanceParams = ConfidentialAssetSubmissionParams & {
 export class ConfidentialAsset {
   transaction: ConfidentialAssetTransactionBuilder;
   withFeePayer: boolean;
-  constructor(args: { config: AptosConfig; confidentialAssetModuleAddress?: string; withFeePayer?: boolean }) {
+  constructor(args: { config: MovementConfig; confidentialAssetModuleAddress?: string; withFeePayer?: boolean }) {
     const { confidentialAssetModuleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS } = args;
     let config = args.config;
     this.transaction = new ConfidentialAssetTransactionBuilder(config, confidentialAssetModuleAddress);

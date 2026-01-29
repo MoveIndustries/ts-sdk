@@ -1,11 +1,11 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import {
   AccountAddressInput,
   AnyNumber,
-  Aptos,
-  AptosConfig,
+  Movement,
+  MovementConfig,
   InputGenerateTransactionOptions,
   LedgerVersionArg,
   SimpleTransaction,
@@ -27,11 +27,11 @@ import { getBalance, getEncryptionKey, isBalanceNormalized, isPendingBalanceFroz
  * A class to handle creating transactions for confidential asset operations
  */
 export class ConfidentialAssetTransactionBuilder {
-  readonly client: Aptos;
+  readonly client: Movement;
   readonly confidentialAssetModuleAddress: string;
 
-  constructor(config: AptosConfig, confidentialAssetModuleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS) {
-    this.client = new Aptos(config);
+  constructor(config: MovementConfig, confidentialAssetModuleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS) {
+    this.client = new Movement(config);
     this.confidentialAssetModuleAddress = confidentialAssetModuleAddress;
     TwistedElGamal.initializeKangaroos();
   }

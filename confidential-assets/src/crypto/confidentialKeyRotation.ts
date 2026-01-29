@@ -297,8 +297,8 @@ export class ConfidentialKeyRotation {
     );
   }
 
-  async genRangeProof(): Promise<Uint8Array> {
-    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
+  async genRangeProof(): Promise<Uint8Array[]> {
+    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
       v: this.currentEncryptedAvailableBalance.getAmountChunks(),
       rs: this.randomness.map((chunk) => numberToBytesLE(chunk, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -306,14 +306,14 @@ export class ConfidentialKeyRotation {
       num_bits: CHUNK_BITS,
     });
 
-    return rangeProof.proof;
+    return proofs;
   }
 
   async authorizeKeyRotation(): Promise<
     [
       {
         sigmaProof: ConfidentialKeyRotationSigmaProof;
-        rangeProof: Uint8Array;
+        rangeProof: Uint8Array[];
       },
       EncryptedAmount,
     ]
@@ -331,13 +331,18 @@ export class ConfidentialKeyRotation {
     ];
   }
 
-  static async verifyRangeProof(opts: { rangeProof: Uint8Array; newEncryptedBalance: TwistedElGamalCiphertext[] }) {
-    return RangeProofExecutor.verifyBatchRangeZKP({
-      proof: opts.rangeProof,
-      comm: opts.newEncryptedBalance.map((el) => el.C.toRawBytes()),
-      val_base: RistrettoPoint.BASE.toRawBytes(),
-      rand_base: H_RISTRETTO.toRawBytes(),
-      num_bits: CHUNK_BITS,
-    });
+  static async verifyRangeProof(opts: { rangeProof: Uint8Array[]; newEncryptedBalance: TwistedElGamalCiphertext[] }) {
+    const results = await Promise.all(
+      opts.rangeProof.map((proof, index) =>
+        RangeProofExecutor.verifyRangeZKP({
+          proof,
+          commitment: opts.newEncryptedBalance[index].C.toRawBytes(),
+          valBase: RistrettoPoint.BASE.toRawBytes(),
+          randBase: H_RISTRETTO.toRawBytes(),
+          bits: CHUNK_BITS,
+        }),
+      ),
+    );
+    return results.every((result) => result);
   }
 }

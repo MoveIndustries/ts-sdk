@@ -64,7 +64,7 @@ describe("Generate 'confidential coin' proofs", () => {
     longTestTimeout,
   );
 
-  let confidentialWithdrawRangeProof: Uint8Array;
+  let confidentialWithdrawRangeProof: Uint8Array[];
   test(
     "Generate withdraw range proof",
     async () => {
@@ -277,7 +277,7 @@ describe("Generate 'confidential coin' proofs", () => {
     longTestTimeout,
   );
 
-  let confidentialKeyRotationRangeProof: Uint8Array;
+  let confidentialKeyRotationRangeProof: Uint8Array[];
   test(
     "Generate key rotation range proof",
     async () => {
@@ -351,7 +351,7 @@ describe("Generate 'confidential coin' proofs", () => {
     },
     longTestTimeout,
   );
-  let confidentialNormalizationRangeProof: Uint8Array;
+  let confidentialNormalizationRangeProof: Uint8Array[];
   test(
     "Generate normalization range proof",
     async () => {

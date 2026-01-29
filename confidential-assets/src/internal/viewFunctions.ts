@@ -1,7 +1,7 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountAddressInput, Aptos, LedgerVersionArg } from "@moveindustries/ts-sdk";
+import { AccountAddressInput, Movement, LedgerVersionArg } from "@moveindustries/ts-sdk";
 import {
   TwistedEd25519PrivateKey,
   TwistedEd25519PublicKey,
@@ -18,7 +18,7 @@ import {
 import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MODULE_NAME } from "../consts";
 
 type ViewFunctionParams = {
-  client: Aptos;
+  client: Movement;
   accountAddress: AccountAddressInput;
   tokenAddress: AccountAddressInput;
   options?: LedgerVersionArg;
@@ -85,7 +85,7 @@ export class ConfidentialBalance {
 /**
  * Get the balance for an account with optional caching
  *
- * @param args.client - The Aptos client instance
+ * @param args.client - The Movement client instance
  * @param args.accountAddress - The account address to get the balance for
  * @param args.tokenAddress - The token address of the asset
  * @param args.decryptionKey - The decryption key to decrypt the balance
@@ -130,7 +130,7 @@ export async function getBalance(
 /**
  * Internal helper function to get and decrypt balance
  *
- * @param args.client - The Aptos client instance
+ * @param args.client - The Movement client instance
  * @param args.accountAddress - The account address to get the balance for
  * @param args.tokenAddress - The token address of the asset
  * @param args.decryptionKey - The decryption key to decrypt the balance
@@ -227,7 +227,7 @@ export async function isPendingBalanceFrozen(args: ViewFunctionParams): Promise<
 /**
  * Check if a user has registered a confidential asset balance
  *
- * @param args.client - The Aptos client instance
+ * @param args.client - The Movement client instance
  * @param args.accountAddress - The account address to check
  * @param args.tokenAddress - The token address of the asset
  * @param args.options - Optional ledger version for the view call
@@ -250,7 +250,7 @@ export async function hasUserRegistered(args: ViewFunctionParams): Promise<boole
 /**
  * Get the encryption key for an account with optional caching
  *
- * @param args.client - The Aptos client instance
+ * @param args.client - The Movement client instance
  * @param args.accountAddress - The account address to get the key for
  * @param args.tokenAddress - The token address of the asset
  * @param args.useCachedValue - Whether to use cached key value (defaults to false)

@@ -1,15 +1,15 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import initWasm, {
-  range_proof as rangeProof,
-  verify_proof as verifyProof,
   batch_range_proof as batchRangeProof,
   batch_verify_proof as batchVerifyProof,
-} from "@aptos-labs/confidential-asset-wasm-bindings/range-proofs";
+  range_proof as rangeProof,
+  verify_proof as verifyProof,
+} from "@moveindustries/confidential-asset-wasm-bindings/range-proofs";
 
 const RANGE_PROOF_WASM_URL =
-  "https://unpkg.com/@aptos-labs/confidential-asset-wasm-bindings@0.0.2/range-proofs/aptos_rp_wasm_bg.wasm";
+  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.3/range-proofs/movement_rp_wasm_bg.wasm";
 
 export interface RangeProofInputs {
   v: bigint;
@@ -44,6 +44,47 @@ export interface BatchVerifyRangeProofInputs {
 }
 
 export class RangeProofExecutor {
+  /**
+   * Generate individual range Zero Knowledge Proofs for multiple values.
+   * This is used as a workaround when batch range proof verification is not available
+   * (i.e., when feature flag 87 BULLETPROOFS_BATCH_NATIVES is not enabled).
+   *
+   * @param opts.v Array of values to create range proofs for
+   * @param opts.rs Array of blinding scalars used to hide the values
+   * @param opts.val_base A vector of bytes representing the generator point for the value
+   * @param opts.rand_base A vector of bytes representing the generator point for the randomness
+   * @param opts.num_bits Bits size of values to create the range proof
+   * @returns Array of individual range proofs
+   */
+  static async genIndividualRangeProofs(
+    opts: BatchRangeProofInputs,
+  ): Promise<{ proofs: Uint8Array[]; commitments: Uint8Array[] }> {
+    await initWasm({ module_or_path: RANGE_PROOF_WASM_URL });
+
+    const proofs: Uint8Array[] = [];
+    const commitments: Uint8Array[] = [];
+
+    // Generate individual proofs for each value in parallel
+    const results = await Promise.all(
+      opts.v.map((value, index) =>
+        RangeProofExecutor.generateRangeZKP({
+          v: value,
+          r: opts.rs[index],
+          valBase: opts.val_base,
+          randBase: opts.rand_base,
+          bits: opts.num_bits,
+        }),
+      ),
+    );
+
+    for (const result of results) {
+      proofs.push(result.proof);
+      commitments.push(result.commitment);
+    }
+
+    return { proofs, commitments };
+  }
+
   /**
    * Generate range Zero Knowledge Proof
    *

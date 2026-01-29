@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, AccountAddressInput, AnyNumber } from "@moveindustries/ts-sdk";
@@ -6,17 +6,18 @@ import { TwistedEd25519PrivateKey } from "../../src";
 import {
   getTestAccount,
   getTestConfidentialAccount,
-  aptos,
+  movement,
   TOKEN_ADDRESS,
   longTestTimeout,
   confidentialAsset,
   feePayerAccount,
+  migrateCoinsToFungibleStore,
 } from "../helpers";
 import { getCache } from "../../src/utils/memoize";
 import { ConfidentialBalance } from "../../src/internal/viewFunctions";
 
 function getCachedBalance(accountAddress: AccountAddressInput, tokenAddress: AccountAddressInput): ConfidentialBalance {
-  const cacheKey = `${accountAddress}-balance-for-${tokenAddress}-${aptos.config.network}`;
+  const cacheKey = `${accountAddress}-balance-for-${tokenAddress}-${movement.config.network}`;
   const result = getCache<ConfidentialBalance>(cacheKey);
   if (!result) {
     throw new Error("No cached balance found");
@@ -31,7 +32,7 @@ describe("Confidential Asset Sender API", () => {
   const bob = Account.generate();
 
   async function getPublicTokenBalance(accountAddress: AccountAddressInput) {
-    return await aptos.getAccountCoinAmount({
+    return await movement.getAccountCoinAmount({
       accountAddress,
       faMetadataAddress: TOKEN_ADDRESS,
     });
@@ -69,20 +70,27 @@ describe("Confidential Asset Sender API", () => {
     expect(isFrozen).toBe(expectedStatus);
   }
   beforeAll(async () => {
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: alice.accountAddress,
       amount: 100000000,
     });
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: bob.accountAddress,
       amount: 100000000,
     });
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: feePayerAccount.accountAddress,
       amount: 100000000,
     });
 
     console.log("Funded accounts");
+
+    // Migrate native coins to fungible asset store for confidential asset operations
+    await migrateCoinsToFungibleStore(alice);
+    await migrateCoinsToFungibleStore(bob);
+    await migrateCoinsToFungibleStore(feePayerAccount);
+
+    console.log("Migrated coins to fungible store");
 
     const isAliceRegistered = await confidentialAsset.hasUserRegistered({
       accountAddress: alice.accountAddress,
@@ -161,7 +169,7 @@ describe("Confidential Asset Sender API", () => {
     "it should withdraw Alice's confidential balance and check the balance",
     async () => {
       // Get the current public token balance of Alice
-      const aliceTokenBalance = await aptos.getAccountCoinAmount({
+      const aliceTokenBalance = await movement.getAccountCoinAmount({
         accountAddress: alice.accountAddress,
         faMetadataAddress: TOKEN_ADDRESS,
       });
@@ -179,7 +187,7 @@ describe("Confidential Asset Sender API", () => {
       await checkAliceDecryptedBalance(DEPOSIT_AMOUNT - WITHDRAW_AMOUNT, 0);
 
       // Verify the public token balance has been updated correctly
-      const aliceNewTokenBalance = await aptos.getAccountCoinAmount({
+      const aliceNewTokenBalance = await movement.getAccountCoinAmount({
         accountAddress: alice.accountAddress,
         faMetadataAddress: TOKEN_ADDRESS,
       });

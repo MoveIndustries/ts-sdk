@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, AccountAddressInput, AnyNumber } from "@moveindustries/ts-sdk";
@@ -6,7 +6,7 @@ import { TwistedEd25519PrivateKey } from "../../src";
 import {
   getTestAccount,
   getTestConfidentialAccount,
-  aptos,
+  movement,
   TOKEN_ADDRESS,
   sendAndWaitTx,
   longTestTimeout,
@@ -22,7 +22,7 @@ describe.skip("Confidential balance api", () => {
   const bob = Account.generate();
 
   async function getPublicTokenBalance(accountAddress: AccountAddressInput) {
-    return await aptos.getAccountCoinAmount({
+    return await movement.getAccountCoinAmount({
       accountAddress,
       faMetadataAddress: TOKEN_ADDRESS,
     });
@@ -59,11 +59,11 @@ describe.skip("Confidential balance api", () => {
     expect(isFrozen).toBe(expectedStatus);
   }
   beforeAll(async () => {
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: alice.accountAddress,
       amount: 100000000,
     });
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: bob.accountAddress,
       amount: 100000000,
     });
@@ -177,7 +177,7 @@ describe.skip("Confidential balance api", () => {
     "it should withdraw Alice's confidential balance and check the balance",
     async () => {
       // Get the current public token balance of Alice
-      const aliceTokenBalance = await aptos.getAccountCoinAmount({
+      const aliceTokenBalance = await movement.getAccountCoinAmount({
         accountAddress: alice.accountAddress,
         faMetadataAddress: TOKEN_ADDRESS,
       });
@@ -197,7 +197,7 @@ describe.skip("Confidential balance api", () => {
       await checkAliceDecryptedBalance(DEPOSIT_AMOUNT - WITHDRAW_AMOUNT, 0);
 
       // Verify the public token balance has been updated correctly
-      const aliceNewTokenBalance = await aptos.getAccountCoinAmount({
+      const aliceNewTokenBalance = await movement.getAccountCoinAmount({
         accountAddress: alice.accountAddress,
         faMetadataAddress: TOKEN_ADDRESS,
       });

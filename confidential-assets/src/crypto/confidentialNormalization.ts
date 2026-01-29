@@ -8,7 +8,7 @@ import { TwistedEd25519PrivateKey, H_RISTRETTO, TwistedEd25519PublicKey } from "
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
 import { EncryptedAmount } from "./encryptedAmount";
 import { AVAILABLE_BALANCE_CHUNK_COUNT, CHUNK_BITS, CHUNK_BITS_BIG_INT, ChunkedAmount } from "./chunkedAmount";
-import { Aptos, SimpleTransaction, AccountAddressInput, InputGenerateTransactionOptions } from "@moveindustries/ts-sdk";
+import { Movement, SimpleTransaction, AccountAddressInput, InputGenerateTransactionOptions } from "@moveindustries/ts-sdk";
 
 export type ConfidentialNormalizationSigmaProof = {
   alpha1List: Uint8Array[];
@@ -274,8 +274,8 @@ export class ConfidentialNormalization {
     );
   }
 
-  async genRangeProof(): Promise<Uint8Array> {
-    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
+  async genRangeProof(): Promise<Uint8Array[]> {
+    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
       v: this.normalizedEncryptedAvailableBalance.getAmountChunks(),
       rs: this.randomness.map((el) => numberToBytesLE(el, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -283,24 +283,30 @@ export class ConfidentialNormalization {
       num_bits: CHUNK_BITS,
     });
 
-    return rangeProof.proof;
+    return proofs;
   }
 
   static async verifyRangeProof(opts: {
-    rangeProof: Uint8Array;
+    rangeProof: Uint8Array[];
     normalizedEncryptedBalance: EncryptedAmount;
   }): Promise<boolean> {
-    return RangeProofExecutor.verifyBatchRangeZKP({
-      proof: opts.rangeProof,
-      comm: opts.normalizedEncryptedBalance.getCipherText().map((el) => el.C.toRawBytes()),
-      val_base: RistrettoPoint.BASE.toRawBytes(),
-      rand_base: H_RISTRETTO.toRawBytes(),
-      num_bits: CHUNK_BITS,
-    });
+    const cipherTexts = opts.normalizedEncryptedBalance.getCipherText();
+    const results = await Promise.all(
+      opts.rangeProof.map((proof, index) =>
+        RangeProofExecutor.verifyRangeZKP({
+          proof,
+          commitment: cipherTexts[index].C.toRawBytes(),
+          valBase: RistrettoPoint.BASE.toRawBytes(),
+          randBase: H_RISTRETTO.toRawBytes(),
+          bits: CHUNK_BITS,
+        }),
+      ),
+    );
+    return results.every((result) => result);
   }
 
   async authorizeNormalization(): Promise<
-    [{ sigmaProof: ConfidentialNormalizationSigmaProof; rangeProof: Uint8Array }, EncryptedAmount]
+    [{ sigmaProof: ConfidentialNormalizationSigmaProof; rangeProof: Uint8Array[] }, EncryptedAmount]
   > {
     const sigmaProof = await this.genSigmaProof();
     const rangeProof = await this.genRangeProof();
@@ -309,7 +315,7 @@ export class ConfidentialNormalization {
   }
 
   async createTransaction(args: {
-    client: Aptos;
+    client: Movement;
     sender: AccountAddressInput;
     confidentialAssetModuleAddress: string;
     tokenAddress: AccountAddressInput;

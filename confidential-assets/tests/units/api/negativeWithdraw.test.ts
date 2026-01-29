@@ -1,5 +1,5 @@
 import {
-  aptos,
+  movement,
   confidentialAsset,
   getTestAccount,
   getTestConfidentialAccount,
@@ -38,7 +38,7 @@ describe("Negative withdraw", () => {
   );
 
   it("should fund Alice's account", async () => {
-    await aptos.fundAccount({
+    await movement.fundAccount({
       accountAddress: alice.accountAddress,
       amount: fundAmount,
     });

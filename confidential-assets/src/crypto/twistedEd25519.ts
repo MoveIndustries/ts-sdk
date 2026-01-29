@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { ed25519, RistrettoPoint } from "@noble/curves/ed25519";

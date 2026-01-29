@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
 import { sha512 } from "@noble/hashes/sha512";

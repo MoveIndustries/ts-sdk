@@ -2,8 +2,8 @@ import {
   Account,
   AccountAddress,
   AnyRawTransaction,
-  Aptos,
-  AptosConfig,
+  Movement,
+  MovementConfig,
   CommittedTransactionResponse,
   Ed25519Account,
   Ed25519PrivateKey,
@@ -27,7 +27,7 @@ export const longTestTimeout = 120 * 1000;
  */
 export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000000000000000000a";
 
-const MOVEMENT_NETWORK: Network = Network.LOCAL;
+const MOVEMENT_NETWORK: Network = Network.TESTNET;
 
 export const feePayerAccount = Account.generate();
 
@@ -35,15 +35,15 @@ export const feePayerAccount = Account.generate();
 class CustomTransactionSubmitter implements TransactionSubmitter {
   async submitTransaction(
     args: {
-      aptosConfig: AptosConfig;
+      movementConfig: MovementConfig;
     } & Omit<InputSubmitTransactionData, "transactionSubmitter">,
   ): Promise<PendingTransactionResponse> {
-    const newConfig = new AptosConfig({
-      ...args.aptosConfig,
+    const newConfig = new MovementConfig({
+      ...args.movementConfig,
     });
-    const aptos = new Aptos(newConfig);
-    const feePayerAuthenticator = aptos.signAsFeePayer({ signer: feePayerAccount, transaction: args.transaction });
-    return aptos.transaction.submit.simple({
+    const movement = new Movement(newConfig);
+    const feePayerAuthenticator = movement.signAsFeePayer({ signer: feePayerAccount, transaction: args.transaction });
+    return movement.transaction.submit.simple({
       transaction: args.transaction,
       senderAuthenticator: args.senderAuthenticator,
       feePayerAuthenticator,
@@ -51,7 +51,7 @@ class CustomTransactionSubmitter implements TransactionSubmitter {
   }
 }
 
-const config = new AptosConfig({
+const config = new MovementConfig({
   network: MOVEMENT_NETWORK,
   pluginSettings: {
     TRANSACTION_SUBMITTER: new CustomTransactionSubmitter(),
@@ -59,10 +59,10 @@ const config = new AptosConfig({
 });
 export const confidentialAsset = new ConfidentialAsset({
   config,
-  confidentialAssetModuleAddress: "0x7",
+  confidentialAssetModuleAddress: "0xd38fc33916098866c4f18e6c80e75dd6b5af0d397acd063214bf3e78673ce25f",
   withFeePayer: true,
 });
-export const aptos = new Aptos(config);
+export const movement = new Movement(config);
 
 const rootDir = path.resolve(__dirname, "../../../");
 
@@ -86,19 +86,39 @@ export const getBalances = async (
   });
 };
 
+/**
+ * Migrate native coins to fungible asset store.
+ * This is needed because the faucet funds native coins, but confidential assets
+ * work with fungible assets which are stored separately.
+ */
+export const migrateCoinsToFungibleStore = async (
+  account: Account,
+): Promise<CommittedTransactionResponse> => {
+  const transaction = await movement.transaction.build.simple({
+    sender: account.accountAddress,
+    withFeePayer: true,
+    data: {
+      function: "0x1::coin::migrate_to_fungible_store",
+      typeArguments: ["0x1::aptos_coin::AptosCoin"],
+      functionArguments: [],
+    },
+  });
+  return sendAndWaitTx(transaction, account);
+};
+
 export const sendAndWaitTx = async (
   transaction: AnyRawTransaction,
   signer: Account,
 ): Promise<CommittedTransactionResponse> => {
-  const pendingTxn = await aptos.signAndSubmitTransaction({ signer, transaction });
-  return aptos.waitForTransaction({ transactionHash: pendingTxn.hash });
+  const pendingTxn = await movement.signAndSubmitTransaction({ signer, transaction });
+  return movement.waitForTransaction({ transactionHash: pendingTxn.hash });
 };
 
 export const sendAndWaitBatchTxs = async (
   txPayloads: InputGenerateTransactionPayloadData[],
   sender: Account,
 ): Promise<CommittedTransactionResponse[]> => {
-  aptos.transaction.batch.forSingleAccount({
+  movement.transaction.batch.forSingleAccount({
     sender,
     data: txPayloads,
   });
@@ -106,7 +126,7 @@ export const sendAndWaitBatchTxs = async (
   let allTxSentPromiseResolve: (value: void | PromiseLike<void>) => void;
 
   const txHashes: string[] = [];
-  aptos.transaction.batch.on(TransactionWorkerEventsEnum.TransactionSent, async (data) => {
+  movement.transaction.batch.on(TransactionWorkerEventsEnum.TransactionSent, async (data) => {
     txHashes.push(data.transactionHash);
 
     if (txHashes.length === txPayloads.length) {
@@ -118,7 +138,7 @@ export const sendAndWaitBatchTxs = async (
     allTxSentPromiseResolve = resolve;
   });
 
-  return Promise.all(txHashes.map((txHash) => aptos.waitForTransaction({ transactionHash: txHash })));
+  return Promise.all(txHashes.map((txHash) => movement.waitForTransaction({ transactionHash: txHash })));
 };
 
 export const getTestAccount = () => {
