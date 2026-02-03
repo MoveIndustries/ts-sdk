@@ -117,8 +117,9 @@ export const LOCAL_ANS_ACCOUNT_ADDRESS =
   process.env.ANS_TEST_ACCOUNT_ADDRESS ?? "0x585fc9f0f0c54183b039ffc770ca282ebd87307916c215a3e692f2f8e4305e82";
 
 const NetworkToAnsContract: Record<Network, string | null> = {
-  [Network.TESTNET]: "0x5f8fd2347449685cf41d4db97926ec3a096eaf381332be4f1318ad4d16a8497c",
-  [Network.MAINNET]: "0x867ed1f6bf916171b1de3ee92849b8978b7d1b9e0a8cc982a3d19d535dfd9c0c",
+  [Network.TESTNET]: "0x67bf15b3eed0fc62deea9630bbbd1d48842550655140f913699a1ca7e6f727d8",
+  // TODO: Update mainnet address once Movement Name Service is deployed to mainnet
+  [Network.MAINNET]: null,
   [Network.LOCAL]: LOCAL_ANS_ACCOUNT_ADDRESS,
   [Network.CUSTOM]: null,
   [Network.DEVNET]: null,
