@@ -2,6 +2,11 @@
 
 All notable changes to the Aptos TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# 5.1.5 (2026-02-03)
+
+- [`Fix`] Update ANS contract address for testnet to match the latest deployed Movement Name Service contract
+- Set mainnet ANS contract to null until MNS is deployed to mainnet
+
 # 5.1.4 (2025-11-13)
 - Add serialization for signed integers
 
