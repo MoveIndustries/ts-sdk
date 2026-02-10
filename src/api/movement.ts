@@ -3,7 +3,7 @@
 
 import { Account } from "./account";
 import { AccountAbstraction } from "./account/abstraction";
-import { ANS } from "./ans";
+import { MNS } from "./mns";
 import { Coin } from "./coin";
 import { DigitalAsset } from "./digitalAsset";
 import { Faucet } from "./faucet";
@@ -46,7 +46,7 @@ export class Movement {
 
   readonly account: Account;
 
-  readonly ans: ANS;
+  readonly mns: MNS;
 
   readonly coin: Coin;
 
@@ -93,7 +93,7 @@ export class Movement {
     this.config = config ?? new MovementConfig();
     this.account = new Account(this.config);
     this.abstraction = new AccountAbstraction(this.config);
-    this.ans = new ANS(this.config);
+    this.mns = new MNS(this.config);
     this.coin = new Coin(this.config);
     this.digitalAsset = new DigitalAsset(this.config);
     this.faucet = new Faucet(this.config);
@@ -115,7 +115,7 @@ export class Movement {
 // from the other classes will be recognized by typescript.
 export interface Movement
   extends Account,
-  ANS,
+  MNS,
   Coin,
   DigitalAsset,
   Event,
@@ -157,7 +157,7 @@ function applyMixin(targetClass: any, baseClass: any, baseClassProp: string) {
 
 applyMixin(Movement, Account, "account");
 applyMixin(Movement, AccountAbstraction, "abstraction");
-applyMixin(Movement, ANS, "ans");
+applyMixin(Movement, MNS, "mns");
 applyMixin(Movement, Coin, "coin");
 applyMixin(Movement, DigitalAsset, "digitalAsset");
 applyMixin(Movement, Event, "event");

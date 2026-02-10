@@ -14,7 +14,7 @@ import { MovementConfig } from "../api/movementConfig";
 import { AccountAddress, AccountAddressInput } from "../core";
 import { SimpleTransaction } from "../transactions/instances/simpleTransaction";
 import { InputGenerateTransactionOptions } from "../transactions/types";
-import { GetANSNameResponse, MoveAddressType, OrderByArg, PaginationArgs, WhereArg } from "../types";
+import { GetMNSNameResponse, MoveAddressType, OrderByArg, PaginationArgs, WhereArg } from "../types";
 import { GetNamesQuery } from "../types/generated/operations";
 import { GetNames } from "../types/generated/queries";
 import { CurrentAptosNamesBoolExp } from "../types/generated/types";
@@ -30,14 +30,14 @@ export const VALIDATION_RULES_DESCRIPTION = [
 ].join(" ");
 
 /**
- * Validate if a given fragment is a valid ANS segment.
- * This function checks the length and character constraints of the fragment to ensure it meets the ANS standards.
+ * Validate if a given fragment is a valid MNS segment.
+ * This function checks the length and character constraints of the fragment to ensure it meets the MNS standards.
  *
  * @param fragment - A fragment of a name, either the domain or subdomain.
  * @returns A boolean indicating if the fragment is a valid fragment.
  * @group Implementation
  */
-export function isValidANSSegment(fragment: string): boolean {
+export function isValidMNSSegment(fragment: string): boolean {
   if (!fragment) return false;
   if (fragment.length < 3) return false;
   if (fragment.length > 63) return false;
@@ -47,23 +47,23 @@ export function isValidANSSegment(fragment: string): boolean {
 }
 
 /**
- * Checks if an ANS name is valid or not.
+ * Checks if an MNS name is valid or not.
  *
- * @param name - A string of the domain name, which can include or exclude the .apt suffix.
+ * @param name - A string of the domain name, which can include or exclude the .move suffix.
  * @group Implementation
  */
-export function isValidANSName(name: string): { domainName: string; subdomainName?: string } {
-  const [first, second, ...rest] = name.replace(/\.apt$/, "").split(".");
+export function isValidMNSName(name: string): { domainName: string; subdomainName?: string } {
+  const [first, second, ...rest] = name.replace(/\.move$/, "").split(".");
 
   if (rest.length > 0) {
     throw new Error(`${name} is invalid. A name can only have two parts, a domain and a subdomain separated by a "."`);
   }
 
-  if (!isValidANSSegment(first)) {
+  if (!isValidMNSSegment(first)) {
     throw new Error(`${first} is not valid. ${VALIDATION_RULES_DESCRIPTION}`);
   }
 
-  if (second && !isValidANSSegment(second)) {
+  if (second && !isValidMNSSegment(second)) {
     throw new Error(`${second} is not valid. ${VALIDATION_RULES_DESCRIPTION}`);
   }
 
@@ -83,16 +83,16 @@ export enum SubdomainExpirationPolicy {
 }
 
 /**
- * Determine if a given ANS name is considered active based on its expiration dates.
+ * Determine if a given MNS name is considered active based on its expiration dates.
  * Domains are active if their expiration date is in the future, while subdomains may
  * follow their parent's expiration policy (1) or expire independently (0).
  * If the subdomain is expiring independently, it can expire before their parent, but not after.
  *
- * @param name - An ANS name returned from one of the functions of the SDK.
+ * @param name - An MNS name returned from one of the functions of the SDK.
  * @returns A boolean indicating whether the contract considers the name active or not.
  * @group Implementation
  */
-export function isActiveANSName(name: GetANSNameResponse[0]): boolean {
+export function isActiveMNSName(name: GetMNSNameResponse[0]): boolean {
   if (!name) return false;
 
   const isTLDExpired = new Date(name.domain_expiration_timestamp).getTime() < Date.now();
@@ -110,17 +110,17 @@ export function isActiveANSName(name: GetANSNameResponse[0]): boolean {
   return !isExpired;
 }
 
-export const LOCAL_ANS_ACCOUNT_PK =
-  process.env.ANS_TEST_ACCOUNT_PRIVATE_KEY ??
+export const LOCAL_MNS_ACCOUNT_PK =
+  process.env.MNS_TEST_ACCOUNT_PRIVATE_KEY ??
   "ed25519-priv-0x37368b46ce665362562c6d1d4ec01a08c8644c488690df5a17e13ba163e20221";
-export const LOCAL_ANS_ACCOUNT_ADDRESS =
-  process.env.ANS_TEST_ACCOUNT_ADDRESS ?? "0x585fc9f0f0c54183b039ffc770ca282ebd87307916c215a3e692f2f8e4305e82";
+export const LOCAL_MNS_ACCOUNT_ADDRESS =
+  process.env.MNS_TEST_ACCOUNT_ADDRESS ?? "0x585fc9f0f0c54183b039ffc770ca282ebd87307916c215a3e692f2f8e4305e82";
 
-const NetworkToAnsContract: Record<Network, string | null> = {
+const NetworkToMnsContract: Record<Network, string | null> = {
   [Network.TESTNET]: "0x67bf15b3eed0fc62deea9630bbbd1d48842550655140f913699a1ca7e6f727d8",
   // TODO: Update mainnet address once Movement Name Service is deployed to mainnet
   [Network.MAINNET]: null,
-  [Network.LOCAL]: LOCAL_ANS_ACCOUNT_ADDRESS,
+  [Network.LOCAL]: LOCAL_MNS_ACCOUNT_ADDRESS,
   [Network.CUSTOM]: null,
   [Network.DEVNET]: null,
   [Network.SHELBYNET]: null,
@@ -128,17 +128,17 @@ const NetworkToAnsContract: Record<Network, string | null> = {
 };
 
 /**
- * Retrieves the address of the ANS contract based on the specified Movement network configuration.
+ * Retrieves the address of the MNS contract based on the specified Movement network configuration.
  *
  * @param movementConfig - The configuration object for the Movement network.
- * @param movementConfig.network - The network for which to retrieve the ANS contract address.
+ * @param movementConfig.network - The network for which to retrieve the MNS contract address.
  *
- * @throws Throws an error if the ANS contract is not deployed to the specified network.
+ * @throws Throws an error if the MNS contract is not deployed to the specified network.
  * @group Implementation
  */
 function getRouterAddress(movementConfig: MovementConfig): string {
-  const address = NetworkToAnsContract[movementConfig.network];
-  if (!address) throw new Error(`The ANS contract is not deployed to ${movementConfig.network}`);
+  const address = NetworkToMnsContract[movementConfig.network];
+  if (!address) throw new Error(`The MNS contract is not deployed to ${movementConfig.network}`);
   return address;
 }
 
@@ -165,7 +165,7 @@ export async function getOwnerAddress(args: {
 }): Promise<AccountAddress | undefined> {
   const { movementConfig, name } = args;
   const routerAddress = getRouterAddress(movementConfig);
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   const res = await view({
     movementConfig,
@@ -230,7 +230,7 @@ export interface RegisterNameParameters {
 export async function registerName(args: RegisterNameParameters): Promise<SimpleTransaction> {
   const { movementConfig, expiration, name, sender, targetAddress, toAddress, options, transferable } = args;
   const routerAddress = getRouterAddress(movementConfig);
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   const hasSubdomainPolicy =
     expiration.policy === "subdomain:independent" || expiration.policy === "subdomain:follow-domain";
@@ -272,37 +272,19 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
     throw new Error(`${expiration.policy} requires a subdomain to be provided.`);
   }
 
-  const tldExpiration = await getExpiration({ movementConfig, name: domainName });
-  if (!tldExpiration) {
-    throw new Error("The domain does not exist");
-  }
-
-  const expirationDateInMillisecondsSinceEpoch =
-    expiration.policy === "subdomain:independent" ? expiration.expirationDate : tldExpiration;
-
-  if (expirationDateInMillisecondsSinceEpoch > tldExpiration) {
-    throw new Error("The subdomain expiration time cannot be greater than the domain expiration time");
-  }
-
-  const transaction = await generateTransaction({
-    movementConfig,
-    sender: sender.accountAddress.toString(),
-    data: {
-      function: `${routerAddress}::router::register_subdomain`,
-      functionArguments: [
-        domainName,
-        subdomainName,
-        Math.round(expirationDateInMillisecondsSinceEpoch / 1000),
-        expiration.policy === "subdomain:follow-domain" ? 1 : 0,
-        !!transferable,
-        targetAddress,
-        toAddress,
-      ],
-    },
-    options,
-  });
-
-  return transaction;
+  // Movement's MNS contract uses a key staking mechanism for subdomains instead of
+  // a direct register_subdomain function. The router has stake_key_for_subdomain,
+  // unstake_key_for_subdomain, and buy_and_stake_key_for_subdomain functions.
+  // This is different from Aptos ANS which has register_subdomain.
+  //
+  // For now, subdomain registration is not supported via this SDK.
+  // Users who need subdomain functionality should interact with the contract directly
+  // using the key staking functions.
+  throw new Error(
+    "Subdomain registration is not currently supported on Movement. " +
+    "Movement's MNS contract uses a key staking mechanism for subdomains. " +
+    "See the router module's stake_key_for_subdomain and buy_and_stake_key_for_subdomain functions."
+  );
 }
 
 /**
@@ -317,7 +299,7 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
 export async function getExpiration(args: { movementConfig: MovementConfig; name: string }): Promise<number | undefined> {
   const { movementConfig, name } = args;
   const routerAddress = getRouterAddress(movementConfig);
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   try {
     const res = await view({
@@ -403,7 +385,7 @@ export async function setPrimaryName(args: {
     return transaction;
   }
 
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   const transaction = await generateTransaction({
     movementConfig,
@@ -435,7 +417,7 @@ export async function getTargetAddress(args: {
 }): Promise<AccountAddress | undefined> {
   const { movementConfig, name } = args;
   const routerAddress = getRouterAddress(movementConfig);
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   const res = await view({
     movementConfig,
@@ -472,7 +454,7 @@ export async function setTargetAddress(args: {
 }): Promise<SimpleTransaction> {
   const { movementConfig, sender, name, address, options } = args;
   const routerAddress = getRouterAddress(movementConfig);
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   const transaction = await generateTransaction({
     movementConfig,
@@ -499,9 +481,9 @@ export async function setTargetAddress(args: {
 export async function getName(args: {
   movementConfig: MovementConfig;
   name: string;
-}): Promise<GetANSNameResponse[0] | undefined> {
+}): Promise<GetMNSNameResponse[0] | undefined> {
   const { movementConfig, name } = args;
-  const { domainName, subdomainName = "" } = isValidANSName(name);
+  const { domainName, subdomainName = "" } = isValidMNSName(name);
 
   const where: CurrentAptosNamesBoolExp = {
     domain: { _eq: domainName },
@@ -523,10 +505,10 @@ export async function getName(args: {
   // Convert the expiration_timestamp from an ISO string to milliseconds since epoch
   let res = data.current_aptos_names[0];
   if (res) {
-    res = sanitizeANSName(res);
+    res = sanitizeMNSName(res);
   }
 
-  return isActiveANSName(res) ? res : undefined;
+  return isActiveMNSName(res) ? res : undefined;
 }
 
 /**
@@ -536,7 +518,7 @@ export async function getName(args: {
  * @group Implementation
  */
 interface QueryNamesOptions {
-  options?: PaginationArgs & OrderByArg<GetANSNameResponse[0]> & WhereArg<CurrentAptosNamesBoolExp>;
+  options?: PaginationArgs & OrderByArg<GetMNSNameResponse[0]> & WhereArg<CurrentAptosNamesBoolExp>;
 }
 
 /**
@@ -567,10 +549,10 @@ export interface GetAccountNamesArgs extends QueryNamesOptions {
  */
 export async function getAccountNames(
   args: { movementConfig: MovementConfig } & GetAccountNamesArgs,
-): Promise<GetANSNameResponse> {
+): Promise<GetMNSNameResponse> {
   const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ movementConfig });
+  const expirationDate = await getMNSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
     movementConfig,
@@ -590,7 +572,7 @@ export async function getAccountNames(
     },
   });
 
-  return data.current_aptos_names.map(sanitizeANSName);
+  return data.current_aptos_names.map(sanitizeMNSName);
 }
 
 /**
@@ -623,10 +605,10 @@ export interface GetAccountDomainsArgs extends QueryNamesOptions {
  */
 export async function getAccountDomains(
   args: { movementConfig: MovementConfig } & GetAccountDomainsArgs,
-): Promise<GetANSNameResponse> {
+): Promise<GetMNSNameResponse> {
   const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ movementConfig });
+  const expirationDate = await getMNSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
     movementConfig,
@@ -647,7 +629,7 @@ export async function getAccountDomains(
     },
   });
 
-  return data.current_aptos_names.map(sanitizeANSName);
+  return data.current_aptos_names.map(sanitizeMNSName);
 }
 
 /**
@@ -679,10 +661,10 @@ export interface GetAccountSubdomainsArgs extends QueryNamesOptions {
  */
 export async function getAccountSubdomains(
   args: { movementConfig: MovementConfig } & GetAccountSubdomainsArgs,
-): Promise<GetANSNameResponse> {
+): Promise<GetMNSNameResponse> {
   const { movementConfig, options, accountAddress } = args;
 
-  const expirationDate = await getANSExpirationDate({ movementConfig });
+  const expirationDate = await getMNSExpirationDate({ movementConfig });
 
   const data = await queryIndexer<GetNamesQuery>({
     movementConfig,
@@ -703,7 +685,7 @@ export async function getAccountSubdomains(
     },
   });
 
-  return data.current_aptos_names.map(sanitizeANSName);
+  return data.current_aptos_names.map(sanitizeMNSName);
 }
 
 /**
@@ -737,7 +719,7 @@ export interface GetDomainSubdomainsArgs extends QueryNamesOptions {
  */
 export async function getDomainSubdomains(
   args: { movementConfig: MovementConfig } & GetDomainSubdomainsArgs,
-): Promise<GetANSNameResponse> {
+): Promise<GetMNSNameResponse> {
   const { movementConfig, options, domain } = args;
 
   const data = await queryIndexer<GetNamesQuery>({
@@ -758,7 +740,7 @@ export async function getDomainSubdomains(
     },
   });
 
-  return data.current_aptos_names.map(sanitizeANSName).filter(isActiveANSName);
+  return data.current_aptos_names.map(sanitizeMNSName).filter(isActiveMNSName);
 }
 
 /**
@@ -774,7 +756,7 @@ export async function getDomainSubdomains(
  * @returns The expiration date in ISO 8601 format.
  * @group Implementation
  */
-async function getANSExpirationDate(args: { movementConfig: MovementConfig }): Promise<string> {
+async function getMNSExpirationDate(args: { movementConfig: MovementConfig }): Promise<string> {
   const { movementConfig } = args;
   const routerAddress = getRouterAddress(movementConfig);
 
@@ -813,7 +795,7 @@ export async function renewDomain(args: {
   const { movementConfig, sender, name, years = 1, options } = args;
   const routerAddress = getRouterAddress(movementConfig);
   const renewalDuration = years * 31536000;
-  const { domainName, subdomainName } = isValidANSName(name);
+  const { domainName, subdomainName } = isValidMNSName(name);
 
   if (subdomainName) {
     throw new Error("Subdomains cannot be renewed");
@@ -842,13 +824,588 @@ export async function renewDomain(args: {
  * milliseconds. In the future, if other properties need sanitization, this can
  * be extended.
  *
- * @param name - The ANS name response to sanitize.
+ * @param name - The MNS name response to sanitize.
  * @param name.expiration_timestamp - The expiration timestamp in ISO string format.
  * @group Implementation
  */
-function sanitizeANSName(name: GetANSNameResponse[0]): GetANSNameResponse[0] {
+function sanitizeMNSName(name: GetMNSNameResponse[0]): GetMNSNameResponse[0] {
   return {
     ...name,
     expiration_timestamp: new Date(name.expiration_timestamp).getTime(),
   };
+}
+
+// ============================================================================
+// Subdomain Key Staking Functions
+// ============================================================================
+// Movement MNS uses a bonding curve mechanism for subdomains where users must
+// buy and stake "keys" to own subdomains. These functions provide SDK support
+// for this mechanism.
+// ============================================================================
+
+/**
+ * Get the price to buy keys for a domain. Each domain has tradeable keys that
+ * follow a bonding curve - price increases as more keys are bought.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.domainName - The domain name to get the key price for.
+ * @param args.amount - The number of keys to get the price for (default: 1).
+ * @returns The price in octas to buy the specified number of keys.
+ * @group Implementation
+ */
+export async function getKeyBuyPrice(args: {
+  movementConfig: MovementConfig;
+  domainName: string;
+  amount?: number;
+}): Promise<bigint> {
+  const { movementConfig, domainName, amount = 1 } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName: validatedDomain, subdomainName } = isValidMNSName(domainName);
+
+  if (subdomainName) {
+    throw new Error("Can only get key price for domains, not subdomains");
+  }
+
+  // Get the key address for the domain
+  // Response format: [{ vec: [{ metadata: { inner: "0x..." }, name, supply, symbol }] }]
+  const keyInfo = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_key_info_by_domain_name`,
+      functionArguments: [validatedDomain],
+    },
+  });
+
+  const keyData = (keyInfo[0] as any)?.vec?.[0];
+  const keyAddress = keyData?.metadata?.inner;
+  if (!keyAddress) {
+    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+  }
+
+  const res = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_buy_price_after_fee`,
+      functionArguments: [keyAddress, amount],
+    },
+  });
+
+  return BigInt(res[0] as string);
+}
+
+/**
+ * Get the price when selling keys for a domain.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.domainName - The domain name to get the sell price for.
+ * @param args.amount - The number of keys to get the price for (default: 1).
+ * @returns The price in octas received when selling the specified number of keys.
+ * @group Implementation
+ */
+export async function getKeySellPrice(args: {
+  movementConfig: MovementConfig;
+  domainName: string;
+  amount?: number;
+}): Promise<bigint> {
+  const { movementConfig, domainName, amount = 1 } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName: validatedDomain, subdomainName } = isValidMNSName(domainName);
+
+  if (subdomainName) {
+    throw new Error("Can only get key price for domains, not subdomains");
+  }
+
+  // Get the key address for the domain
+  // Response format: [{ vec: [{ metadata: { inner: "0x..." }, name, supply, symbol }] }]
+  const keyInfo = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_key_info_by_domain_name`,
+      functionArguments: [validatedDomain],
+    },
+  });
+
+  const keyData = (keyInfo[0] as any)?.vec?.[0];
+  const keyAddress = keyData?.metadata?.inner;
+  if (!keyAddress) {
+    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+  }
+
+  const res = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_sell_price_after_fee`,
+      functionArguments: [keyAddress, amount],
+    },
+  });
+
+  return BigInt(res[0] as string);
+}
+
+/**
+ * Parameters for subdomain key staking operations.
+ * @group Implementation
+ */
+export interface SubdomainKeyStakingParams {
+  movementConfig: MovementConfig;
+  sender: Account;
+  domainName: string;
+  subdomainName: string;
+  /** The address that this subdomain will resolve to (optional, defaults to sender) */
+  targetAddress?: AccountAddressInput;
+  /** The address that will own this subdomain (optional, defaults to sender) */
+  toAddress?: AccountAddressInput;
+  options?: InputGenerateTransactionOptions;
+}
+
+/**
+ * Buy a key for a domain and stake it to claim a subdomain in one transaction.
+ * This is the primary way to register a subdomain on Movement.
+ *
+ * The price follows a bonding curve - use getKeyBuyPrice() to check the current price.
+ *
+ * @param args - The arguments for the function.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function buyAndStakeKeyForSubdomain(
+  args: SubdomainKeyStakingParams & { referrer?: AccountAddressInput },
+): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, subdomainName, targetAddress, toAddress, referrer, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+
+  // Validate the names
+  const { domainName: validatedDomain } = isValidMNSName(domainName);
+  if (!isValidMNSSegment(subdomainName)) {
+    throw new Error(`Invalid subdomain name: ${subdomainName}. ${VALIDATION_RULES_DESCRIPTION}`);
+  }
+
+  // Optional addresses - pass null for empty options, the SDK will handle MoveOption conversion
+  const targetOpt = targetAddress ? AccountAddress.from(targetAddress).toString() : null;
+  const toOpt = toAddress ? AccountAddress.from(toAddress).toString() : null;
+  const referrerOpt = referrer ? AccountAddress.from(referrer).toString() : null;
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::buy_and_stake_key_for_subdomain`,
+      functionArguments: [validatedDomain, subdomainName, targetOpt, toOpt, referrerOpt],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Stake an existing key to claim a subdomain. You must already own a key for
+ * the parent domain (obtained via buyAndStakeKeyForSubdomain or by buying keys directly).
+ *
+ * @param args - The arguments for the function.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function stakeKeyForSubdomain(args: SubdomainKeyStakingParams): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, subdomainName, targetAddress, toAddress, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+
+  // Validate the names
+  const { domainName: validatedDomain } = isValidMNSName(domainName);
+  if (!isValidMNSSegment(subdomainName)) {
+    throw new Error(`Invalid subdomain name: ${subdomainName}. ${VALIDATION_RULES_DESCRIPTION}`);
+  }
+
+  // Optional addresses - pass null for empty options
+  const targetOpt = targetAddress ? AccountAddress.from(targetAddress).toString() : null;
+  const toOpt = toAddress ? AccountAddress.from(toAddress).toString() : null;
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::stake_key_for_subdomain`,
+      functionArguments: [validatedDomain, subdomainName, targetOpt, toOpt],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Unstake a key from a subdomain, giving up ownership but keeping the key.
+ * You can sell the key later or stake it for a different subdomain.
+ *
+ * @param args - The arguments for the function.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function unstakeKeyForSubdomain(args: {
+  movementConfig: MovementConfig;
+  sender: Account;
+  domainName: string;
+  subdomainName: string;
+  options?: InputGenerateTransactionOptions;
+}): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, subdomainName, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+
+  // Validate the names
+  const { domainName: validatedDomain } = isValidMNSName(domainName);
+  if (!isValidMNSSegment(subdomainName)) {
+    throw new Error(`Invalid subdomain name: ${subdomainName}. ${VALIDATION_RULES_DESCRIPTION}`);
+  }
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::unstake_key_for_subdomain`,
+      functionArguments: [validatedDomain, subdomainName],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Unstake a key from a subdomain and sell it in one transaction.
+ * This gives up the subdomain and converts the key back to MOVE tokens.
+ *
+ * @param args - The arguments for the function.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function unstakeAndSellKeyForSubdomain(args: {
+  movementConfig: MovementConfig;
+  sender: Account;
+  domainName: string;
+  subdomainName: string;
+  referrer?: AccountAddressInput;
+  options?: InputGenerateTransactionOptions;
+}): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, subdomainName, referrer, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+
+  // Validate the names
+  const { domainName: validatedDomain } = isValidMNSName(domainName);
+  if (!isValidMNSSegment(subdomainName)) {
+    throw new Error(`Invalid subdomain name: ${subdomainName}. ${VALIDATION_RULES_DESCRIPTION}`);
+  }
+
+  const referrerOpt = referrer ? AccountAddress.from(referrer).toString() : null;
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::unstake_and_sell_key_for_subdomain`,
+      functionArguments: [validatedDomain, subdomainName, referrerOpt],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+// ============================================================================
+// Additional Router Functions
+// ============================================================================
+
+/**
+ * Check if a name (domain or subdomain) is available for registration.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.name - The name to check (e.g., "test" or "sub.test").
+ * @param args.account - The account address that would register the name.
+ * @returns True if the name can be registered by the account, false otherwise.
+ * @group Implementation
+ */
+export async function canRegister(args: {
+  movementConfig: MovementConfig;
+  name: string;
+  account: AccountAddressInput;
+}): Promise<boolean> {
+  const { movementConfig, name, account } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName, subdomainName } = isValidMNSName(name);
+
+  const res = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::router::can_register`,
+      functionArguments: [
+        AccountAddress.from(account).toString(),
+        domainName,
+        subdomainName ?? null,
+      ],
+    },
+  });
+
+  return res[0] as boolean;
+}
+
+/**
+ * Check if a specific address owns a name.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.name - The name to check ownership of.
+ * @param args.account - The account address to check.
+ * @returns True if the account owns the name, false otherwise.
+ * @group Implementation
+ */
+export async function isNameOwner(args: {
+  movementConfig: MovementConfig;
+  name: string;
+  account: AccountAddressInput;
+}): Promise<boolean> {
+  const { movementConfig, name, account } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName, subdomainName } = isValidMNSName(name);
+
+  const res = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::router::is_name_owner`,
+      functionArguments: [
+        AccountAddress.from(account).toString(),
+        domainName,
+        subdomainName ?? null,
+      ],
+    },
+  });
+
+  return res[0] as boolean;
+}
+
+/**
+ * Get the NFT token address for a domain or subdomain.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.name - The name to get the token address for.
+ * @returns The token address, or undefined if the name doesn't exist.
+ * @group Implementation
+ */
+export async function getTokenAddress(args: {
+  movementConfig: MovementConfig;
+  name: string;
+}): Promise<AccountAddress | undefined> {
+  const { movementConfig, name } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName, subdomainName } = isValidMNSName(name);
+
+  try {
+    const res = await view({
+      movementConfig,
+      payload: {
+        function: `${routerAddress}::router::get_token_addr`,
+        functionArguments: [domainName, subdomainName ?? null],
+      },
+    });
+
+    // Response is directly the address, not wrapped in Option
+    const tokenAddr = res[0] as MoveAddressType;
+    return tokenAddr ? AccountAddress.from(tokenAddr) : undefined;
+  } catch {
+    // Contract throws if name doesn't exist
+    return undefined;
+  }
+}
+
+/**
+ * Clear the target address for a domain or subdomain, stopping it from resolving.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.sender - The account that owns the name.
+ * @param args.name - The name to clear the target address for.
+ * @param args.options - Optional transaction options.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function clearTargetAddress(args: {
+  movementConfig: MovementConfig;
+  sender: Account;
+  name: string;
+  options?: InputGenerateTransactionOptions;
+}): Promise<SimpleTransaction> {
+  const { movementConfig, sender, name, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName, subdomainName } = isValidMNSName(name);
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::clear_target_addr`,
+      functionArguments: [domainName, subdomainName ?? null],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Buy keys for a domain without staking them for a subdomain.
+ * Keys can be held for speculation or staked later via stakeKeyForSubdomain.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.sender - The account buying the keys.
+ * @param args.domainName - The domain to buy keys for.
+ * @param args.amount - The number of keys to buy.
+ * @param args.referrer - Optional referrer address for fee sharing.
+ * @param args.options - Optional transaction options.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function buyKeys(args: {
+  movementConfig: MovementConfig;
+  sender: Account;
+  domainName: string;
+  amount: number;
+  referrer?: AccountAddressInput;
+  options?: InputGenerateTransactionOptions;
+}): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, amount, referrer, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName: validatedDomain, subdomainName } = isValidMNSName(domainName);
+
+  if (subdomainName) {
+    throw new Error("Can only buy keys for domains, not subdomains");
+  }
+
+  // Get the key address for the domain
+  const keyInfo = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_key_info_by_domain_name`,
+      functionArguments: [validatedDomain],
+    },
+  });
+
+  const keyData = (keyInfo[0] as any)?.vec?.[0];
+  const keyAddress = keyData?.metadata?.inner;
+  if (!keyAddress) {
+    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+  }
+
+  const referrerOpt = referrer ? AccountAddress.from(referrer).toString() : null;
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::buy_keys`,
+      functionArguments: [keyAddress, amount, referrerOpt],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Sell keys for a domain back to the bonding curve.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.sender - The account selling the keys.
+ * @param args.domainName - The domain to sell keys for.
+ * @param args.amount - The number of keys to sell.
+ * @param args.referrer - Optional referrer address for fee sharing.
+ * @param args.options - Optional transaction options.
+ * @returns A transaction object to be signed and submitted.
+ * @group Implementation
+ */
+export async function sellKeys(args: {
+  movementConfig: MovementConfig;
+  sender: Account;
+  domainName: string;
+  amount: number;
+  referrer?: AccountAddressInput;
+  options?: InputGenerateTransactionOptions;
+}): Promise<SimpleTransaction> {
+  const { movementConfig, sender, domainName, amount, referrer, options } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName: validatedDomain, subdomainName } = isValidMNSName(domainName);
+
+  if (subdomainName) {
+    throw new Error("Can only sell keys for domains, not subdomains");
+  }
+
+  // Get the key address for the domain
+  const keyInfo = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::key_manager::get_key_info_by_domain_name`,
+      functionArguments: [validatedDomain],
+    },
+  });
+
+  const keyData = (keyInfo[0] as any)?.vec?.[0];
+  const keyAddress = keyData?.metadata?.inner;
+  if (!keyAddress) {
+    throw new Error(`No key found for domain ${validatedDomain}.`);
+  }
+
+  const referrerOpt = referrer ? AccountAddress.from(referrer).toString() : null;
+
+  const transaction = await generateTransaction({
+    movementConfig,
+    sender: sender.accountAddress.toString(),
+    data: {
+      function: `${routerAddress}::router::sell_keys`,
+      functionArguments: [keyAddress, amount, referrerOpt],
+    },
+    options,
+  });
+
+  return transaction;
+}
+
+/**
+ * Get the registration price for a domain name.
+ * Price varies based on domain length and registration duration.
+ *
+ * @param args - The arguments for the function.
+ * @param args.movementConfig - The configuration object for Movement.
+ * @param args.name - The domain name to get the price for.
+ * @param args.years - Number of years to register (default: 1).
+ * @returns The price in octas to register the domain.
+ * @group Implementation
+ */
+export async function getDomainPrice(args: {
+  movementConfig: MovementConfig;
+  name: string;
+  years?: number;
+}): Promise<bigint> {
+  const { movementConfig, name, years = 1 } = args;
+  const routerAddress = getRouterAddress(movementConfig);
+  const { domainName, subdomainName } = isValidMNSName(name);
+
+  if (subdomainName) {
+    throw new Error("Can only get price for domains, not subdomains. Subdomains use key staking.");
+  }
+
+  const secondsPerYear = 31536000;
+  const registrationSeconds = years * secondsPerYear;
+
+  const res = await view({
+    movementConfig,
+    payload: {
+      function: `${routerAddress}::price_model_v2::price_for_domain`,
+      functionArguments: [domainName, registrationSeconds],
+    },
+  });
+
+  return BigInt(res[0] as string);
 }

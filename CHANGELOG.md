@@ -1,6 +1,29 @@
-# Aptos TypeScript SDK Changelog
+# Movement TypeScript SDK Changelog
 
-All notable changes to the Aptos TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+All notable changes to the Movement TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+# 5.1.6 (2026-02-09)
+
+- Rebrand ANS (Aptos Name Service) to MNS (Movement Name Service)
+  - Changed TLD from `.apt` to `.move`
+  - Renamed all ANS references to MNS throughout the codebase
+  - Renamed `movement.ans` namespace to `movement.mns`
+- Add new MNS methods:
+  - `getDomainPrice` - Get registration cost before registering a domain
+  - `canRegister` - Check if a name is available for registration
+  - `isNameOwner` - Check if an address owns a specific name
+  - `getTokenAddress` - Get the token address for a name
+  - `clearTargetAddress` - Remove resolution target from a name
+- Add subdomain key staking support (bonding curve mechanism):
+  - `getKeyBuyPrice` - Get price to buy keys for a domain
+  - `getKeySellPrice` - Get price when selling keys
+  - `buyAndStakeKeyForSubdomain` - Buy a key and claim a subdomain
+  - `stakeKeyForSubdomain` - Stake an existing key for a subdomain
+  - `unstakeKeyForSubdomain` - Release subdomain ownership
+  - `unstakeAndSellKeyForSubdomain` - Release and sell key in one transaction
+  - `buyKeys` - Buy keys without staking
+  - `sellKeys` - Sell keys
+- Update README with comprehensive SDK documentation
 
 # 5.1.5 (2026-02-03)
 

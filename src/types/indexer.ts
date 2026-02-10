@@ -199,7 +199,12 @@ export type GetTableItemsMetadataResponse = GetTableItemsMetadataQuery["table_me
  * @group Implementation
  * @category Types
  */
-export type GetANSNameResponse = GetNamesQuery["current_aptos_names"];
+export type GetMNSNameResponse = GetNamesQuery["current_aptos_names"];
+
+/**
+ * @deprecated Use GetMNSNameResponse instead
+ */
+export type GetANSNameResponse = GetMNSNameResponse;
 
 /**
  * A generic type that being passed by each function and holds an
