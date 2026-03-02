@@ -2,6 +2,10 @@ import { Account, Deserializer, RawTransaction, TransactionPayloadEntryFunction 
 import { FUND_AMOUNT, longTestTimeout } from "../../unit/helper";
 import { getMovementClient } from "../helper";
 
+// Skip indexer tests on localnet since indexer causes stability issues
+const skipIndexerTests = process.env.MOVEMENT_NETWORK === "local" || !process.env.MOVEMENT_NETWORK;
+const testOrSkip = skipIndexerTests ? test.skip : test;
+
 describe("coin", () => {
   test("it generates a transfer coin transaction with MovementCoin coin type", async () => {
     const { movement } = getMovementClient();
@@ -62,7 +66,8 @@ describe("coin", () => {
     expect(typeArg.value.name.identifier).toBe("type");
   });
 
-  test(
+  // Requires indexer
+  testOrSkip(
     "it transfers MOVE coin amount from sender to recipient",
     async () => {
       const { movement } = getMovementClient();

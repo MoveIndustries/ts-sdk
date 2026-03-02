@@ -19,6 +19,10 @@ import {
 import { getMovementClient } from "../helper";
 import { simpleCoinTransactionHeler } from "../transaction/helper";
 
+// Skip indexer tests on localnet since indexer causes stability issues
+const skipIndexerTests = process.env.MOVEMENT_NETWORK === "local" || !process.env.MOVEMENT_NETWORK;
+const testOrSkip = skipIndexerTests ? test.skip : test;
+
 describe("account api", () => {
   const FUND_AMOUNT = 100_000_000;
 
@@ -207,7 +211,8 @@ describe("account api", () => {
       expect(accountTransactions[0]).toStrictEqual(txn);
     });
 
-    test("it fetches account transactions count", async () => {
+    // Requires indexer
+    testOrSkip("it fetches account transactions count", async () => {
       const { movement, config } = getMovementClient();
       const senderAccount = Account.generate();
       const response = await movement.fundAccount({
@@ -222,7 +227,8 @@ describe("account api", () => {
       expect(accountTransactionsCount).toBe(1);
     });
 
-    test("it fetches account coins data", async () => {
+    // Requires indexer
+    testOrSkip("it fetches account coins data", async () => {
       const { movement, config } = getMovementClient();
       const senderAccount = Account.generate();
       const fundTxn = await movement.fundAccount({
@@ -238,7 +244,8 @@ describe("account api", () => {
       expect(accountCoinData[0].asset_type).toBe("0x1::aptos_coin::AptosCoin");
     });
 
-    test("it fetches account coins count", async () => {
+    // Requires indexer
+    testOrSkip("it fetches account coins count", async () => {
       const { movement, config } = getMovementClient();
       const senderAccount = Account.generate();
       const fundTxn = await movement.fundAccount({
@@ -253,7 +260,8 @@ describe("account api", () => {
       expect(accountCoinsCount).toBe(1);
     });
 
-    test("it fetches account's coin amount", async () => {
+    // Requires indexer
+    testOrSkip("it fetches account's coin amount", async () => {
       const { movement, config } = getMovementClient();
       const senderAccount = Account.generate();
       const fundTxn = await movement.fundAccount({
