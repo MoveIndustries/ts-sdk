@@ -19,8 +19,16 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
 
+    # Build the root SDK (needed for confidential-assets dependency)
+    - run: pnpm build
+      shell: bash
+
     # Install the dependencies for the Confidential Assets tests
     - run: cd confidential-assets && pnpm install --frozen-lockfile
+      shell: bash
+
+    # Build the Confidential Assets package
+    - run: cd confidential-assets && pnpm build
       shell: bash
 
     # Install the Movement CLI (Linux binary).

@@ -32,7 +32,7 @@ runs:
         movement --version
 
     # Run a local testnet in the background.
-    - run: movement node run-localnet --force-restart --assume-yes --with-indexer-api >& ${{ runner.temp }}/local-testnet-logs.txt &
+    - run: movement node run-localnet --force-restart --assume-yes --with-indexer-api --do-not-delegate >& ${{ runner.temp }}/local-testnet-logs.txt &
       shell: bash
 
     # Wait for the local testnet to be ready by hitting the readiness endpoint.

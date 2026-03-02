@@ -20,6 +20,10 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
 
+    # Build the SDK
+    - run: pnpm build
+      shell: bash
+
     # Install the Movement CLI (Linux binary).
     - name: Install Movement CLI
       shell: bash
@@ -29,7 +33,10 @@ runs:
         chmod +x movement
         sudo mv movement /usr/local/bin/movement
         rm movement-cli.tar.gz
+        echo "Movement CLI installed at: $(which movement)"
         movement --version
+        # Verify it can be found from Node.js
+        node -e "const { execSync } = require('child_process'); console.log('Node can find movement:', execSync('which movement').toString().trim());"
 
     # Run the TS SDK tests.
     - uses: nick-fields/retry@7f8f3d9f0f62fe5925341be21c2e8314fd4f7c7c # pin@v2

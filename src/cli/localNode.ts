@@ -105,6 +105,8 @@ export class LocalNode {
       ...(currentPlatform === "win32" && { shell: true }),
     };
 
+    console.log(`Starting localnet with command: ${cliCommand} ${cliArgs.join(" ")}`);
+
     this.process = spawn(cliCommand, cliArgs, spawnConfig);
 
     this.process.stdout?.on("data", (data: any) => {
@@ -112,6 +114,21 @@ export class LocalNode {
       // Print local node output log
       if (this.showStdout) {
         console.log(str);
+      }
+    });
+
+    this.process.stderr?.on("data", (data: any) => {
+      const str = data.toString();
+      console.error(`[localnet stderr]: ${str}`);
+    });
+
+    this.process.on("error", (err: Error) => {
+      console.error(`[localnet spawn error]: ${err.message}`);
+    });
+
+    this.process.on("close", (code: number | null) => {
+      if (code !== 0 && code !== null) {
+        console.error(`[localnet] Process exited with code ${code}`);
       }
     });
   }
