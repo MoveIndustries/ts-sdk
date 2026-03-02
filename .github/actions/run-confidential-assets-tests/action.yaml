@@ -23,9 +23,16 @@ runs:
     - run: cd confidential-assets && pnpm install --frozen-lockfile
       shell: bash
 
-    # Install the Movement CLI globally so npx can find it.
-    - run: pnpm install -g @moveindustries/movement-cli
+    # Install the Movement CLI (Linux binary).
+    - name: Install Movement CLI
       shell: bash
+      run: |
+        curl -fsSL -o movement-cli.tar.gz https://github.com/movementlabsxyz/homebrew-movement-cli/releases/download/bypass-homebrew/movement-cli-l1-linux-x86_64.tar.gz
+        tar -xzf movement-cli.tar.gz
+        chmod +x movement
+        sudo mv movement /usr/local/bin/movement
+        rm movement-cli.tar.gz
+        movement --version
 
     # Run the Confidential Assets tests.
     - uses: nick-fields/retry@7f8f3d9f0f62fe5925341be21c2e8314fd4f7c7c # pin@v2

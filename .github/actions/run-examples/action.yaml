@@ -20,9 +20,16 @@ runs:
     - run: pnpm build
       shell: bash
 
-    # Install the CLI.
-    - run: pnpm install -g @moveindustries/movement-cli
+    # Install the Movement CLI (Linux binary).
+    - name: Install Movement CLI
       shell: bash
+      run: |
+        curl -fsSL -o movement-cli.tar.gz https://github.com/movementlabsxyz/homebrew-movement-cli/releases/download/bypass-homebrew/movement-cli-l1-linux-x86_64.tar.gz
+        tar -xzf movement-cli.tar.gz
+        chmod +x movement
+        sudo mv movement /usr/local/bin/movement
+        rm movement-cli.tar.gz
+        movement --version
 
     # Run a local testnet in the background.
     - run: movement node run-localnet --force-restart --assume-yes --with-indexer-api >& ${{ runner.temp }}/local-testnet-logs.txt &

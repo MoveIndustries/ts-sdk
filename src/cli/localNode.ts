@@ -88,9 +88,8 @@ export class LocalNode {
    * @category CLI
    */
   start(): void {
-    const cliCommand = "npx";
+    const cliCommand = "movement";
     const cliArgs = [
-      "movement",
       "node",
       "run-localnet",
       "--force-restart",
