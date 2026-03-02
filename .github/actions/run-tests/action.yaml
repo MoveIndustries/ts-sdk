@@ -64,6 +64,8 @@ runs:
         # repo and mounting it into the CLI container is created in a location that
         # actually supports mounting. Learn more here: https://stackoverflow.com/a/76523941/3846032.
         TMPDIR: ${{ runner.temp }}
+        # Tell Jest's preTest.cjs to skip starting its own localnet since CI already started one
+        MOVEMENT_NETWORK: local
       with:
         max_attempts: 3
         timeout_minutes: 25
