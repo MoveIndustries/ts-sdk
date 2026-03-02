@@ -5,7 +5,7 @@
  * Example to submit a simple sponsored transaction where Alice transfers MOVE coin to Bob
  * with a sponsor account to pay for the gas fee
  */
-import { Account, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import { Account, Movement, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 

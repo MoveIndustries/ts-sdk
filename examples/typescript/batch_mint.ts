@@ -21,6 +21,7 @@
 import {
   Account,
   InputGenerateTransactionPayloadData,
+  Movement,
   MovementConfig,
   Network,
   NetworkToNetworkName,
@@ -79,7 +80,7 @@ async function main() {
   // batch mint token transactions
   movement.transaction.batch.forSingleAccount({ sender, data: payloads });
 
-  movement.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data) => {
+  movement.transaction.batch.on(TransactionWorkerEventsEnum.ExecutionFinish, async (data: { message: string }) => {
     // log event output
     console.log(data);
 

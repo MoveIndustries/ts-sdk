@@ -4,6 +4,7 @@ import {
   Account,
   AccountAddress,
   Ed25519Account,
+  Movement,
   MovementConfig,
   Network,
   NetworkToNetworkName,

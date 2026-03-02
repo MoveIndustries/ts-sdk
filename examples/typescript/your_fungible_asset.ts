@@ -5,6 +5,7 @@ import {
   AccountAddress,
   AnyNumber,
   InputViewFunctionData,
+  Movement,
   MovementConfig,
   Network,
   NetworkToNetworkName,

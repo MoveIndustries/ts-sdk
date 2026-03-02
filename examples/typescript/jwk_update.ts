@@ -5,7 +5,7 @@
  * This example shows how to use install JSON Web Key Set (JWKS) on an account to support Federated Keyless Accounts
  */
 
-import { EphemeralKeyPair, MovementConfig, Network } from "@moveindustries/ts-sdk";
+import { EphemeralKeyPair, Movement, MovementConfig, Network } from "@moveindustries/ts-sdk";
 import * as readlineSync from "readline-sync";
 
 const example = async () => {

@@ -5,7 +5,14 @@
  * Similar to ./simple_transfer.ts, but uses transferCoinTransaction to generate the transaction.
  */
 
-import { Account, AccountAddress, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import {
+  Account,
+  AccountAddress,
+  Movement,
+  MovementConfig,
+  Network,
+  NetworkToNetworkName,
+} from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 

@@ -1,6 +1,13 @@
 /* eslint-disable no-console */
 /* eslint-disable max-len */
-import { Account, AccountAddress, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import {
+  Account,
+  AccountAddress,
+  Movement,
+  MovementConfig,
+  Network,
+  NetworkToNetworkName,
+} from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 import { compilePackage, getPackageBytesToPublish } from "./utils";
 dotenv.config();

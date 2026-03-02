@@ -2,6 +2,7 @@
 import {
   AbstractedAccount,
   Account,
+  Movement,
   MovementConfig,
   Network,
   NetworkToNetworkName,

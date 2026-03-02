@@ -12,7 +12,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { Account, Hex, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import { Account, Hex, Movement, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import assert from "assert";
 import { compilePackage, getPackageBytesToPublish } from "./utils";
 

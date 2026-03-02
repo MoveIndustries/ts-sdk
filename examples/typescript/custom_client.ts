@@ -10,7 +10,14 @@
  * `<Req, Res>(requestOptions: ClientRequest<Req>): Promise<ClientResponse<Res>>;`
  *
  */
-import { ClientRequest, ClientResponse, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import {
+  ClientRequest,
+  ClientResponse,
+  Movement,
+  MovementConfig,
+  Network,
+  NetworkToNetworkName,
+} from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 // eslint-disable-next-line import/no-commonjs
