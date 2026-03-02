@@ -282,7 +282,6 @@ describe("transaction builder", () => {
       await movement.fundAccount({
         accountAddress: alice.accountAddress,
         amount: FUND_AMOUNT,
-        options: { waitForIndexer: true },
       });
       const payload = await generateTransactionPayload({
         bytecode: multiSignerScriptBytecode,

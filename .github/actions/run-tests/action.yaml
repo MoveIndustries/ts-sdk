@@ -39,8 +39,7 @@ runs:
         node -e "const { execSync } = require('child_process'); console.log('Node can find movement:', execSync('which movement').toString().trim());"
 
     # Run a local testnet in the background.
-    # Note: --with-indexer-api removed due to stability issues causing service crashes
-    - run: movement node run-localnet --force-restart --assume-yes --do-not-delegate >& ${{ runner.temp }}/local-testnet-logs.txt &
+    - run: movement node run-localnet --force-restart --assume-yes --with-indexer-api --do-not-delegate >& ${{ runner.temp }}/local-testnet-logs.txt &
       shell: bash
 
     # Wait for the local testnet to be ready by hitting the readiness endpoint.
@@ -53,8 +52,11 @@ runs:
     # Also wait for the fullnode REST API to be ready
     - run: wait-on --verbose --interval 1500 --timeout 120000 --httpTimeout 120000 http-get://127.0.0.1:8080/v1
       shell: bash
-    # Give the fullnode a bit more time to stabilize
-    - run: sleep 5
+    # Wait for the indexer API to be ready
+    - run: wait-on --verbose --interval 1500 --timeout 120000 --httpTimeout 120000 http-get://127.0.0.1:8090
+      shell: bash
+    # Give services a bit more time to stabilize
+    - run: sleep 10
       shell: bash
 
     # Run the TS SDK tests.

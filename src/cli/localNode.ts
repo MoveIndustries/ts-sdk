@@ -97,6 +97,7 @@ export class LocalNode {
       "run-localnet",
       "--force-restart",
       "--assume-yes",
+      "--with-indexer-api",
       "--do-not-delegate",
       ...this.extraArgs,
     ];

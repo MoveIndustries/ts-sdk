@@ -176,9 +176,7 @@ describe("general api", () => {
     });
   });
 
-  // Skip on localnet since indexer is not available for stability reasons
-  const skipIndexerTests = process.env.MOVEMENT_NETWORK === "local" || !process.env.MOVEMENT_NETWORK;
-  (skipIndexerTests ? test.skip : test)("it should get the processor statuses for one", async () => {
+  test("it should get the processor statuses for one", async () => {
     const processor = await movement.getProcessorStatus(ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR);
     expect(processor.processor).toEqual(ProcessorType.ACCOUNT_TRANSACTION_PROCESSOR);
   });
