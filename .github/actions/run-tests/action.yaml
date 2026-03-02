@@ -49,6 +49,12 @@ runs:
       shell: bash
     - run: wait-on --verbose --interval 1500 --timeout 120000 --httpTimeout 120000 http-get://127.0.0.1:8070
       shell: bash
+    # Also wait for the fullnode REST API to be ready
+    - run: wait-on --verbose --interval 1500 --timeout 120000 --httpTimeout 120000 http-get://127.0.0.1:8080/v1
+      shell: bash
+    # Give indexer a bit more time to start after fullnode is ready
+    - run: sleep 10
+      shell: bash
 
     # Run the TS SDK tests.
     - uses: nick-fields/retry@7f8f3d9f0f62fe5925341be21c2e8314fd4f7c7c # pin@v2

@@ -5,7 +5,7 @@
  * This example shows how to use the Movement client to mint and transfer a Digital Asset.
  */
 
-import { Account, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
+import { Account, Movement, MovementConfig, Network, NetworkToNetworkName } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();
 

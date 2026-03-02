@@ -12,6 +12,7 @@ import {
   Account,
   AccountAuthenticator,
   Deserializer,
+  Movement,
   MovementConfig,
   Network,
   NetworkToNetworkName,

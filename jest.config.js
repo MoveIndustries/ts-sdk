@@ -23,7 +23,14 @@ module.exports = {
     "./tests/e2e/ans/publishANSContracts.ts",
     "./confidential-assets/*",
   ],
-  testPathIgnorePatterns: ["dist/*", "examples/*", "confidential-assets/*"],
+  testPathIgnorePatterns: [
+    "dist/*",
+    "examples/*",
+    "confidential-assets/*",
+    // Skip tests for features not supported on Movement localnet
+    "tests/e2e/api/keyless.test.ts",
+    "tests/e2e/api/abstraction.test.ts",
+  ],
   collectCoverage: true,
   setupFiles: ["dotenv/config"],
   coverageThreshold: {

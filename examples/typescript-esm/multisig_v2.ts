@@ -22,6 +22,7 @@ import {
   generateTransactionPayload,
   InputViewFunctionData,
   InputViewFunctionJsonData,
+  Movement,
   MovementConfig,
   MoveString,
   MultiSig,
