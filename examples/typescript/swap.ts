@@ -33,7 +33,7 @@ const readline = createInterface({
 });
 
 const getOptimalLpAmount = async (
-  aptos: Movement,
+  movement: Movement,
   swap: AccountAddress,
   token1Addr: AccountAddress,
   token2Addr: AccountAddress,
@@ -47,7 +47,7 @@ const getOptimalLpAmount = async (
 };
 
 const addLiquidity = async (
-  aptos: Movement,
+  movement: Movement,
   swap: AccountAddress,
   deployer: Account,
   token1Addr: AccountAddress,
@@ -67,7 +67,7 @@ const addLiquidity = async (
 };
 
 const swapAssets = async (
-  aptos: Movement,
+  movement: Movement,
   swap: AccountAddress,
   deployer: Account,
   fromToken: AccountAddress,
@@ -89,7 +89,7 @@ const swapAssets = async (
   return response.hash;
 };
 
-const getAssetType = async (aptos: Movement, owner: Account): Promise<any> => {
+const getAssetType = async (movement: Movement, owner: Account): Promise<any> => {
   const data = await movement.getFungibleAssetMetadata({
     options: {
       where: {
@@ -107,7 +107,7 @@ const getAssetType = async (aptos: Movement, owner: Account): Promise<any> => {
   };
 };
 
-const getFaBalance = async (aptos: Movement, owner: Account, assetType: string): Promise<number> => {
+const getFaBalance = async (movement: Movement, owner: Account, assetType: string): Promise<number> => {
   const data = await movement.getCurrentFungibleAssetBalances({
     options: {
       where: {
@@ -121,7 +121,7 @@ const getFaBalance = async (aptos: Movement, owner: Account, assetType: string):
 };
 
 const createLiquidityPool = async (
-  aptos: Movement,
+  movement: Movement,
   swap: AccountAddress,
   deployer: Account,
   dogCoinAddr: AccountAddress,
@@ -140,7 +140,7 @@ const createLiquidityPool = async (
   return response.hash;
 };
 
-const initLiquidityPool = async (aptos: Movement, swap: AccountAddress, deployer: Account): Promise<string> => {
+const initLiquidityPool = async (movement: Movement, swap: AccountAddress, deployer: Account): Promise<string> => {
   const rawTxn = await movement.transaction.build.simple({
     sender: deployer.accountAddress,
     data: {
@@ -155,7 +155,7 @@ const initLiquidityPool = async (aptos: Movement, swap: AccountAddress, deployer
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const createFungibleAsset = async (aptos: Movement, admin: Account): Promise<void> => {
+const createFungibleAsset = async (movement: Movement, admin: Account): Promise<void> => {
   await new Promise<void>((resolve) => {
     readline.question(
       "Follow the steps to publish the Dog and Cat Coin module with Admin's address, and press enter. \n" +
@@ -173,7 +173,7 @@ const createFungibleAsset = async (aptos: Movement, admin: Account): Promise<voi
  *  Admin mint the coin
  */
 const mintCoin = async (
-  aptos: Movement,
+  movement: Movement,
   admin: Account,
   amount: number | bigint,
   coinName: string,
@@ -223,8 +223,8 @@ const example = async () => {
   await movement.fundAccount({ accountAddress: admin.accountAddress, amount: 100_000_000 });
 
   console.log("\n====== Create Fungible Asset -> (Dog and Cat coin) ======\n");
-  await createFungibleAsset(aptos, admin);
-  const assetTypes = await getAssetType(aptos, admin);
+  await createFungibleAsset(movement, admin);
+  const assetTypes = await getAssetType(movement, admin);
   const dogCoinAddr = AccountAddress.from(assetTypes.dog);
   const catCoinAddr = AccountAddress.from(assetTypes.cat);
   console.log(`Cat FACoin asset type: ${catCoinAddr}`);
@@ -232,33 +232,33 @@ const example = async () => {
 
   console.log("\n====== Mint Dog and Cat Coin ======\n");
   console.log("minting 20_000_000 Dog coin...");
-  await mintCoin(aptos, admin, 20_000_000, "dog");
+  await mintCoin(movement, admin, 20_000_000, "dog");
   console.log("minting 30_000_000 Cat coin...");
-  await mintCoin(aptos, admin, 30_000_000, "cat");
+  await mintCoin(movement, admin, 30_000_000, "cat");
 
   console.log("\n====== Current Balance ======\n");
-  console.log(`Admin's Dog coin balance: ${await getFaBalance(aptos, admin, dogCoinAddr.toString())}.`);
-  console.log(`Admin's Cat coin balance: ${await getFaBalance(aptos, admin, catCoinAddr.toString())}.`);
+  console.log(`Admin's Dog coin balance: ${await getFaBalance(movement, admin, dogCoinAddr.toString())}.`);
+  console.log(`Admin's Cat coin balance: ${await getFaBalance(movement, admin, catCoinAddr.toString())}.`);
 
   console.log("\n====== Create Liquidity Pool ======\n");
   console.log("initializing Liquidity Pool......");
-  await initLiquidityPool(aptos, swapAddress, admin);
+  await initLiquidityPool(movement, swapAddress, admin);
   console.log("Creating liquidity pool......");
-  await createLiquidityPool(aptos, swapAddress, admin, dogCoinAddr, catCoinAddr);
+  await createLiquidityPool(movement, swapAddress, admin, dogCoinAddr, catCoinAddr);
   console.log("Getting optimal LP amount......");
-  await getOptimalLpAmount(aptos, swapAddress, dogCoinAddr, catCoinAddr);
+  await getOptimalLpAmount(movement, swapAddress, dogCoinAddr, catCoinAddr);
   console.log("Adding liquidity......");
-  await addLiquidity(aptos, swapAddress, admin, dogCoinAddr, catCoinAddr);
+  await addLiquidity(movement, swapAddress, admin, dogCoinAddr, catCoinAddr);
   console.log("Done.");
 
   console.log("\n====== Swap 100 Dog coins for Cat coins ======\n");
   console.log("Swapping 100 Dog coin to Cat coin......");
-  await swapAssets(aptos, swapAddress, admin, dogCoinAddr, catCoinAddr, 100, 1, admin.accountAddress);
+  await swapAssets(movement, swapAddress, admin, dogCoinAddr, catCoinAddr, 100, 1, admin.accountAddress);
   console.log("Swap finished.");
 
   console.log("\n====== Current Balance ======\n");
-  console.log(`Admin's Dog coin balance: ${await getFaBalance(aptos, admin, dogCoinAddr.toString())}.`);
-  console.log(`Admin's Cat coin balance: ${await getFaBalance(aptos, admin, catCoinAddr.toString())}.`);
+  console.log(`Admin's Dog coin balance: ${await getFaBalance(movement, admin, dogCoinAddr.toString())}.`);
+  console.log(`Admin's Cat coin balance: ${await getFaBalance(movement, admin, catCoinAddr.toString())}.`);
 
   readline.close();
 };

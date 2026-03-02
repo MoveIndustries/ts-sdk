@@ -10,6 +10,7 @@ import {
   InputGenerateTransactionPayloadData,
   InputSubmitTransactionData,
   Network,
+  NetworkToNetworkName,
   PendingTransactionResponse,
   PrivateKey,
   PrivateKeyVariants,
@@ -27,7 +28,13 @@ export const longTestTimeout = 120 * 1000;
  */
 export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000000000000000000a";
 
-const MOVEMENT_NETWORK: Network = Network.TESTNET;
+// Use MOVEMENT_NETWORK env var if set, otherwise default to LOCAL for CI
+const networkRaw = process.env.MOVEMENT_NETWORK;
+const MOVEMENT_NETWORK: Network = networkRaw ? NetworkToNetworkName[networkRaw] : Network.LOCAL;
+
+// Use CONFIDENTIAL_MODULE_ADDRESS env var if set, otherwise use testnet default
+const CONFIDENTIAL_MODULE_ADDRESS =
+  process.env.CONFIDENTIAL_MODULE_ADDRESS || "0xd38fc33916098866c4f18e6c80e75dd6b5af0d397acd063214bf3e78673ce25f";
 
 export const feePayerAccount = Account.generate();
 
@@ -59,7 +66,7 @@ const config = new MovementConfig({
 });
 export const confidentialAsset = new ConfidentialAsset({
   config,
-  confidentialAssetModuleAddress: "0xd38fc33916098866c4f18e6c80e75dd6b5af0d397acd063214bf3e78673ce25f",
+  confidentialAssetModuleAddress: CONFIDENTIAL_MODULE_ADDRESS,
   withFeePayer: true,
 });
 export const movement = new Movement(config);

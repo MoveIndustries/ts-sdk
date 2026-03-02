@@ -14,12 +14,12 @@ const GAS_UNIT_PRICE = 100; // octas / gas unit
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param address
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, address: AccountAddress): Promise<any> =>
+const balance = async (movement: Movement, address: AccountAddress): Promise<any> =>
   movement.getAccountMOVEAmount({
     accountAddress: address,
   });
@@ -64,7 +64,7 @@ const example = async () => {
   // Funded 0x3e42a237d4e6a504d1ce00fb12446be69cff8910e9e226e892558c094353c7dd with 0.03 MOVE and balance was 3,000,000
   // After the transfer(-to-self) of 10 octas with max gas 200 (gas units), the balance was 2,996,000 because TXN took 40 gas units of 100 octas each => 4,000 octas
   // https://explorer.aptoslabs.com/txn/0x52f6f117baa09b4afd50e3a1a77e89191a07bbf96ba7402211330eb510c62e72/userTxnOverview?network=mainnet
-  let aliceBalance = await balance(aptos, alice.accountAddress);
+  let aliceBalance = await balance(movement, alice.accountAddress);
   const minBalance = MAX_GAS_UNITS * GAS_UNIT_PRICE + TRANSFER_AMOUNT;
   while (aliceBalance < minBalance) {
     console.log("\n=== Fund the account ===\n");
@@ -78,7 +78,7 @@ const example = async () => {
     try {
       console.log("Refetching balance...\n");
       // eslint-disable-next-line no-await-in-loop
-      aliceBalance = await balance(aptos, alice.accountAddress);
+      aliceBalance = await balance(movement, alice.accountAddress);
     } catch (error) {
       console.log(`Error fetching balance: ${error}\n`);
     }
@@ -103,7 +103,7 @@ const example = async () => {
   console.log(`Committed transaction: ${committedTxn.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");
-  const newAliceBalance = await balance(aptos, alice.accountAddress);
+  const newAliceBalance = await balance(movement, alice.accountAddress);
   console.log(`Alice's balance is: ${newAliceBalance}`);
   // Alice should have the remainder minus gas
   if (TRANSFER_AMOUNT >= aliceBalance - newAliceBalance) throw new Error("Alice's balance after transfer is incorrect");

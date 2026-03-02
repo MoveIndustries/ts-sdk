@@ -30,16 +30,16 @@ const TRANSFER_AMOUNT = 100;
 // Default to devnet, but allow for overriding
 const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
 
-const balance = async (aptos: Movement, account: Account, name: string): Promise<any> => {
+const balance = async (movement: Movement, account: Account, name: string): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [account.accountAddress.toString()],
   };
-  const [balance] = await movement.viewJson<[number]>({ payload: payload });
+  const [bal] = await movement.viewJson<[number]>({ payload: payload });
 
-  console.log(`${name}'s balance is: ${balance}`);
-  return Number(balance);
+  console.log(`${name}'s balance is: ${bal}`);
+  return Number(bal);
 };
 
 /**
@@ -48,7 +48,7 @@ const balance = async (aptos: Movement, account: Account, name: string): Promise
 class ExternalSigner {
   private account: Ed25519Account;
 
-  private aptos: Movement;
+  private movement: Movement;
 
   public name: string;
 
@@ -91,7 +91,7 @@ class ExternalSigner {
   }
 
   async balance(): Promise<number> {
-    return balance(this.aptos, this.account, this.name);
+    return balance(this.movement, this.account, this.name);
   }
 
   /**
@@ -136,7 +136,7 @@ const example = async () => {
   // Show the balances
   console.log("\n=== Balances ===\n");
   const coldBalance = await cold.balance();
-  const hotBalance = await balance(aptos, hot, "Hot");
+  const hotBalance = await balance(movement, hot, "Hot");
 
   if (coldBalance !== COLD_INITIAL_BALANCE) throw new Error("Cold's balance is incorrect");
   if (hotBalance !== HOT_INITIAL_BALANCE) throw new Error("Hot's balance is incorrect");
@@ -172,7 +172,7 @@ const example = async () => {
 
   console.log("\n=== Balances after transfer ===\n");
   const newColdBalance = await cold.balance();
-  const newHotBalance = await balance(aptos, hot, "Hot");
+  const newHotBalance = await balance(movement, hot, "Hot");
 
   // Hot should have the transfer amount
   if (newHotBalance !== TRANSFER_AMOUNT + HOT_INITIAL_BALANCE)

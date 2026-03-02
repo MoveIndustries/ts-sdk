@@ -20,16 +20,16 @@ export function compilePackage(
   args?: string[],
 ) {
   try {
-    execSync("aptos --version");
+    execSync("movement --version");
   } catch (e) {
-    console.log("In order to run compilation, you must have the `aptos` CLI installed.");
-    console.log("aptos is not installed. Please install it from the instructions on movement.dev");
+    console.log("In order to run compilation, you must have the `movement` CLI installed.");
+    console.log("movement is not installed. Please install it from the instructions on movement.dev");
   }
 
   const addressArg = namedAddresses.map(({ name, address }) => `${name}=${address}`).join(" ");
 
   // Assume-yes automatically overwrites the previous compiled version, only do this if you are sure you want to overwrite the previous version.
-  let compileCommand = `aptos move build-publish-payload --json-output-file ${outputFile} --package-dir ${packageDir} --named-addresses ${addressArg} --assume-yes`;
+  let compileCommand = `movement move build-publish-payload --json-output-file ${outputFile} --package-dir ${packageDir} --named-addresses ${addressArg} --assume-yes`;
   if (args) compileCommand += ` ${args.join(" ")}`;
 
   console.log("Running the compilation locally, in a real situation you may want to compile this ahead of time.");

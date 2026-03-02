@@ -27,22 +27,22 @@ const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETW
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param name
  * @param address
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (movement: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await movement.viewJson<[number]>({ payload: payload });
+  const [bal] = await movement.viewJson<[number]>({ payload: payload });
 
-  console.log(`${name}'s balance is: ${balance}`);
-  return Number(balance);
+  console.log(`${name}'s balance is: ${bal}`);
+  return Number(bal);
 };
 
 /**
@@ -120,8 +120,8 @@ const example = async () => {
 
   // Show the balances
   console.log("\n=== Balances ===\n");
-  const aliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const aliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   if (aliceBalance !== ALICE_INITIAL_BALANCE) throw new Error("Alice's balance is incorrect");
   if (bobBalance !== BOB_INITIAL_BALANCE) throw new Error("Bob's balance is incorrect");
@@ -150,8 +150,8 @@ const example = async () => {
   });
 
   console.log("\n=== Balances after publish of package ===\n");
-  await balance(aptos, "Alice", alice.accountAddress);
-  await balance(aptos, "Bob", bob.accountAddress);
+  await balance(movement, "Alice", alice.accountAddress);
+  await balance(movement, "Bob", bob.accountAddress);
 
   // Setup a claim
   const createClaim = await movement.transaction.build.simple({
@@ -171,8 +171,8 @@ const example = async () => {
   });
 
   console.log("\n=== Balances after creating claim ===\n");
-  await balance(aptos, "Alice", alice.accountAddress);
-  await balance(aptos, "Bob", bob.accountAddress);
+  await balance(movement, "Alice", alice.accountAddress);
+  await balance(movement, "Bob", bob.accountAddress);
 
   // Claim the coins
   const claim = new Claim({
@@ -202,8 +202,8 @@ const example = async () => {
   });
 
   console.log("\n=== Balances after claiming ===\n");
-  await balance(aptos, "Alice", alice.accountAddress);
-  await balance(aptos, "Bob", bob.accountAddress);
+  await balance(movement, "Alice", alice.accountAddress);
+  await balance(movement, "Bob", bob.accountAddress);
 };
 
 example();

@@ -14,7 +14,7 @@ const TRANSFER_AMOUNT = 10_000;
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param name
  * @param address
  * @returns {Promise<*>}
@@ -85,8 +85,8 @@ const example = async () => {
 
   // // Show the balances
   console.log("\n=== Balances ===\n");
-  const aliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const aliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   const iss = "https://dev-qtdgjv22jh0v1k7g.us.auth0.com/";
 
@@ -110,8 +110,8 @@ const example = async () => {
   console.log(`Committed transaction: ${committedTxn.hash}`);
 
   console.log("\n=== Balances after transfer ===\n");
-  const newAliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const newBobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const newAliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const newBobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   // Bob should have the transfer amount minus gas to insert jwk
   if (TRANSFER_AMOUNT <= newBobBalance - bobBalance) throw new Error("Bob's balance after transfer is incorrect");

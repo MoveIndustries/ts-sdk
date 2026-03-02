@@ -88,7 +88,10 @@ export class LocalNode {
    * @category CLI
    */
   start(): void {
-    const cliCommand = "movement";
+    // Use full path on Linux to avoid pnpm's node_modules/.bin taking precedence
+    // The npm package @moveindustries/movement-cli only has macOS binaries
+    const currentPlatform = platform();
+    const cliCommand = currentPlatform === "linux" ? "/usr/local/bin/movement" : "movement";
     const cliArgs = [
       "node",
       "run-localnet",
@@ -99,7 +102,6 @@ export class LocalNode {
       ...this.extraArgs,
     ];
 
-    const currentPlatform = platform();
     const spawnConfig = {
       env: { ...process.env, ENABLE_KEYLESS_DEFAULT: "1" },
       ...(currentPlatform === "win32" && { shell: true }),

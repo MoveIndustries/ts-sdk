@@ -28,22 +28,22 @@ const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETW
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param name
  * @param address
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (movement: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await movement.viewJson<[number]>({ payload: payload });
+  const [bal] = await movement.viewJson<[number]>({ payload: payload });
 
-  console.log(`${name}'s balance is: ${balance}`);
-  return Number(balance);
+  console.log(`${name}'s balance is: ${bal}`);
+  return Number(bal);
 };
 
 const CREATE_OBJECT_SCRIPT =
@@ -85,8 +85,8 @@ const example = async () => {
 
   // Show the balances
   console.log("\n=== Balances ===\n");
-  const alicePreBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobPreBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const alicePreBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobPreBalance = await balance(movement, "Bob", bob.accountAddress);
   console.log(`Alice: ${alicePreBalance}`);
   console.log(`Bob: ${bobPreBalance}`);
 
@@ -154,8 +154,8 @@ const example = async () => {
 
   // Check balance
   console.log("\n=== New Balances ===\n");
-  const alicePostBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobPostBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const alicePostBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobPostBalance = await balance(movement, "Bob", bob.accountAddress);
 
   if (alicePostBalance >= ALICE_INITIAL_BALANCE + TRANSFER_AMOUNT) throw new Error("Alice's balance is incorrect");
   if (bobPostBalance !== BOB_INITIAL_BALANCE - TRANSFER_AMOUNT) throw new Error("Bob's balance is incorrect");

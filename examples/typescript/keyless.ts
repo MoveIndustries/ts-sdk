@@ -14,13 +14,13 @@ const TRANSFER_AMOUNT = 10_000;
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param name
  * @param address
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (movement: Movement, name: string, address: AccountAddress): Promise<any> => {
   const amount = await movement.getAccountMOVEAmount({
     accountAddress: address,
   });
@@ -83,8 +83,8 @@ const example = async () => {
 
   // // Show the balances
   console.log("\n=== Balances ===\n");
-  const aliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const aliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   // Transfer between users
   const transaction = await movement.transferCoinTransaction({
@@ -99,8 +99,8 @@ const example = async () => {
   console.log(`\nCommitted transaction:\nhttps://explorer.aptoslabs.com/txn/${committedTxn.hash}?network=${network}`);
 
   console.log("\n=== Balances after transfer ===\n");
-  const newAliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const newBobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const newAliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const newBobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   // Bob should have the transfer amount
   if (TRANSFER_AMOUNT !== newBobBalance - bobBalance) throw new Error("Bob's balance after transfer is incorrect");

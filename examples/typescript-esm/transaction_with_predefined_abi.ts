@@ -32,26 +32,26 @@ const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETW
 
 /**
  * Prints the balance of an account
- * @param aptos
+ * @param movement
  * @param name
  * @param address
  * @returns {Promise<*>}
  *
  */
-const balance = async (aptos: Movement, name: string, address: AccountAddress): Promise<any> => {
+const balance = async (movement: Movement, name: string, address: AccountAddress): Promise<any> => {
   const payload: InputViewFunctionJsonData = {
     function: "0x1::coin::balance",
     typeArguments: ["0x1::aptos_coin::AptosCoin"],
     functionArguments: [address.toString()],
   };
-  const [balance] = await movement.viewJson<[number]>({ payload: payload });
+  const [bal] = await movement.viewJson<[number]>({ payload: payload });
 
-  console.log(`${name}'s balance is: ${balance}`);
-  return Number(balance);
+  console.log(`${name}'s balance is: ${bal}`);
+  return Number(bal);
 };
 
 async function timeSubmission(
-  aptos: Movement,
+  movement: Movement,
   signer: Account,
   buildTxn: () => Promise<SimpleTransaction>,
 ): Promise<void> {
@@ -104,8 +104,8 @@ const example = async () => {
 
   // Show the balances
   console.log("\n=== Balances ===\n");
-  const aliceBalance = await balance(aptos, "Alice", alice.accountAddress);
-  const bobBalance = await balance(aptos, "Bob", bob.accountAddress);
+  const aliceBalance = await balance(movement, "Alice", alice.accountAddress);
+  const bobBalance = await balance(movement, "Bob", bob.accountAddress);
 
   if (aliceBalance !== ALICE_INITIAL_BALANCE) throw new Error("Alice's balance is incorrect");
   if (bobBalance !== BOB_INITIAL_BALANCE) throw new Error("Bob's balance is incorrect");
@@ -120,7 +120,7 @@ const example = async () => {
   console.log("\n=== Remote ABI, normal inputs ===\n");
   const aliceAddressString = alice.accountAddress.toString();
   const bobAddressString = bob.accountAddress.toString();
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: aliceAddressString,
       data: {
@@ -132,7 +132,7 @@ const example = async () => {
   );
 
   console.log("\n=== Remote ABI, BCS inputs ===\n");
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
@@ -144,7 +144,7 @@ const example = async () => {
   );
 
   console.log("\n=== Local ABI, normal inputs ===\n");
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
@@ -157,7 +157,7 @@ const example = async () => {
   );
 
   console.log("\n=== Local ABI, BCS inputs ===\n");
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
@@ -172,7 +172,7 @@ const example = async () => {
   console.log("\n=== Local ABI, BCS inputs, sequence number already cached ===\n");
   const accountData = await movement.account.getAccountInfo({ accountAddress: alice.accountAddress });
   const sequenceNumber = BigInt(accountData.sequence_number);
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
@@ -188,7 +188,7 @@ const example = async () => {
   );
 
   console.log("\n=== Local ABI, BCS inputs, sequence number and gas already cached ===\n");
-  await timeSubmission(aptos, alice, async () =>
+  await timeSubmission(movement, alice, async () =>
     movement.transaction.build.simple({
       sender: alice.accountAddress,
       data: {
