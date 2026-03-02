@@ -14,7 +14,7 @@ import {
   MultiKeyAccount,
   Network,
   SigningSchemeInput,
-  U64
+  U64,
 } from "../../../src";
 import { getMovementClient } from "../helper";
 import { simpleCoinTransactionHeler } from "../transaction/helper";

@@ -51,7 +51,10 @@ const example = async () => {
   });
 
   console.log("\n=== Create the collection ===\n");
-  let committedTxn = await movement.signAndSubmitTransaction({ signer: alice, transaction: createCollectionTransaction });
+  let committedTxn = await movement.signAndSubmitTransaction({
+    signer: alice,
+    transaction: createCollectionTransaction,
+  });
 
   let pendingTxn = await movement.waitForTransaction({ transactionHash: committedTxn.hash });
 

@@ -3,7 +3,15 @@
 
 import { MovementConfig } from "../api/movementConfig";
 import { MovementApiError } from "../errors";
-import { AnyNumber, Client, ClientRequest, ClientResponse, MimeType, MovementRequest, MovementResponse } from "../types";
+import {
+  AnyNumber,
+  Client,
+  ClientRequest,
+  ClientResponse,
+  MimeType,
+  MovementRequest,
+  MovementResponse,
+} from "../types";
 import { MovementApiType } from "../utils";
 import { VERSION } from "../version";
 

@@ -7,4 +7,3 @@ export * from "./transactionBuilder";
 export * from "./types";
 export * from "./typeTag";
 export * from "./typeTag/parser";
-

@@ -95,7 +95,9 @@ export async function queryIndexer<T extends {}>(args: {
  * @returns The statuses of the processors.
  * @group Implementation
  */
-export async function getProcessorStatuses(args: { movementConfig: MovementConfig }): Promise<GetProcessorStatusResponse> {
+export async function getProcessorStatuses(args: {
+  movementConfig: MovementConfig;
+}): Promise<GetProcessorStatusResponse> {
   const { movementConfig } = args;
 
   const graphqlQuery = {

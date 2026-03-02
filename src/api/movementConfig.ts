@@ -179,9 +179,9 @@ export class MovementConfig {
     this.transactionGenerationConfig = settings?.transactionGenerationConfig ?? {};
     this.pluginConfig = settings?.pluginSettings
       ? {
-        ...settings.pluginSettings,
-        IGNORE_TRANSACTION_SUBMITTER: false,
-      }
+          ...settings.pluginSettings,
+          IGNORE_TRANSACTION_SUBMITTER: false,
+        }
       : undefined;
   }
 

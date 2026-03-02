@@ -3,10 +3,7 @@
 
 import { AccountAddressInput } from "../../core";
 import { generateTransaction } from "../../internal/transactionSubmission";
-import {
-  InputGenerateTransactionOptions,
-  InputGenerateTransactionPayloadData
-} from "../../transactions";
+import { InputGenerateTransactionOptions, InputGenerateTransactionPayloadData } from "../../transactions";
 import { MultiAgentTransaction } from "../../transactions/instances/multiAgentTransaction";
 import { SimpleTransaction } from "../../transactions/instances/simpleTransaction";
 import { MovementConfig } from "../movementConfig";

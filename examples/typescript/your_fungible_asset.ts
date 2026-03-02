@@ -7,7 +7,7 @@ import {
   InputViewFunctionData,
   MovementConfig,
   Network,
-  NetworkToNetworkName
+  NetworkToNetworkName,
 } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 import { compilePackage, getPackageBytesToPublish } from "./utils";

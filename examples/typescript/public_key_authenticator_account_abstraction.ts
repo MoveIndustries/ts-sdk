@@ -6,7 +6,7 @@ import {
   Network,
   NetworkToNetworkName,
   Serializer,
-  UserTransactionResponse
+  UserTransactionResponse,
 } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 import { compilePackage, getPackageBytesToPublish } from "./utils";

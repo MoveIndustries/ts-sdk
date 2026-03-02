@@ -77,7 +77,7 @@ export class MultiEd25519PublicKey extends AbstractMultiKey {
     if (publicKeys.length > MultiEd25519PublicKey.MAX_KEYS || publicKeys.length < MultiEd25519PublicKey.MIN_KEYS) {
       throw new Error(
         `Must have between ${MultiEd25519PublicKey.MIN_KEYS} and ` +
-        `${MultiEd25519PublicKey.MAX_KEYS} public keys, inclusive`,
+          `${MultiEd25519PublicKey.MAX_KEYS} public keys, inclusive`,
       );
     }
 
@@ -424,7 +424,7 @@ export class MultiEd25519Signature extends Signature {
       let byte = bitmap[byteOffset];
 
       // eslint-disable-next-line no-bitwise
-      byte |= firstBitInByte >> bit % 8;
+      byte |= firstBitInByte >> (bit % 8);
 
       bitmap[byteOffset] = byte;
     });

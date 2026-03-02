@@ -74,7 +74,7 @@ export class MNS {
    * ```
    * @group MNS
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Retrieve the owner address of a specified domain name or subdomain name from the contract.

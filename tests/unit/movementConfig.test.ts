@@ -8,7 +8,7 @@ import {
   Network,
   NetworkToFaucetAPI,
   NetworkToIndexerAPI,
-  NetworkToNodeAPI
+  NetworkToNodeAPI,
 } from "../../src";
 
 describe("aptos config", () => {

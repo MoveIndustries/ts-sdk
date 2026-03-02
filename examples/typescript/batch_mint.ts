@@ -25,7 +25,7 @@ import {
   Network,
   NetworkToNetworkName,
   TransactionWorkerEventsEnum,
-  UserTransactionResponse
+  UserTransactionResponse,
 } from "@moveindustries/ts-sdk";
 
 const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];

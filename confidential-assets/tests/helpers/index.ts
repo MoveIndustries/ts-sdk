@@ -14,7 +14,7 @@ import {
   PrivateKey,
   PrivateKeyVariants,
   TransactionSubmitter,
-  TransactionWorkerEventsEnum
+  TransactionWorkerEventsEnum,
 } from "@moveindustries/ts-sdk";
 import fs from "fs";
 import path from "path";
@@ -91,9 +91,7 @@ export const getBalances = async (
  * This is needed because the faucet funds native coins, but confidential assets
  * work with fungible assets which are stored separately.
  */
-export const migrateCoinsToFungibleStore = async (
-  account: Account,
-): Promise<CommittedTransactionResponse> => {
+export const migrateCoinsToFungibleStore = async (account: Account): Promise<CommittedTransactionResponse> => {
   const transaction = await movement.transaction.build.simple({
     sender: account.accountAddress,
     withFeePayer: true,

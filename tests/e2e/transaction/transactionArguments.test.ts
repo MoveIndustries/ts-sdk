@@ -299,7 +299,13 @@ describe("various transaction arguments", () => {
   describe("single signer entry fns, all arguments except `&signer`, both public and private entry functions", () => {
     describe("sender is ed25519", () => {
       it("successfully submits a public entry fn with all argument types except `&signer`", async () => {
-        const response = await rawTransactionHelper(movement, senderAccount, "public_arguments", [], transactionArguments);
+        const response = await rawTransactionHelper(
+          movement,
+          senderAccount,
+          "public_arguments",
+          [],
+          transactionArguments,
+        );
         expect(response.success).toBe(true);
       });
 
@@ -379,7 +385,13 @@ describe("various transaction arguments", () => {
   // only public entry functions- shouldn't need to test private again
   describe("single signer transactions with all entry function arguments", () => {
     it("successfully submits a single signer transaction with all argument types", async () => {
-      const response = await rawTransactionHelper(movement, senderAccount, "public_arguments", [], transactionArguments);
+      const response = await rawTransactionHelper(
+        movement,
+        senderAccount,
+        "public_arguments",
+        [],
+        transactionArguments,
+      );
       expect(response.success).toBe(true);
     });
 
@@ -580,7 +592,10 @@ describe("various transaction arguments", () => {
         },
         secondarySignerAddresses: secondarySignerAccounts.map((account) => account.accountAddress),
       });
-      const senderAuthenticator = await movement.transaction.sign({ signer: senderAccount, transaction: rawTransaction });
+      const senderAuthenticator = await movement.transaction.sign({
+        signer: senderAccount,
+        transaction: rawTransaction,
+      });
       const secondaryAuthenticators = secondarySignerAccounts.map((account) =>
         movement.transaction.sign({
           signer: account,

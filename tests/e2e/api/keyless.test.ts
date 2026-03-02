@@ -80,7 +80,10 @@ describe("keyless api", () => {
       iss: "test.federated.oidc.provider",
       jwksUrl: "https://github.com/aptos-labs/aptos-core/raw/main/types/src/jwks/rsa/secure_test_jwk.json",
     });
-    const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
+    const committedJwkTxn = await movement.signAndSubmitTransaction({
+      signer: jwkAccount,
+      transaction: jwkTransaction,
+    });
     await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
   });
 
@@ -156,7 +159,10 @@ describe("keyless api", () => {
         iss: "test.federated.oidc.provider",
         jwksUrl: "https://dev-qtdgjv22jh0v1k7g.us.auth0.com/.well-known/jwks.json",
       });
-      const committedJwkTxn = await movement.signAndSubmitTransaction({ signer: jwkAccount, transaction: jwkTransaction });
+      const committedJwkTxn = await movement.signAndSubmitTransaction({
+        signer: jwkAccount,
+        transaction: jwkTransaction,
+      });
       await movement.waitForTransaction({ transactionHash: committedJwkTxn.hash });
 
       await expect(simpleCoinTransactionHelper(movement, account, recipient)).rejects.toThrow(
@@ -258,7 +264,7 @@ describe("keyless api", () => {
     test(
       "derives the keyless account with async proof fetch and submits a transaction",
       async () => {
-        const proofFetchCallback = async () => { };
+        const proofFetchCallback = async () => {};
         const sender =
           jwkAddress === undefined
             ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
@@ -281,7 +287,7 @@ describe("keyless api", () => {
     test(
       "deriving keyless account with async proof fetch throws when trying to immediately sign",
       async () => {
-        const proofFetchCallback = async () => { };
+        const proofFetchCallback = async () => {};
         const sender =
           jwkAddress === undefined
             ? await movement.deriveKeylessAccount({ jwt, ephemeralKeyPair, proofFetchCallback })
@@ -305,25 +311,25 @@ describe("keyless api", () => {
     test(
       "deriving keyless account using all parameters",
       async () => {
-        const proofFetchCallback = async () => { };
+        const proofFetchCallback = async () => {};
 
         const sender =
           jwkAddress === undefined
             ? await movement.deriveKeylessAccount({
-              jwt,
-              ephemeralKeyPair,
-              uidKey: "email",
-              pepper: new Uint8Array(31),
-              proofFetchCallback,
-            })
+                jwt,
+                ephemeralKeyPair,
+                uidKey: "email",
+                pepper: new Uint8Array(31),
+                proofFetchCallback,
+              })
             : await movement.deriveKeylessAccount({
-              jwt,
-              ephemeralKeyPair,
-              uidKey: "email",
-              pepper: new Uint8Array(31),
-              proofFetchCallback,
-              jwkAddress,
-            });
+                jwt,
+                ephemeralKeyPair,
+                uidKey: "email",
+                pepper: new Uint8Array(31),
+                proofFetchCallback,
+                jwkAddress,
+              });
         const recipient = Account.generate();
         await simpleCoinTransactionHelper(movement, sender, recipient);
       },

@@ -38,7 +38,7 @@ export class Faucet {
    * ```
    * @group Faucet
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * This function creates an account if it does not exist and mints the specified amount of coins into that account.

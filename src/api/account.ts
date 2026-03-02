@@ -51,7 +51,7 @@ import {
   PaginationArgs,
   TokenStandardArg,
   TransactionResponse,
-  WhereArg
+  WhereArg,
 } from "../types";
 import { CurrentFungibleAssetBalancesBoolExp } from "../types/generated/types";
 import { isEncodedStruct, parseEncodedStruct } from "../utils";
@@ -696,8 +696,8 @@ export class Account {
     accountAddress: AccountAddressInput;
     minimumLedgerVersion?: AnyNumber;
     options?: PaginationArgs &
-    OrderByArg<GetAccountCoinsDataResponse[0]> &
-    WhereArg<CurrentFungibleAssetBalancesBoolExp>;
+      OrderByArg<GetAccountCoinsDataResponse[0]> &
+      WhereArg<CurrentFungibleAssetBalancesBoolExp>;
   }): Promise<GetAccountCoinsDataResponse> {
     await waitForIndexerOnVersion({
       config: this.config,

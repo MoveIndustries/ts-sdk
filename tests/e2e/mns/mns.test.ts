@@ -9,7 +9,7 @@ import {
   Movement,
   MovementConfig,
   Network,
-  U8
+  U8,
 } from "../../../src";
 import { isActiveMNSName, isValidMNSName, SubdomainExpirationPolicy } from "../../../src/internal/mns";
 import { generateTransaction } from "../../../src/internal/transactionSubmission";
@@ -396,7 +396,6 @@ describe("MNS Testnet", () => {
         }),
       ).rejects.toThrow("Subdomain registration is not currently supported on Movement");
     });
-
   });
 
   describe("subdomain key staking", () => {
@@ -1176,7 +1175,10 @@ describe.skip("MNS Local", () => {
     test("it sets and gets domain primary names", async () => {
       const name = domainName;
 
-      await signAndSubmit(alice, await movement.registerName({ name, expiration: { policy: "domain" }, sender: alice }));
+      await signAndSubmit(
+        alice,
+        await movement.registerName({ name, expiration: { policy: "domain" }, sender: alice }),
+      );
 
       await signAndSubmit(alice, await movement.setPrimaryName({ name, sender: alice }));
 

@@ -34,7 +34,7 @@ export class Coin {
    * ```
    * @group Coin
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Generate a transfer coin transaction that can be simulated, signed, and submitted.

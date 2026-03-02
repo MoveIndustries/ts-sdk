@@ -28,7 +28,7 @@ import {
   Network,
   NetworkToNetworkName,
   SimpleTransaction,
-  TransactionPayloadMultiSig
+  TransactionPayloadMultiSig,
 } from "@moveindustries/ts-sdk";
 import { sha3_256 as sha3Hash } from "@noble/hashes/sha3";
 import dotenv from "dotenv";

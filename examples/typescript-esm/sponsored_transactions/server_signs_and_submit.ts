@@ -12,7 +12,7 @@ import {
   MovementConfig,
   Network,
   NetworkToNetworkName,
-  SimpleTransaction
+  SimpleTransaction,
 } from "@moveindustries/ts-sdk";
 import dotenv from "dotenv";
 dotenv.config();

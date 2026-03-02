@@ -23,7 +23,7 @@ import {
   EPHEMERAL_KEY_PAIR,
   keylessTestObject,
   secp256k1TestObject,
-  singleSignerED25519
+  singleSignerED25519,
 } from "../../unit/helper";
 import { getMovementClient } from "../helper";
 

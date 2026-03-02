@@ -114,19 +114,20 @@ export class Movement {
 // extends Movement interface so all the methods and properties
 // from the other classes will be recognized by typescript.
 export interface Movement
-  extends Account,
-  MNS,
-  Coin,
-  DigitalAsset,
-  Event,
-  Faucet,
-  FungibleAsset,
-  General,
-  Keyless,
-  Staking,
-  Table,
-  MovementObject,
-  Omit<Transaction, "build" | "simulate" | "submit" | "batch"> { }
+  extends
+    Account,
+    MNS,
+    Coin,
+    DigitalAsset,
+    Event,
+    Faucet,
+    FungibleAsset,
+    General,
+    Keyless,
+    Staking,
+    Table,
+    MovementObject,
+    Omit<Transaction, "build" | "simulate" | "submit" | "batch"> {}
 
 /**
 In TypeScript, we can’t inherit or extend from more than one class,

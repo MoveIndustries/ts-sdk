@@ -11,7 +11,7 @@ import { getFunctionParts } from "../../utils/helpers";
 import { MovementConfig } from "../movementConfig";
 
 export class AccountAbstraction {
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Adds a dispatchable authentication function to the account.

@@ -6,7 +6,7 @@ import {
   Ed25519PrivateKey,
   PrivateKeyInput,
   Secp256k1PrivateKey,
-  Signature
+  Signature,
 } from "../core/crypto";
 import { AccountAuthenticatorSingleKey } from "../transactions/authenticator/account";
 import { generateSigningMessageForTransaction } from "../transactions/transactionBuilder/signingMessage";

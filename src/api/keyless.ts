@@ -45,7 +45,7 @@ export class Keyless {
    * ```
    * @group Keyless
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Fetches the pepper from the Movement pepper service API.

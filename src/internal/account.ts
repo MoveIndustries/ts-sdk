@@ -64,7 +64,7 @@ import {
   OrderByArg,
   PaginationArgs,
   TokenStandardArg,
-  WhereArg
+  WhereArg,
 } from "../types";
 import {
   GetAccountAddressesForAuthKeyQuery,
@@ -427,10 +427,10 @@ export async function getAccountOwnedTokens(args: {
   const address = AccountAddress.from(accountAddress).toStringLong();
 
   const whereCondition: { owner_address: { _eq: string }; amount: { _gt: number }; token_standard?: { _eq: string } } =
-  {
-    owner_address: { _eq: address },
-    amount: { _gt: 0 },
-  };
+    {
+      owner_address: { _eq: address },
+      amount: { _gt: 0 },
+    };
 
   if (options?.tokenStandard) {
     whereCondition.token_standard = { _eq: options?.tokenStandard };
@@ -867,7 +867,10 @@ export async function deriveAccountFromPrivateKey(args: {
  * @throws Throws an Error if there is an issue while looking for account information.
  * @group Implementation
  */
-export async function isAccountExist(args: { movementConfig: MovementConfig; authKey: AuthenticationKey }): Promise<boolean> {
+export async function isAccountExist(args: {
+  movementConfig: MovementConfig;
+  authKey: AuthenticationKey;
+}): Promise<boolean> {
   const { movementConfig, authKey } = args;
   const accountAddress = await lookupOriginalAccountAddress({
     movementConfig,

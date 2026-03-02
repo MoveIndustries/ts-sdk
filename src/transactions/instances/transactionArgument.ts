@@ -4,7 +4,7 @@
 import { Serializer } from "../../bcs/serializer";
 import { Hex } from "../../core/hex";
 
-export interface TransactionArgument extends EntryFunctionArgument, ScriptFunctionArgument { }
+export interface TransactionArgument extends EntryFunctionArgument, ScriptFunctionArgument {}
 
 /**
  * Represents an argument for entry functions, providing methods to serialize the argument

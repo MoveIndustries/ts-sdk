@@ -114,7 +114,8 @@ async function main() {
     const accountsData = await Promise.all(accounts);
     accountsData.forEach((accountData) => {
       console.log(
-        `account sequence number is ${(totalTransactions * senders.length) / 2}: ${accountData.sequence_number === "20"
+        `account sequence number is ${(totalTransactions * senders.length) / 2}: ${
+          accountData.sequence_number === "20"
         }`,
       );
     });

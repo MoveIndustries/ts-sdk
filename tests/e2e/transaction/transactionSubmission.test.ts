@@ -243,7 +243,10 @@ describe("transaction submission", () => {
           },
         });
 
-        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({
+          signer: singleSignerED25519SenderAccount,
+          transaction,
+        });
         const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
 
         const response = await movement.transaction.submit.multiAgent({
@@ -270,8 +273,14 @@ describe("transaction submission", () => {
             },
           });
 
-          const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
-          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const senderAuthenticator = movement.transaction.sign({
+            signer: singleSignerED25519SenderAccount,
+            transaction,
+          });
+          const secondarySignerAuthenticator = movement.transaction.sign({
+            signer: secondarySignerAccount,
+            transaction,
+          });
 
           const response = await movement.transaction.submit.multiAgent({
             transaction,
@@ -298,7 +307,10 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({
+          signer: singleSignerED25519SenderAccount,
+          transaction,
+        });
         const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
@@ -324,7 +336,10 @@ describe("transaction submission", () => {
           },
           withFeePayer: true,
         });
-        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({
+          signer: singleSignerED25519SenderAccount,
+          transaction,
+        });
         const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
           transaction,
@@ -352,7 +367,10 @@ describe("transaction submission", () => {
           withFeePayer: true,
         });
 
-        const senderAuthenticator = movement.transaction.sign({ signer: singleSignerED25519SenderAccount, transaction });
+        const senderAuthenticator = movement.transaction.sign({
+          signer: singleSignerED25519SenderAccount,
+          transaction,
+        });
         const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
         const feePayerSignerAuthenticator = movement.transaction.signAsFeePayer({
           signer: feePayerAccount,
@@ -455,7 +473,10 @@ describe("transaction submission", () => {
           });
 
           const senderAuthenticator = movement.transaction.sign({ signer: singleSignerSecp256k1Account, transaction });
-          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const secondarySignerAuthenticator = movement.transaction.sign({
+            signer: secondarySignerAccount,
+            transaction,
+          });
 
           const response = await movement.transaction.submit.multiAgent({
             transaction,
@@ -638,7 +659,10 @@ describe("transaction submission", () => {
           });
 
           const senderAuthenticator = movement.transaction.sign({ signer: legacyED25519SenderAccount, transaction });
-          const secondarySignerAuthenticator = movement.transaction.sign({ signer: secondarySignerAccount, transaction });
+          const secondarySignerAuthenticator = movement.transaction.sign({
+            signer: secondarySignerAccount,
+            transaction,
+          });
 
           const response = await movement.transaction.submit.multiAgent({
             transaction,

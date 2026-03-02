@@ -1,7 +1,10 @@
 // Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import initWasm, { create_kangaroo, WASMKangaroo } from "@moveindustries/confidential-asset-wasm-bindings/pollard-kangaroo";
+import initWasm, {
+  create_kangaroo,
+  WASMKangaroo,
+} from "@moveindustries/confidential-asset-wasm-bindings/pollard-kangaroo";
 import { HexInput } from "@moveindustries/ts-sdk";
 import { bytesToNumberLE } from "@noble/curves/abstract/utils";
 import { ed25519, RistrettoPoint } from "@noble/curves/ed25519";

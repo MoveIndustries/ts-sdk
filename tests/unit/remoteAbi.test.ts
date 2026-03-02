@@ -271,7 +271,9 @@ describe("Remote ABI", () => {
       ).toThrowError();
 
       // Signed arrays shouldn't work though
-      expect(() => checkOrConvertArgument(new Int8Array([1, 2, 3]) as any, parseTypeTag("vector<u8>"), 0, [])).toThrowError();
+      expect(() =>
+        checkOrConvertArgument(new Int8Array([1, 2, 3]) as any, parseTypeTag("vector<u8>"), 0, []),
+      ).toThrowError();
       expect(() =>
         checkOrConvertArgument(new Int16Array([1, 2, 3]) as any, parseTypeTag("vector<u16>"), 0, []),
       ).toThrowError();

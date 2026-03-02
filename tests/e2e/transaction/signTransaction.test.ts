@@ -14,7 +14,7 @@ import {
   Secp256r1PrivateKey,
   SigningSchemeInput,
   U64,
-  WebAuthnSignature
+  WebAuthnSignature,
 } from "../../../src";
 import { longTestTimeout } from "../../unit/helper";
 import { getMovementClient } from "../helper";

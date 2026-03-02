@@ -57,7 +57,7 @@ export class FungibleAsset {
    * ```
    * @group FungibleAsset
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Queries all fungible asset metadata.

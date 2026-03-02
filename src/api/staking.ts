@@ -42,7 +42,7 @@ export class Staking {
    * ```
    * @group Staking
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Queries the current number of delegators in a specified pool. Throws an error if the pool is not found.

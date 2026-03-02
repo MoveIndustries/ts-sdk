@@ -197,9 +197,9 @@ export interface RegisterNameParameters {
   sender: Account;
   name: string;
   expiration:
-  | { policy: "domain"; years?: 1 }
-  | { policy: "subdomain:follow-domain" }
-  | { policy: "subdomain:independent"; expirationDate: number };
+    | { policy: "domain"; years?: 1 }
+    | { policy: "subdomain:follow-domain" }
+    | { policy: "subdomain:independent"; expirationDate: number };
   transferable?: boolean;
   toAddress?: AccountAddressInput;
   targetAddress?: AccountAddressInput;
@@ -282,8 +282,8 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
   // using the key staking functions.
   throw new Error(
     "Subdomain registration is not currently supported on Movement. " +
-    "Movement's MNS contract uses a key staking mechanism for subdomains. " +
-    "See the router module's stake_key_for_subdomain and buy_and_stake_key_for_subdomain functions."
+      "Movement's MNS contract uses a key staking mechanism for subdomains. " +
+      "See the router module's stake_key_for_subdomain and buy_and_stake_key_for_subdomain functions.",
   );
 }
 
@@ -296,7 +296,10 @@ export async function registerName(args: RegisterNameParameters): Promise<Simple
  * @returns The expiration time in epoch milliseconds, or undefined if an error occurs.
  * @group Implementation
  */
-export async function getExpiration(args: { movementConfig: MovementConfig; name: string }): Promise<number | undefined> {
+export async function getExpiration(args: {
+  movementConfig: MovementConfig;
+  name: string;
+}): Promise<number | undefined> {
   const { movementConfig, name } = args;
   const routerAddress = getRouterAddress(movementConfig);
   const { domainName, subdomainName } = isValidMNSName(name);
@@ -880,7 +883,9 @@ export async function getKeyBuyPrice(args: {
   const keyData = (keyInfo[0] as any)?.vec?.[0];
   const keyAddress = keyData?.metadata?.inner;
   if (!keyAddress) {
-    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+    throw new Error(
+      `No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`,
+    );
   }
 
   const res = await view({
@@ -930,7 +935,9 @@ export async function getKeySellPrice(args: {
   const keyData = (keyInfo[0] as any)?.vec?.[0];
   const keyAddress = keyData?.metadata?.inner;
   if (!keyAddress) {
-    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+    throw new Error(
+      `No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`,
+    );
   }
 
   const res = await view({
@@ -1139,11 +1146,7 @@ export async function canRegister(args: {
     movementConfig,
     payload: {
       function: `${routerAddress}::router::can_register`,
-      functionArguments: [
-        AccountAddress.from(account).toString(),
-        domainName,
-        subdomainName ?? null,
-      ],
+      functionArguments: [AccountAddress.from(account).toString(), domainName, subdomainName ?? null],
     },
   });
 
@@ -1173,11 +1176,7 @@ export async function isNameOwner(args: {
     movementConfig,
     payload: {
       function: `${routerAddress}::router::is_name_owner`,
-      functionArguments: [
-        AccountAddress.from(account).toString(),
-        domainName,
-        subdomainName ?? null,
-      ],
+      functionArguments: [AccountAddress.from(account).toString(), domainName, subdomainName ?? null],
     },
   });
 
@@ -1295,7 +1294,9 @@ export async function buyKeys(args: {
   const keyData = (keyInfo[0] as any)?.vec?.[0];
   const keyAddress = keyData?.metadata?.inner;
   if (!keyAddress) {
-    throw new Error(`No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`);
+    throw new Error(
+      `No key found for domain ${validatedDomain}. Keys are created when the first subdomain is registered.`,
+    );
   }
 
   const referrerOpt = referrer ? AccountAddress.from(referrer).toString() : null;

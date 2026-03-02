@@ -8,7 +8,12 @@ import { TwistedEd25519PrivateKey, H_RISTRETTO, TwistedEd25519PublicKey } from "
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
 import { EncryptedAmount } from "./encryptedAmount";
 import { AVAILABLE_BALANCE_CHUNK_COUNT, CHUNK_BITS, CHUNK_BITS_BIG_INT, ChunkedAmount } from "./chunkedAmount";
-import { Movement, SimpleTransaction, AccountAddressInput, InputGenerateTransactionOptions } from "@moveindustries/ts-sdk";
+import {
+  Movement,
+  SimpleTransaction,
+  AccountAddressInput,
+  InputGenerateTransactionOptions,
+} from "@moveindustries/ts-sdk";
 
 export type ConfidentialNormalizationSigmaProof = {
   alpha1List: Uint8Array[];

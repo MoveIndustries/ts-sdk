@@ -6,7 +6,7 @@ import {
   Ed25519Account,
   MovementConfig,
   Network,
-  NetworkToNetworkName
+  NetworkToNetworkName,
 } from "@moveindustries/ts-sdk";
 
 const WIDTH = 16;

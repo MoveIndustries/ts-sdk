@@ -49,7 +49,8 @@ import { Bool, U128, U16, U256, U32, U64, U8 } from "./movePrimitives";
  */
 export class MoveVector<T extends Serializable & EntryFunctionArgument>
   extends Serializable
-  implements TransactionArgument {
+  implements TransactionArgument
+{
   public values: Array<T>;
 
   /**
@@ -410,7 +411,8 @@ export class MoveString extends Serializable implements TransactionArgument {
 
 export class MoveOption<T extends Serializable & EntryFunctionArgument>
   extends Serializable
-  implements EntryFunctionArgument {
+  implements EntryFunctionArgument
+{
   private vec: MoveVector<T>;
 
   public readonly value?: T;

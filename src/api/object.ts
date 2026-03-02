@@ -42,7 +42,7 @@ export class MovementObject {
    * ```
    * @group Object
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Fetches the object data based on the specified object address.

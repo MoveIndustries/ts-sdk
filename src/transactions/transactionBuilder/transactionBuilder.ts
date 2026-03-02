@@ -427,10 +427,13 @@ export async function generateRawTransaction(args: {
   ]);
 
   const { maxGasAmount, gasUnitPrice, expireTimestamp, replayProtectionNonce } = {
-    maxGasAmount: options?.maxGasAmount ? BigInt(options.maxGasAmount) : BigInt(movementConfig.getDefaultMaxGasAmount()),
+    maxGasAmount: options?.maxGasAmount
+      ? BigInt(options.maxGasAmount)
+      : BigInt(movementConfig.getDefaultMaxGasAmount()),
     gasUnitPrice: options?.gasUnitPrice ?? BigInt(gasEstimate),
     expireTimestamp:
-      options?.expireTimestamp ?? BigInt(Math.floor(Date.now() / 1000) + movementConfig.getDefaultTxnExpirySecFromNow()),
+      options?.expireTimestamp ??
+      BigInt(Math.floor(Date.now() / 1000) + movementConfig.getDefaultTxnExpirySecFromNow()),
     replayProtectionNonce: options?.replayProtectionNonce ? BigInt(options.replayProtectionNonce) : undefined,
   };
 
@@ -848,7 +851,12 @@ async function fetchAbi<T extends FunctionABI>({
   functionName: string;
   movementConfig: MovementConfig;
   abi?: T;
-  fetch: (moduleAddress: string, moduleName: string, functionName: string, movementConfig: MovementConfig) => Promise<T>;
+  fetch: (
+    moduleAddress: string,
+    moduleName: string,
+    functionName: string,
+    movementConfig: MovementConfig,
+  ) => Promise<T>;
 }): Promise<T> {
   if (abi !== undefined) {
     return abi;

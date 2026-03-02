@@ -411,8 +411,9 @@ function deriveErrorMessage({ apiType, aptosRequest, movementResponse }: Movemen
   const traceId = movementResponse.headers?.traceparent?.split("-")[1];
   const traceIdString = traceId ? `(trace_id:${traceId}) ` : "";
 
-  const errorPrelude: string = `Request to [${apiType}]: ${aptosRequest.method} ${movementResponse.url ?? aptosRequest.url
-    } ${traceIdString}failed with`;
+  const errorPrelude: string = `Request to [${apiType}]: ${aptosRequest.method} ${
+    movementResponse.url ?? aptosRequest.url
+  } ${traceIdString}failed with`;
 
   // handle graphql responses from indexer api and extract the error message of the first error
   if (apiType === MovementApiType.INDEXER && movementResponse.data?.errors?.[0]?.message != null) {
@@ -428,8 +429,9 @@ function deriveErrorMessage({ apiType, aptosRequest, movementResponse }: Movemen
   // This is the generic/catch-all case. We received some response from the API, but it doesn't appear to be a well-known structure.
   // We print http status codes and the response body (after some trimming),
   // in the hope that this gives enough context what went wrong without printing overly huge messages.
-  return `${errorPrelude} status: ${movementResponse.statusText}(code:${movementResponse.status
-    }) and response body: ${serializeAnyPayloadForErrorMessage(movementResponse.data)}`;
+  return `${errorPrelude} status: ${movementResponse.statusText}(code:${
+    movementResponse.status
+  }) and response body: ${serializeAnyPayloadForErrorMessage(movementResponse.data)}`;
 }
 
 const SERIALIZED_PAYLOAD_TRIM_TO_MAX_LENGTH = 400;

@@ -11,4 +11,3 @@ export * from "./signedTransaction";
 export * from "./simpleTransaction";
 export * from "./transactionArgument";
 export * from "./transactionPayload";
-

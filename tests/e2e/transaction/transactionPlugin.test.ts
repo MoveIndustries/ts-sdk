@@ -40,7 +40,7 @@ function resetPluginTracker() {
 
 // Dummy TransactionSubmitter implementation for testing
 class MockTransactionSubmitter implements TransactionSubmitter {
-  constructor(private identifier: string = "default") { }
+  constructor(private identifier: string = "default") {}
 
   async submitTransaction(
     args: {

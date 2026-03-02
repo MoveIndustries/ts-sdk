@@ -302,7 +302,7 @@ export class AnySignature extends Signature {
     // eslint-disable-next-line no-console
     console.warn(
       "[Aptos SDK] Calls to AnySignature.toUint8Array() will soon return the underlying signature bytes. " +
-      "Use AnySignature.bcsToBytes() instead.",
+        "Use AnySignature.bcsToBytes() instead.",
     );
     return this.bcsToBytes();
   }

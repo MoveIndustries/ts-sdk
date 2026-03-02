@@ -78,7 +78,7 @@ export class DigitalAsset {
    * ```
    * @group DigitalAsset
    */
-  constructor(readonly config: MovementConfig) { }
+  constructor(readonly config: MovementConfig) {}
 
   /**
    * Queries data of a specific collection by the collection creator address and the collection name.

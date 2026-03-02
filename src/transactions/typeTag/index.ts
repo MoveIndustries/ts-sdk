@@ -740,8 +740,9 @@ export class TypeTagStruct extends TypeTag {
       typePredicate = `<${this.value.typeArgs.map((typeArg) => typeArg.toString()).join(", ")}>`;
     }
 
-    return `${this.value.address.toString()}::${this.value.moduleName.identifier}::${this.value.name.identifier
-      }${typePredicate}`;
+    return `${this.value.address.toString()}::${this.value.moduleName.identifier}::${
+      this.value.name.identifier
+    }${typePredicate}`;
   }
 
   constructor(public readonly value: StructTag) {

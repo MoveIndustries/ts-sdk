@@ -18,4 +18,3 @@ export * from "./secp256r1";
 export * from "./signature";
 export * from "./singleKey";
 export * from "./types";
-

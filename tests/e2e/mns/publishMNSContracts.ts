@@ -1,6 +1,13 @@
 import { execSync } from "child_process";
 import "dotenv";
-import { AccountAddress, Ed25519PrivateKey, Movement, MovementApiType, PrivateKey, PrivateKeyVariants } from "../../../src";
+import {
+  AccountAddress,
+  Ed25519PrivateKey,
+  Movement,
+  MovementApiType,
+  PrivateKey,
+  PrivateKeyVariants,
+} from "../../../src";
 import { LOCAL_MNS_ACCOUNT_ADDRESS, LOCAL_MNS_ACCOUNT_PK } from "../../../src/internal/mns";
 
 /**

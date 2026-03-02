@@ -18,7 +18,7 @@ async function main() {
   const fundResult = await movement.fundAccount({
     accountAddress: sender.accountAddress,
     amount: 100_000_000,
-    options: { waitForIndexer: false }  // Skip indexer wait
+    options: { waitForIndexer: false }, // Skip indexer wait
   });
   console.log("Fund transaction hash:", fundResult.hash);
 
