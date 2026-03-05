@@ -43,6 +43,6 @@ module.exports = {
   },
   // To help avoid exhausting all the available fds and stabilize localnet in CI.
   maxWorkers: 1,
-  globalSetup: "./tests/preTest.cjs",
-  globalTeardown: "./tests/postTest.cjs",
+  // Start/stop localnet per test file instead of once for the whole run
+  setupFilesAfterEnv: ["./tests/setupPerFile.cjs"],
 };
