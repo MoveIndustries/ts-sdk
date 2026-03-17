@@ -1,7 +1,16 @@
 import { getMovementClient } from "../helper";
+import { Account } from "../../../src";
 
 describe("PaginateQuery", () => {
   const { movement } = getMovementClient();
+
+  beforeAll(async () => {
+    // Generate transactions to test pagination
+    for (let i = 0; i < 15; i++) {
+      const account = Account.generate();
+      await movement.fundAccount({ accountAddress: account.accountAddress, amount: 1000 });
+    }
+  }, 60000);
 
   test("it should paginate correctly on fullnode queries", async () => {
     const transactions = await movement.getTransactions();

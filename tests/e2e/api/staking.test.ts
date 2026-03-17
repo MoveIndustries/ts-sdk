@@ -27,7 +27,7 @@ describe("staking api", () => {
   );
 
   test("it returns 0 if the poolAddress does not exist", async () => {
-    const config = new MovementConfig({ network: Network.DEVNET });
+    const config = new MovementConfig({ network: Network.TESTNET });
     const movement = new Movement(config);
     const badAddress = "0x12345678901234567850020dfd67646b1e46282999483e7064e70f02f7e12345";
     const numDelegators = await movement.getNumberOfDelegators({ poolAddress: badAddress });
