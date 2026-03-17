@@ -1,0 +1,37 @@
+env:
+  GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+name: "E2E Tests: Transaction"
+on:
+  pull_request:
+    types: [labeled, opened, synchronize, reopened, auto_merge_enabled]
+  push:
+    branches:
+      - main
+
+jobs:
+  e2e-transaction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.GIT_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          registry-url: "https://registry.npmjs.org"
+      - uses: pnpm/action-setup@v4
+      - name: Install Movement CLI
+        run: |
+          curl -fsSL -o movement-cli.tar.gz https://github.com/movementlabsxyz/homebrew-movement-cli/releases/download/bypass-homebrew/movement-cli-l1-linux-x86_64.tar.gz
+          tar -xzf movement-cli.tar.gz
+          chmod +x movement
+          sudo mv movement /usr/local/bin/movement
+          rm movement-cli.tar.gz
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: nick-fields/retry@7f8f3d9f0f62fe5925341be21c2e8314fd4f7c7c
+        with:
+          max_attempts: 3
+          timeout_minutes: 15
+          command: pnpm jest tests/e2e/transaction tests/e2e/transactionManagement

@@ -32,13 +32,13 @@ runs:
     - run: pnpm build
       shell: bash
 
-    # Run the TS SDK tests against localnet.
+    # Run the TS SDK E2E tests against localnet.
     - uses: nick-fields/retry@7f8f3d9f0f62fe5925341be21c2e8314fd4f7c7c # pin@v2
-      name: sdk-pnpm-test
+      name: sdk-e2e-test
       env:
         TMPDIR: ${{ runner.temp }}
       with:
         max_attempts: 3
         timeout_minutes: 25
-        # This runs all the tests, both unit and e2e.
-        command: pnpm run test
+        # This runs only E2E tests.
+        command: pnpm run e2e-test

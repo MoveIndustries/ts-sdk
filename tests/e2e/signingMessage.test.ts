@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, Ed25519PrivateKey, generateSigningMessageForTransaction } from "../../src";
-import { getMovementClient } from "../e2e/helper";
-import { ed25519 } from "./helper";
+import { getMovementClient } from "./helper";
+import { ed25519 } from "../unit/helper";
 
 const { movement } = getMovementClient();
 const TRANSFER_AMOUNT = 100;

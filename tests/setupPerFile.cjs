@@ -12,6 +12,13 @@ beforeAll(async () => {
     return;
   }
 
+  // Skip localnet for unit tests - they don't need it
+  const testPath = expect.getState().testPath || "";
+  if (testPath.includes("/unit/")) {
+    console.log("Skipping localnet for unit test");
+    return;
+  }
+
   console.log("Starting localnet for test file...");
   localNode = new LocalNode();
   await localNode.run();

@@ -1,0 +1,26 @@
+name: "Run SDK unit tests"
+description: |
+  Run the SDK unit tests (no localnet required)
+
+runs:
+  using: composite
+  steps:
+    # Install node and pnpm.
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .node-version
+        registry-url: "https://registry.npmjs.org"
+    - uses: pnpm/action-setup@v4
+
+    # Run package install.
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+
+    # Build the SDK
+    - run: pnpm build
+      shell: bash
+
+    # Run unit tests only
+    - name: Run unit tests
+      shell: bash
+      run: pnpm run unit-test
