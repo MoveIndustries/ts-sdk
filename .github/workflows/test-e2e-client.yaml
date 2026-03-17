@@ -34,4 +34,4 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 15
-          command: pnpm jest tests/e2e/client tests/e2e/signingMessage.test.ts
+          command: pnpm jest tests/e2e/client tests/e2e/signingMessage.test.ts --coverage=false

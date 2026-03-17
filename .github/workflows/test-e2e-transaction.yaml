@@ -34,4 +34,4 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 15
-          command: pnpm jest tests/e2e/transaction tests/e2e/transactionManagement
+          command: pnpm jest tests/e2e/transaction tests/e2e/transactionManagement --coverage=false

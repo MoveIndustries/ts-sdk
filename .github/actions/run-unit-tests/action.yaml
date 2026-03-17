@@ -20,7 +20,7 @@ runs:
     - run: pnpm build
       shell: bash
 
-    # Run unit tests only
+    # Run unit tests only (no coverage thresholds - coverage measured on full test run)
     - name: Run unit tests
       shell: bash
-      run: pnpm run unit-test
+      run: pnpm jest tests/unit --coverage=false
