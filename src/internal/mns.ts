@@ -119,7 +119,7 @@ export const LOCAL_MNS_ACCOUNT_ADDRESS =
 const NetworkToMnsContract: Record<Network, string | null> = {
   [Network.TESTNET]: "0x67bf15b3eed0fc62deea9630bbbd1d48842550655140f913699a1ca7e6f727d8",
   // TODO: Update mainnet address once Movement Name Service is deployed to mainnet
-  [Network.MAINNET]: null,
+  [Network.MAINNET]: "0x96a1ecd1b80abaa097864d9f037a0cb16728a968b5d43d739be34ded8b80db39",
   [Network.LOCAL]: LOCAL_MNS_ACCOUNT_ADDRESS,
   [Network.CUSTOM]: null,
   [Network.DEVNET]: null,

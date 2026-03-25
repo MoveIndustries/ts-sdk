@@ -2,6 +2,10 @@
 
 All notable changes to the Movement TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# 5.1.7 (2026-03-25)
+
+- Add mainnet Movement Name Service (MNS) router contract address to `NetworkToMnsContract`, enabling `movement.mns` on `Network.MAINNET`.
+
 # 5.1.6 (2026-02-09)
 
 - Rebrand ANS (Aptos Name Service) to MNS (Movement Name Service)
