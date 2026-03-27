@@ -3,6 +3,7 @@
 
 import {
   Account,
+  AccountAddress,
   AccountAddressInput,
   AnyNumber,
   MovementConfig,
@@ -12,7 +13,7 @@ import {
   SimpleTransaction,
 } from "@moveindustries/ts-sdk";
 import { TwistedEd25519PublicKey, TwistedEd25519PrivateKey, ConfidentialNormalization } from "../crypto";
-import { clearBalanceCache, clearEncryptionKeyCache, getEncryptionKeyCacheKey, setCache } from "../utils/memoize";
+import { clearBalanceCache, clearEncryptionKeyCache, getEncryptionKeyCacheKey, getAvailableBalanceCacheKey, getPendingBalanceCacheKey, setCache } from "../utils/memoize";
 import {
   ConfidentialAssetTransactionBuilder,
   ConfidentialBalance,
@@ -506,9 +507,17 @@ export class ConfidentialAsset {
       useCachedValue: true,
     });
 
+    const ledgerInfo = await this.client().getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddressBytes = AccountAddress.from(signer.accountAddress).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
+
     const confidentialNormalization = await ConfidentialNormalization.create({
       decryptionKey: senderDecryptionKey,
       unnormalizedAvailableBalance: available,
+      chainId,
+      senderAddress: senderAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     const transaction = await confidentialNormalization.createTransaction({
@@ -523,8 +532,9 @@ export class ConfidentialAsset {
       signer,
       transaction,
     });
-    const newBalance = new ConfidentialBalance(confidentialNormalization.normalizedEncryptedAvailableBalance, pending);
-    setCache(`${signer.accountAddress}-balance-for-${tokenAddress}-${this.client().config.network}`, newBalance);
+    const network = this.client().config.network;
+    setCache(getAvailableBalanceCacheKey(signer.accountAddress, tokenAddress, network), confidentialNormalization.normalizedEncryptedAvailableBalance);
+    setCache(getPendingBalanceCacheKey(signer.accountAddress, tokenAddress, network), pending);
     return committedTransaction;
   }
 

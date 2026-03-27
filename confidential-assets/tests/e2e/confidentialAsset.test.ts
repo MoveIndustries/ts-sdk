@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, AccountAddressInput, AnyNumber } from "@moveindustries/ts-sdk";
-import { TwistedEd25519PrivateKey } from "../../src";
+import { TwistedEd25519PrivateKey, getCache, getAvailableBalanceCacheKey, getPendingBalanceCacheKey, EncryptedAmount } from "../../src";
 import {
   getTestAccount,
   getTestConfidentialAccount,
@@ -13,16 +13,16 @@ import {
   feePayerAccount,
   migrateCoinsToFungibleStore,
 } from "../helpers";
-import { getCache } from "../../src/utils/memoize";
 import { ConfidentialBalance } from "../../src/internal/viewFunctions";
 
 function getCachedBalance(accountAddress: AccountAddressInput, tokenAddress: AccountAddressInput): ConfidentialBalance {
-  const cacheKey = `${accountAddress}-balance-for-${tokenAddress}-${movement.config.network}`;
-  const result = getCache<ConfidentialBalance>(cacheKey);
-  if (!result) {
+  const network = movement.config.network;
+  const available = getCache<EncryptedAmount>(getAvailableBalanceCacheKey(accountAddress, tokenAddress, network));
+  const pending = getCache<EncryptedAmount>(getPendingBalanceCacheKey(accountAddress, tokenAddress, network));
+  if (!available || !pending) {
     throw new Error("No cached balance found");
   }
-  return result;
+  return new ConfidentialBalance(available, pending);
 }
 
 describe("Confidential Asset Sender API", () => {
@@ -433,7 +433,7 @@ describe("Confidential Asset Sender API", () => {
           accountAddress: bob.accountAddress,
           tokenAddress: TOKEN_ADDRESS,
         }),
-      ).rejects.toThrow("ECA_STORE_NOT_PUBLISHED");
+      ).rejects.toThrow("393219");
     },
     longTestTimeout,
   );
@@ -473,6 +473,7 @@ describe("Confidential Asset Sender API", () => {
         senderDecryptionKey: aliceConfidential,
         signer: alice,
       });
+      console.log("normalizeBalance returned:", normalizeTx?.success);
 
       // Check that caching works
       const cachedNormalizedBalance = getCachedBalance(alice.accountAddress, TOKEN_ADDRESS);
@@ -509,7 +510,7 @@ describe("Confidential Asset Sender API", () => {
           tokenAddress: TOKEN_ADDRESS,
           accountAddress: bob.accountAddress,
         }),
-      ).rejects.toThrow("ECA_STORE_NOT_PUBLISHED");
+      ).rejects.toThrow("393219");
     },
     longTestTimeout,
   );

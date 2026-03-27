@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  AccountAddress,
   AccountAddressInput,
   AnyNumber,
   Movement,
@@ -51,13 +52,14 @@ export class ConfidentialAssetTransactionBuilder {
     sender: AccountAddressInput;
     tokenAddress: AccountAddressInput;
     decryptionKey: TwistedEd25519PrivateKey;
-    chainId: number;
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    const { tokenAddress, decryptionKey, chainId } = args;
-    const senderAddress = new Uint8Array(32); // TODO: resolve sender address from AccountAddressInput
-    const tokenAddressBytes = new Uint8Array(32); // TODO: resolve token address bytes
+    const { tokenAddress, decryptionKey } = args;
+    const ledgerInfo = await this.client.getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddress = AccountAddress.from(args.sender).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, tokenAddressBytes);
 
@@ -147,10 +149,18 @@ export class ConfidentialAssetTransactionBuilder {
       decryptionKey: senderDecryptionKey,
     });
 
+    const ledgerInfo = await this.client.getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
+
     const confidentialWithdraw = await ConfidentialWithdraw.create({
       decryptionKey: senderDecryptionKey,
       senderAvailableBalanceCipherText: senderEncryptedAvailableBalance.getCipherText(),
       amount: BigInt(amount),
+      chainId,
+      senderAddress: senderAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     const [{ sigmaProof, rangeProof }, encryptedAmountAfterWithdraw] = await confidentialWithdraw.authorizeWithdrawal();
@@ -307,6 +317,11 @@ export class ConfidentialAssetTransactionBuilder {
       decryptionKey: senderDecryptionKey,
     });
 
+    const ledgerInfo = await this.client.getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddressBytes = AccountAddress.from(args.sender).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
+
     // Create the confidential transfer object
     const confidentialTransfer = await ConfidentialTransfer.create({
       senderDecryptionKey,
@@ -317,6 +332,9 @@ export class ConfidentialAssetTransactionBuilder {
         ...(globalAuditorPubKey ? [globalAuditorPubKey] : []),
         ...additionalAuditorEncryptionKeys,
       ],
+      chainId,
+      senderAddress: senderAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     const [
@@ -411,11 +429,19 @@ export class ConfidentialAssetTransactionBuilder {
       }
     }
 
+    const ledgerInfo = await this.client.getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
+
     // Create the confidential key rotation object
     const confidentialKeyRotation = await ConfidentialKeyRotation.create({
       senderDecryptionKey,
       newSenderDecryptionKey,
       currentEncryptedAvailableBalance,
+      chainId,
+      senderAddress: senderAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     // Create the sigma proof and range proof
@@ -471,9 +497,17 @@ export class ConfidentialAssetTransactionBuilder {
       decryptionKey: senderDecryptionKey,
     });
 
+    const ledgerInfo = await this.client.getLedgerInfo();
+    const chainId = ledgerInfo.chain_id;
+    const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
+
     const confidentialNormalization = await ConfidentialNormalization.create({
       decryptionKey: senderDecryptionKey,
       unnormalizedAvailableBalance: available,
+      chainId,
+      senderAddress: senderAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     return confidentialNormalization.createTransaction({

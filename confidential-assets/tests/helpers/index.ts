@@ -34,7 +34,7 @@ const MOVEMENT_NETWORK: Network = networkRaw ? NetworkToNetworkName[networkRaw] 
 
 // Use CONFIDENTIAL_MODULE_ADDRESS env var if set, otherwise use testnet default
 const CONFIDENTIAL_MODULE_ADDRESS =
-  process.env.CONFIDENTIAL_MODULE_ADDRESS || "0xd38fc33916098866c4f18e6c80e75dd6b5af0d397acd063214bf3e78673ce25f";
+  process.env.CONFIDENTIAL_MODULE_ADDRESS || "0x8dae5044bef3b2d33004490c486894fee52ac62bb8070234dc965ab1cdfdae04";
 
 export const feePayerAccount = Account.generate();
 

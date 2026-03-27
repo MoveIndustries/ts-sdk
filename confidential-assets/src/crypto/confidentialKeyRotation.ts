@@ -196,7 +196,6 @@ export class ConfidentialKeyRotation {
       PROTOCOL_ID_ROTATION,
       this.chainId,
       this.senderAddress,
-      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.currentEncryptedAvailableBalance.publicKey.toUint8Array(),

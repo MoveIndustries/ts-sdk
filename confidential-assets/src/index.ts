@@ -9,3 +9,4 @@ export * from "./helpers";
 export * from "./api/confidentialAsset";
 export * from "./crypto";
 export * from "./utils";
+export { getCache, getAvailableBalanceCacheKey, getPendingBalanceCacheKey } from "./utils/memoize";

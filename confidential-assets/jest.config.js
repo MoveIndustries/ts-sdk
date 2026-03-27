@@ -1,5 +1,6 @@
 module.exports = {
   ...require("../jest.config.js"),
+  setupFilesAfterEnv: ["../tests/setupPerFile.cjs"],
   testPathIgnorePatterns: ["./tests/units/api"],
   coveragePathIgnorePatterns: ["./tests/units/api"],
   coverageThreshold: {

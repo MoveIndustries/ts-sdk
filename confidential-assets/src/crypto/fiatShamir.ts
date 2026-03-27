@@ -26,17 +26,19 @@ export function taggedHash(tag: string, ...data: Uint8Array[]): Uint8Array {
 
 /**
  * Generate a Fiat-Shamir challenge scalar using SHA3-512 tagged hashing
- * with domain separation including chain ID and session context.
+ * with domain separation including chain ID and sender address.
  *
  * The challenge is computed as:
  *   e = taggedHash("MovementConfidentialAsset/" + protocolId,
- *                   chainId || senderAddress || tokenAddress || ...publicInputs)
+ *                   chainId || senderAddress || ...publicInputs)
  *   reduced mod the ed25519 curve order l.
+ *
+ * Note: tokenAddress is NOT automatically included in the hash. For protocols
+ * that need it (e.g. Registration), pass it as part of publicInputs.
  *
  * @param protocolId - Protocol identifier (e.g. "Withdrawal", "Transfer", "Registration")
  * @param chainId - Chain ID for domain separation (prevents cross-chain replay)
  * @param senderAddress - 32-byte sender address
- * @param tokenAddress - 32-byte token address
  * @param publicInputs - Additional public inputs (points, scalars, commitments)
  * @returns Challenge scalar as bigint, reduced mod curve order
  */
@@ -44,11 +46,10 @@ export function fiatShamirChallenge(
   protocolId: string,
   chainId: number,
   senderAddress: Uint8Array,
-  tokenAddress: Uint8Array,
   ...publicInputs: Uint8Array[]
 ): bigint {
   const tag = `MovementConfidentialAsset/${protocolId}`;
   const chainIdBytes = numberToBytesLE(chainId, 1);
-  const hash = taggedHash(tag, chainIdBytes, senderAddress, tokenAddress, ...publicInputs);
+  const hash = taggedHash(tag, chainIdBytes, senderAddress, ...publicInputs);
   return ed25519modN(bytesToNumberLE(hash));
 }
