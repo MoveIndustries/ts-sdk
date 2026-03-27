@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, AccountAddressInput, AnyNumber } from "@moveindustries/ts-sdk";
-import { TwistedEd25519PrivateKey, getCache, getAvailableBalanceCacheKey, getPendingBalanceCacheKey, EncryptedAmount } from "../../src";
+import {
+  TwistedEd25519PrivateKey,
+  getCache,
+  getAvailableBalanceCacheKey,
+  getPendingBalanceCacheKey,
+  EncryptedAmount,
+} from "../../src";
 import {
   getTestAccount,
   getTestConfidentialAccount,

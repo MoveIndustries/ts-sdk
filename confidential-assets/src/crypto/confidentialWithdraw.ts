@@ -103,7 +103,13 @@ export class ConfidentialWithdraw {
   }
 
   static async create(args: CreateConfidentialWithdrawOpArgs) {
-    const { amount, randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT), chainId, senderAddress, tokenAddress } = args;
+    const {
+      amount,
+      randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
+      chainId,
+      senderAddress,
+      tokenAddress,
+    } = args;
 
     const senderEncryptedAvailableBalance = await EncryptedAmount.fromCipherTextAndPrivateKey(
       args.senderAvailableBalanceCipherText,

@@ -63,14 +63,7 @@ export function genRegistrationProof(
   const RBytes = R.toRawBytes();
 
   // Step 3: Fiat-Shamir challenge
-  const e = fiatShamirChallenge(
-    PROTOCOL_ID_REGISTRATION,
-    chainId,
-    senderAddress,
-    tokenAddress,
-    ek,
-    RBytes,
-  );
+  const e = fiatShamirChallenge(PROTOCOL_ID_REGISTRATION, chainId, senderAddress, tokenAddress, ek, RBytes);
 
   // Step 4: Response s = k - e * dk_inv (mod l)
   // Since ek = dk_inv * H, the secret being proved is dk_inv
@@ -108,14 +101,7 @@ export function verifyRegistrationProof(
   const R = RistrettoPoint.fromHex(proof.commitment);
 
   // Recompute challenge
-  const e = fiatShamirChallenge(
-    PROTOCOL_ID_REGISTRATION,
-    chainId,
-    senderAddress,
-    tokenAddress,
-    ek,
-    proof.commitment,
-  );
+  const e = fiatShamirChallenge(PROTOCOL_ID_REGISTRATION, chainId, senderAddress, tokenAddress, ek, proof.commitment);
 
   // Parse response scalar
   const s = BigInt(`0x${Buffer.from(proof.response).reverse().toString("hex")}`);

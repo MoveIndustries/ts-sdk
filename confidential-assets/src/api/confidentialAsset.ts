@@ -13,7 +13,14 @@ import {
   SimpleTransaction,
 } from "@moveindustries/ts-sdk";
 import { TwistedEd25519PublicKey, TwistedEd25519PrivateKey, ConfidentialNormalization } from "../crypto";
-import { clearBalanceCache, clearEncryptionKeyCache, getEncryptionKeyCacheKey, getAvailableBalanceCacheKey, getPendingBalanceCacheKey, setCache } from "../utils/memoize";
+import {
+  clearBalanceCache,
+  clearEncryptionKeyCache,
+  getEncryptionKeyCacheKey,
+  getAvailableBalanceCacheKey,
+  getPendingBalanceCacheKey,
+  setCache,
+} from "../utils/memoize";
 import {
   ConfidentialAssetTransactionBuilder,
   ConfidentialBalance,
@@ -533,7 +540,10 @@ export class ConfidentialAsset {
       transaction,
     });
     const network = this.client().config.network;
-    setCache(getAvailableBalanceCacheKey(signer.accountAddress, tokenAddress, network), confidentialNormalization.normalizedEncryptedAvailableBalance);
+    setCache(
+      getAvailableBalanceCacheKey(signer.accountAddress, tokenAddress, network),
+      confidentialNormalization.normalizedEncryptedAvailableBalance,
+    );
     setCache(getPendingBalanceCacheKey(signer.accountAddress, tokenAddress, network), pending);
     return committedTransaction;
   }

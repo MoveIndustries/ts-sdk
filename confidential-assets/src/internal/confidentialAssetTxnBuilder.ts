@@ -67,12 +67,7 @@ export class ConfidentialAssetTransactionBuilder {
       ...args,
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register`,
-        functionArguments: [
-          tokenAddress,
-          decryptionKey.publicKey().toUint8Array(),
-          proof.commitment,
-          proof.response,
-        ],
+        functionArguments: [tokenAddress, decryptionKey.publicKey().toUint8Array(), proof.commitment, proof.response],
       },
     });
   }

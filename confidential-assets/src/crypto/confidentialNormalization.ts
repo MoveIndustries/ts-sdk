@@ -72,7 +72,13 @@ export class ConfidentialNormalization {
   }
 
   static async create(args: CreateConfidentialNormalizationOpArgs) {
-    const { decryptionKey, randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT), chainId, senderAddress, tokenAddress } = args;
+    const {
+      decryptionKey,
+      randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
+      chainId,
+      senderAddress,
+      tokenAddress,
+    } = args;
 
     const unnormalizedEncryptedAvailableBalance = args.unnormalizedAvailableBalance;
 
