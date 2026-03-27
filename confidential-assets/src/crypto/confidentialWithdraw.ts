@@ -1,8 +1,8 @@
 import { bytesToNumberLE, concatBytes, numberToBytesLE } from "@noble/curves/abstract/utils";
 import { RistrettoPoint } from "@noble/curves/ed25519";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import { genFiatShamirChallenge } from "../helpers";
-import { PROOF_CHUNK_SIZE, SIGMA_PROOF_WITHDRAW_SIZE } from "../consts";
+import { fiatShamirChallenge } from "./fiatShamir";
+import { PROOF_CHUNK_SIZE, SIGMA_PROOF_WITHDRAW_SIZE, PROTOCOL_ID_WITHDRAWAL } from "../consts";
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
 import {
   AVAILABLE_BALANCE_CHUNK_COUNT,
@@ -32,6 +32,12 @@ export type CreateConfidentialWithdrawOpArgs = {
   decryptionKey: TwistedEd25519PrivateKey;
   senderAvailableBalanceCipherText: TwistedElGamalCiphertext[];
   amount: bigint;
+  /** Chain ID for domain separation */
+  chainId: number;
+  /** 32-byte sender address */
+  senderAddress: Uint8Array;
+  /** 32-byte token address */
+  tokenAddress: Uint8Array;
   randomness?: bigint[];
 };
 
@@ -46,12 +52,21 @@ export class ConfidentialWithdraw {
 
   randomness: bigint[];
 
+  chainId: number;
+
+  senderAddress: Uint8Array;
+
+  tokenAddress: Uint8Array;
+
   constructor(args: {
     decryptionKey: TwistedEd25519PrivateKey;
     senderEncryptedAvailableBalance: EncryptedAmount;
     amount: bigint;
     senderEncryptedAvailableBalanceAfterWithdrawal: EncryptedAmount;
     randomness: bigint[];
+    chainId: number;
+    senderAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     const {
       decryptionKey,
@@ -82,10 +97,13 @@ export class ConfidentialWithdraw {
     this.senderEncryptedAvailableBalance = senderEncryptedAvailableBalance;
     this.randomness = randomness;
     this.senderEncryptedAvailableBalanceAfterWithdrawal = senderEncryptedAvailableBalanceAfterWithdrawal;
+    this.chainId = args.chainId;
+    this.senderAddress = args.senderAddress;
+    this.tokenAddress = args.tokenAddress;
   }
 
   static async create(args: CreateConfidentialWithdrawOpArgs) {
-    const { amount, randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT) } = args;
+    const { amount, randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT), chainId, senderAddress, tokenAddress } = args;
 
     const senderEncryptedAvailableBalance = await EncryptedAmount.fromCipherTextAndPrivateKey(
       args.senderAvailableBalanceCipherText,
@@ -103,10 +121,13 @@ export class ConfidentialWithdraw {
       senderEncryptedAvailableBalance,
       senderEncryptedAvailableBalanceAfterWithdrawal,
       randomness,
+      chainId,
+      senderAddress,
+      tokenAddress,
     });
   }
 
-  static FIAT_SHAMIR_SIGMA_DST = "AptosConfidentialAsset/WithdrawalProofFiatShamir";
+  static FIAT_SHAMIR_SIGMA_DST = "MovementConfidentialAsset/Withdrawal";
 
   static serializeSigmaProof(sigmaProof: ConfidentialWithdrawSigmaProof): Uint8Array {
     return concatBytes(
@@ -193,8 +214,11 @@ export class ConfidentialWithdraw {
       RistrettoPoint.fromHex(this.decryptionKey.publicKey().toUint8Array()).multiply(item),
     );
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialWithdraw.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_WITHDRAWAL,
+      this.chainId,
+      this.senderAddress,
+      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.decryptionKey.publicKey().toUint8Array(),
@@ -245,6 +269,9 @@ export class ConfidentialWithdraw {
     senderEncryptedAvailableBalance: EncryptedAmount;
     senderEncryptedAvailableBalanceAfterWithdrawal: EncryptedAmount;
     amountToWithdraw: bigint;
+    chainId: number;
+    senderAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }): boolean {
     const publicKeyU8 = opts.senderEncryptedAvailableBalance.publicKey.toUint8Array();
     const confidentialAmountToWithdraw = ChunkedAmount.fromAmount(opts.amountToWithdraw, {
@@ -256,8 +283,11 @@ export class ConfidentialWithdraw {
     const alpha3LE = bytesToNumberLE(opts.sigmaProof.alpha3);
     const alpha4LEList = opts.sigmaProof.alpha4List.map((a) => bytesToNumberLE(a));
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialWithdraw.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_WITHDRAWAL,
+      opts.chainId,
+      opts.senderAddress,
+      opts.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       publicKeyU8,
@@ -319,8 +349,8 @@ export class ConfidentialWithdraw {
     );
   }
 
-  async genRangeProof(): Promise<Uint8Array[]> {
-    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
+  async genRangeProof(): Promise<Uint8Array> {
+    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
       v: this.senderEncryptedAvailableBalanceAfterWithdrawal.getAmountChunks(),
       rs: this.randomness.map((chunk) => numberToBytesLE(chunk, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -328,14 +358,14 @@ export class ConfidentialWithdraw {
       num_bits: CHUNK_BITS,
     });
 
-    return proofs;
+    return rangeProof.proof;
   }
 
   async authorizeWithdrawal(): Promise<
     [
       {
         sigmaProof: ConfidentialWithdrawSigmaProof;
-        rangeProof: Uint8Array[];
+        rangeProof: Uint8Array;
       },
       EncryptedAmount,
     ]
@@ -347,21 +377,15 @@ export class ConfidentialWithdraw {
   }
 
   static async verifyRangeProof(opts: {
-    rangeProof: Uint8Array[];
+    rangeProof: Uint8Array;
     senderEncryptedAvailableBalanceAfterWithdrawal: EncryptedAmount;
   }) {
-    const cipherTexts = opts.senderEncryptedAvailableBalanceAfterWithdrawal.getCipherText();
-    const results = await Promise.all(
-      opts.rangeProof.map((proof, index) =>
-        RangeProofExecutor.verifyRangeZKP({
-          proof,
-          commitment: cipherTexts[index].C.toRawBytes(),
-          valBase: RistrettoPoint.BASE.toRawBytes(),
-          randBase: H_RISTRETTO.toRawBytes(),
-          bits: CHUNK_BITS,
-        }),
-      ),
-    );
-    return results.every((result) => result);
+    return RangeProofExecutor.verifyBatchRangeZKP({
+      proof: opts.rangeProof,
+      comm: opts.senderEncryptedAvailableBalanceAfterWithdrawal.getCipherText().map((el) => el.C.toRawBytes()),
+      val_base: RistrettoPoint.BASE.toRawBytes(),
+      rand_base: H_RISTRETTO.toRawBytes(),
+      num_bits: CHUNK_BITS,
+    });
   }
 }

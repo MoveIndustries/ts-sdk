@@ -20,6 +20,7 @@ import {
   TwistedEd25519PublicKey,
   TwistedEd25519PrivateKey,
 } from "../crypto";
+import { genRegistrationProof } from "../crypto/confidentialRegistration";
 import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MODULE_NAME } from "../consts";
 import { getBalance, getEncryptionKey, isBalanceNormalized, isPendingBalanceFrozen } from "./viewFunctions";
 
@@ -50,15 +51,26 @@ export class ConfidentialAssetTransactionBuilder {
     sender: AccountAddressInput;
     tokenAddress: AccountAddressInput;
     decryptionKey: TwistedEd25519PrivateKey;
+    chainId: number;
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    const { tokenAddress, decryptionKey } = args;
+    const { tokenAddress, decryptionKey, chainId } = args;
+    const senderAddress = new Uint8Array(32); // TODO: resolve sender address from AccountAddressInput
+    const tokenAddressBytes = new Uint8Array(32); // TODO: resolve token address bytes
+
+    const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, tokenAddressBytes);
+
     return this.client.transaction.build.simple({
       ...args,
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register`,
-        functionArguments: [tokenAddress, decryptionKey.publicKey().toUint8Array()],
+        functionArguments: [
+          tokenAddress,
+          decryptionKey.publicKey().toUint8Array(),
+          proof.commitment,
+          proof.response,
+        ],
       },
     });
   }

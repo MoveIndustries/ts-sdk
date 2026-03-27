@@ -1,8 +1,8 @@
 import { bytesToNumberLE, concatBytes, numberToBytesLE } from "@noble/curves/abstract/utils";
 import { RistrettoPoint } from "@noble/curves/ed25519";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import { PROOF_CHUNK_SIZE, SIGMA_PROOF_TRANSFER_SIZE } from "../consts";
-import { genFiatShamirChallenge } from "../helpers";
+import { PROOF_CHUNK_SIZE, SIGMA_PROOF_TRANSFER_SIZE, PROTOCOL_ID_TRANSFER } from "../consts";
+import { fiatShamirChallenge } from "./fiatShamir";
 import {
   AVAILABLE_BALANCE_CHUNK_COUNT,
   CHUNK_BITS,
@@ -35,8 +35,8 @@ export type ConfidentialTransferSigmaProof = {
 };
 
 export type ConfidentialTransferRangeProof = {
-  rangeProofAmount: Uint8Array[];
-  rangeProofNewBalance: Uint8Array[];
+  rangeProofAmount: Uint8Array;
+  rangeProofNewBalance: Uint8Array;
 };
 
 export type CreateConfidentialTransferOpArgs = {
@@ -46,6 +46,12 @@ export type CreateConfidentialTransferOpArgs = {
   recipientEncryptionKey: TwistedEd25519PublicKey;
   auditorEncryptionKeys?: TwistedEd25519PublicKey[];
   transferAmountRandomness?: bigint[];
+  /** Chain ID for domain separation */
+  chainId: number;
+  /** 32-byte sender address */
+  senderAddress: Uint8Array;
+  /** 32-byte token address */
+  tokenAddress: Uint8Array;
 };
 
 export class ConfidentialTransfer {
@@ -91,6 +97,12 @@ export class ConfidentialTransfer {
    */
   newBalanceRandomness: bigint[];
 
+  chainId: number;
+
+  senderAddress: Uint8Array;
+
+  tokenAddress: Uint8Array;
+
   private constructor(args: {
     senderDecryptionKey: TwistedEd25519PrivateKey;
     recipientEncryptionKey: TwistedEd25519PublicKey;
@@ -101,6 +113,9 @@ export class ConfidentialTransfer {
     transferAmountEncryptedByRecipient: EncryptedAmount;
     transferAmountEncryptedByAuditors: EncryptedAmount[];
     senderEncryptedAvailableBalanceAfterTransfer: EncryptedAmount;
+    chainId: number;
+    senderAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     const {
       senderDecryptionKey,
@@ -142,6 +157,9 @@ export class ConfidentialTransfer {
       throw new Error("New balance randomness is not set");
     }
     this.newBalanceRandomness = newBalanceRandomness;
+    this.chainId = args.chainId;
+    this.senderAddress = args.senderAddress;
+    this.tokenAddress = args.tokenAddress;
   }
 
   static async create(args: CreateConfidentialTransferOpArgs) {
@@ -151,6 +169,9 @@ export class ConfidentialTransfer {
       recipientEncryptionKey,
       auditorEncryptionKeys = [],
       transferAmountRandomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
+      chainId,
+      senderAddress,
+      tokenAddress,
     } = args;
     const amount = BigInt(args.amount);
     const newBalanceRandomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT);
@@ -198,10 +219,13 @@ export class ConfidentialTransfer {
       transferAmountEncryptedByRecipient,
       transferAmountEncryptedByAuditors,
       senderEncryptedAvailableBalanceAfterTransfer,
+      chainId,
+      senderAddress,
+      tokenAddress,
     });
   }
 
-  static FIAT_SHAMIR_SIGMA_DST = "AptosConfidentialAsset/TransferProofFiatShamir";
+  static FIAT_SHAMIR_SIGMA_DST = "MovementConfidentialAsset/Transfer";
 
   static serializeSigmaProof(sigmaProof: ConfidentialTransferSigmaProof): Uint8Array {
     return concatBytes(
@@ -413,8 +437,11 @@ export class ConfidentialTransfer {
         .map((pk) => x3List.slice(0, j).map((el) => RistrettoPoint.fromHex(pk).multiply(el).toRawBytes())) ?? [];
     const X8List = x3List.map((el) => senderPKRistretto.multiply(el).toRawBytes());
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialTransfer.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_TRANSFER,
+      this.chainId,
+      this.senderAddress,
+      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.senderDecryptionKey.publicKey().toUint8Array(),
@@ -481,6 +508,9 @@ export class ConfidentialTransfer {
       publicKeys: TwistedEd25519PublicKey[];
       auditorsCBList: TwistedElGamalCiphertext[][];
     };
+    chainId: number;
+    senderAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }): boolean {
     const auditorPKs = opts?.auditors?.publicKeys.map((pk) => pk.toUint8Array()) ?? [];
     const proofX7List = opts.sigmaProof.X7List ?? [];
@@ -497,8 +527,11 @@ export class ConfidentialTransfer {
     const senderPKRistretto = RistrettoPoint.fromHex(senderPublicKeyU8);
     const recipientPKRistretto = RistrettoPoint.fromHex(recipientPublicKeyU8);
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialTransfer.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_TRANSFER,
+      opts.chainId,
+      opts.senderAddress,
+      opts.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       senderPublicKeyU8,
@@ -647,7 +680,7 @@ export class ConfidentialTransfer {
   }
 
   async genRangeProof(): Promise<ConfidentialTransferRangeProof> {
-    const rangeProofAmount = await RangeProofExecutor.genIndividualRangeProofs({
+    const rangeProofAmount = await RangeProofExecutor.genBatchRangeZKP({
       v: this.transferAmountEncryptedBySender.getAmountChunks(),
       rs: this.transferAmountRandomness.slice(0, TRANSFER_AMOUNT_CHUNK_COUNT).map((el) => numberToBytesLE(el, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -655,7 +688,7 @@ export class ConfidentialTransfer {
       num_bits: CHUNK_BITS,
     });
 
-    const rangeProofNewBalance = await RangeProofExecutor.genIndividualRangeProofs({
+    const rangeProofNewBalance = await RangeProofExecutor.genBatchRangeZKP({
       v: this.senderEncryptedAvailableBalanceAfterTransfer.getAmountChunks(),
       rs: this.newBalanceRandomness.map((el) => numberToBytesLE(el, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -664,8 +697,8 @@ export class ConfidentialTransfer {
     });
 
     return {
-      rangeProofAmount: rangeProofAmount.proofs,
-      rangeProofNewBalance: rangeProofNewBalance.proofs,
+      rangeProofAmount: rangeProofAmount.proof,
+      rangeProofNewBalance: rangeProofNewBalance.proof,
     };
   }
 
@@ -695,36 +728,23 @@ export class ConfidentialTransfer {
   static async verifyRangeProof(opts: {
     encryptedAmountByRecipient: EncryptedAmount;
     encryptedActualBalanceAfterTransfer: EncryptedAmount;
-    rangeProofAmount: Uint8Array[];
-    rangeProofNewBalance: Uint8Array[];
+    rangeProofAmount: Uint8Array;
+    rangeProofNewBalance: Uint8Array;
   }) {
-    const amountCipherTexts = opts.encryptedAmountByRecipient.getCipherText();
-    const balanceCipherTexts = opts.encryptedActualBalanceAfterTransfer.getCipherText();
-
-    const amountResults = await Promise.all(
-      opts.rangeProofAmount.map((proof, index) =>
-        RangeProofExecutor.verifyRangeZKP({
-          proof,
-          commitment: amountCipherTexts[index].C.toRawBytes(),
-          valBase: RistrettoPoint.BASE.toRawBytes(),
-          randBase: H_RISTRETTO.toRawBytes(),
-          bits: CHUNK_BITS,
-        }),
-      ),
-    );
-
-    const balanceResults = await Promise.all(
-      opts.rangeProofNewBalance.map((proof, index) =>
-        RangeProofExecutor.verifyRangeZKP({
-          proof,
-          commitment: balanceCipherTexts[index].C.toRawBytes(),
-          valBase: RistrettoPoint.BASE.toRawBytes(),
-          randBase: H_RISTRETTO.toRawBytes(),
-          bits: CHUNK_BITS,
-        }),
-      ),
-    );
-
-    return amountResults.every((r) => r) && balanceResults.every((r) => r);
+    const isAmountValid = await RangeProofExecutor.verifyBatchRangeZKP({
+      proof: opts.rangeProofAmount,
+      comm: opts.encryptedAmountByRecipient.getCipherText().map((el) => el.C.toRawBytes()),
+      val_base: RistrettoPoint.BASE.toRawBytes(),
+      rand_base: H_RISTRETTO.toRawBytes(),
+      num_bits: CHUNK_BITS,
+    });
+    const isBalanceValid = await RangeProofExecutor.verifyBatchRangeZKP({
+      proof: opts.rangeProofNewBalance,
+      comm: opts.encryptedActualBalanceAfterTransfer.getCipherText().map((el) => el.C.toRawBytes()),
+      val_base: RistrettoPoint.BASE.toRawBytes(),
+      rand_base: H_RISTRETTO.toRawBytes(),
+      num_bits: CHUNK_BITS,
+    });
+    return isAmountValid && isBalanceValid;
   }
 }
