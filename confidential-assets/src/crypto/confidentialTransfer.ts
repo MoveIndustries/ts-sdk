@@ -8,6 +8,7 @@ import {
   CHUNK_BITS,
   CHUNK_BITS_BIG_INT,
   ChunkedAmount,
+  MAX_CONFIDENTIAL_TRANSFER_PLAINTEXT,
   TRANSFER_AMOUNT_CHUNK_COUNT,
 } from "./chunkedAmount";
 import { AnyNumber, HexInput } from "@moveindustries/ts-sdk";
@@ -335,13 +336,15 @@ export class ConfidentialTransfer {
     if (this.transferAmountRandomness && this.transferAmountRandomness.length !== AVAILABLE_BALANCE_CHUNK_COUNT)
       throw new TypeError("Invalid length list of randomness");
 
-    if (this.transferAmountEncryptedBySender.getAmount() > 2n ** (2n * CHUNK_BITS_BIG_INT) - 1n)
-      throw new TypeError(`Amount must be less than 2n**${CHUNK_BITS_BIG_INT * 2n}`);
+    if (this.transferAmountEncryptedBySender.getAmount() > MAX_CONFIDENTIAL_TRANSFER_PLAINTEXT)
+      throw new TypeError(
+        `Amount must be at most ${MAX_CONFIDENTIAL_TRANSFER_PLAINTEXT} (${TRANSFER_AMOUNT_CHUNK_COUNT}×${CHUNK_BITS}-bit chunks)`,
+      );
 
     const senderPKRistretto = RistrettoPoint.fromHex(this.senderDecryptionKey.publicKey().toUint8Array());
     const recipientPKRistretto = RistrettoPoint.fromHex(this.recipientEncryptionKey.toUint8Array());
 
-    // Prover selects random x1, x2, x3i[], x4j[], x5, x6i[], where i in {0, 3} and j in {0, 1}
+    // Prover selects random x1, x2, x3i[], x4j[], x5, x6i[], where i in {0..AVAILABLE_BALANCE_CHUNK_COUNT-1} and j in {0..TRANSFER_AMOUNT_CHUNK_COUNT-1}
     const i = AVAILABLE_BALANCE_CHUNK_COUNT;
     const j = TRANSFER_AMOUNT_CHUNK_COUNT;
 

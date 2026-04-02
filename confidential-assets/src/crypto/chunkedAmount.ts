@@ -17,6 +17,13 @@ export const CHUNK_BITS_BIG_INT = BigInt(CHUNK_BITS);
  */
 export const TRANSFER_AMOUNT_CHUNK_COUNT = AVAILABLE_BALANCE_CHUNK_COUNT / 2;
 
+/**
+ * Maximum plaintext transfer amount (smallest token units) supported by the sigma + range proofs.
+ * Each of {@link TRANSFER_AMOUNT_CHUNK_COUNT} chunks holds {@link CHUNK_BITS} bits.
+ */
+export const MAX_CONFIDENTIAL_TRANSFER_PLAINTEXT =
+  2n ** (BigInt(TRANSFER_AMOUNT_CHUNK_COUNT) * CHUNK_BITS_BIG_INT) - 1n;
+
 export class ChunkedAmount {
   amount: bigint;
 

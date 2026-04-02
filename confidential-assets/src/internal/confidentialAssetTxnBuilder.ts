@@ -64,7 +64,8 @@ export class ConfidentialAssetTransactionBuilder {
     const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, tokenAddressBytes);
 
     return this.client.transaction.build.simple({
-      ...args,
+      sender: args.sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register`,
         functionArguments: [tokenAddress, decryptionKey.publicKey().toUint8Array(), proof.commitment, proof.response],
@@ -100,7 +101,8 @@ export class ConfidentialAssetTransactionBuilder {
     const amountString = String(amount);
 
     return this.client.transaction.build.simple({
-      ...args,
+      sender: args.sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_to`,
         functionArguments: [tokenAddress, recipient, amountString],
@@ -161,7 +163,8 @@ export class ConfidentialAssetTransactionBuilder {
     const [{ sigmaProof, rangeProof }, encryptedAmountAfterWithdraw] = await confidentialWithdraw.authorizeWithdrawal();
 
     return this.client.transaction.build.simple({
-      ...args,
+      sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::withdraw_to`,
         functionArguments: [
@@ -173,7 +176,6 @@ export class ConfidentialAssetTransactionBuilder {
           ConfidentialWithdraw.serializeSigmaProof(sigmaProof),
         ],
       },
-      options,
     });
   }
 
@@ -212,14 +214,12 @@ export class ConfidentialAssetTransactionBuilder {
     const functionName = withFreezeBalance ? "rollover_pending_balance_and_freeze" : "rollover_pending_balance";
 
     return this.client.transaction.build.simple({
-      ...args,
-      withFeePayer: args.withFeePayer,
       sender: args.sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::${functionName}`,
         functionArguments: [args.tokenAddress],
       },
-      options: args.options,
     });
   }
 
@@ -346,8 +346,8 @@ export class ConfidentialAssetTransactionBuilder {
     const auditorBalances = auditorsCBList.map((el) => el.getCipherTextBytes());
 
     return this.client.transaction.build.simple({
-      ...args,
-      withFeePayer: args.withFeePayer,
+      sender: args.sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::confidential_transfer`,
         functionArguments: [
@@ -448,9 +448,8 @@ export class ConfidentialAssetTransactionBuilder {
     const method = withUnfreezePendingBalance ? "rotate_encryption_key_and_unfreeze" : "rotate_encryption_key";
 
     return this.client.transaction.build.simple({
-      ...args,
-      withFeePayer: args.withFeePayer,
       sender: args.sender,
+      ...feePayerBuildOpts(args),
       data: {
         function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::${method}`,
         functionArguments: [
@@ -461,7 +460,6 @@ export class ConfidentialAssetTransactionBuilder {
           ConfidentialKeyRotation.serializeSigmaProof(sigmaProof),
         ],
       },
-      options: args.options,
     });
   }
 
@@ -514,6 +512,21 @@ export class ConfidentialAssetTransactionBuilder {
       options,
     });
   }
+}
+
+/** Only forwards options and `withFeePayer` when sponsored tx is explicitly requested (strict `=== true`). */
+function feePayerBuildOpts(args: {
+  withFeePayer?: boolean;
+  options?: InputGenerateTransactionOptions;
+}): { options?: InputGenerateTransactionOptions; withFeePayer?: true } {
+  const out: { options?: InputGenerateTransactionOptions; withFeePayer?: true } = {};
+  if (args.options !== undefined) {
+    out.options = args.options;
+  }
+  if (args.withFeePayer === true) {
+    out.withFeePayer = true;
+  }
+  return out;
 }
 
 function validateAmount(args: { amount: AnyNumber }) {
