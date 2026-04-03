@@ -33,7 +33,9 @@ This specification defines the interface between **wallets**, **applications (dA
 
 **Wallet adapter** means the **standard dApp ↔ wallet connection layer** used to obtain an Aptos/Movement **account address**, **network**, and **signed transaction submission**—for example the packages and patterns around `**@aptos-labs/wallet-adapter-react`**, `**@moveindustries/wallet-adapter-react**`, or any implementation that exposes the same capabilities (`signAndSubmitTransaction`, `signMessage` where applicable, etc.). It is **not** a Confidential Assets–specific product name.
 
-Confidential Assets MAY additionally use **namespaced methods** defined in [§5](#sec-5) (`ca_*`) when wallets implement them; that layer is **optional** and is not what “wallet adapter” denotes by itself.
+For **browser** dApps, Confidential Assets **MUST** be reached through **namespaced wallet methods** defined in [§5](#sec-5) (`ca_*`) or a wallet-documented equivalent, so the dApp never receives CA decryption key material. That CA layer is **not** part of the generic “wallet adapter” product name but **is** required for normative browser dApp CA support.
+
+**Wallet adapter CA wrappers:** dApp packages (e.g. `@…/wallet-adapter-react`) **SHOULD** expose **thin** functions that **feature-detect** the connected wallet’s §5 surface and **forward** request/response only—e.g. `caTransfer`, `caGetBalances`, or a single entry like `signAndSubmitConfidential` if it maps to `ca_transfer` under the hood. **Naming is implementation-defined;** the requirement is **no CA SDK or proof logic in the dApp bundle** for browser flows. If the feature is missing, the adapter **SHOULD** report unsupported CA so the dApp can degrade gracefully.
 
 
 
@@ -41,9 +43,9 @@ Confidential Assets MAY additionally use **namespaced methods** defined in [§5]
 
 ### Security properties (decryption vs signing keys)
 
-- The **Ed25519 account signing key** MUST remain under wallet control for user-facing flows: browser dApps MUST submit CA transactions via the wallet adapter’s `**signAndSubmitTransaction`** (or equivalent) and MUST NOT embed the user’s **Ed25519** private key in application code.
-- The `**TwistedEd25519PrivateKey`** (CA **decryption** key) has a different threat model. **Wallet-native** implementations SHOULD derive and use it only inside a **privileged wallet process** ([§4.1](#sec-4-1)). **Browser dApps** MAY nonetheless call the Confidential Assets SDK inside the dApp JavaScript runtime to build payloads **if** they obtain a `**TwistedEd25519PrivateKey`** only **ephemerally** (see [§6](#sec-6)) and never persist it to `localStorage` or other origin storage.
-- **Registration is wallet-only** (see [§6](#sec-6) A1). If the **wallet** derived the Twisted key with **`fromSignature`** when it registered **`ek`**, any later **`fromSignature`** use (e.g. a dApp re-deriving for a transfer) MUST use the **same** Ed25519 signature bytes as that **wallet** registration; otherwise the client cannot reproduce the key for **`ek`**.
+- The **Ed25519 account signing key** MUST remain under wallet control for user-facing flows: browser dApps MUST submit CA transactions through the wallet (via [§5](#sec-5) `ca_*` write methods that internally sign and submit, and/or the adapter’s `**signAndSubmitTransaction**` only for payloads **built inside the wallet**) and MUST NOT embed the user’s **Ed25519** private key in application code.
+- The `**TwistedEd25519PrivateKey`** (CA **decryption** key) **MUST NOT** be exposed to **browser dApp** origins: dApps MUST NOT receive it, derive it in-page, or run ZK proof construction in the dApp JavaScript runtime for user-facing flows. Wallets MUST derive and use it only inside a **privileged wallet process** ([§4.1](#sec-4-1)) and MUST expose [§5](#sec-5) so dApps can request balances and transfers **without** decryption key material crossing into the page. **Non-browser** clients (CLI, tests, custodial backends, native apps with no untrusted web origin) MAY use the [§3](#sec-3) SDK with a Twisted key in their own trust boundary; that path is **not** conforming for **browser** dApps ([§6](#sec-6)).
+- **Registration is wallet-only** (see [§6](#sec-6) A1). If the **wallet** derived the Twisted key with **`fromSignature`** when it registered **`ek`**, any **wallet-side** reproduction of that key (e.g. after restart) MUST use the **same** derivation policy and, where applicable, the **same** Ed25519 signature bytes as that registration.
 
 ---
 
@@ -141,7 +143,7 @@ Clients MUST pass the **fungible asset metadata object address** (32-byte FA met
 | API                                                           | Semantics                                                                                                                                                                                                                                                                                                                              |
 | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TwistedEd25519PrivateKey.fromDerivationPath(path, mnemonic)` | SLIP-0010–style hardened derivation; path MUST satisfy SDK hardened rules (e.g. coin type **637**).                                                                                                                                                                                                                                    |
-| `TwistedEd25519PrivateKey.fromSignature(ed25519Signature)` | Derives a **`TwistedEd25519PrivateKey`** from **Ed25519 signature bytes** (not from arbitrary message text). **Registration** ([`register`](#sec-1-1)) is **wallet-only**; the wallet submits **`ek` = `derivedKey.publicKey()`** with the ZK proof. Any later off-wallet re-derivation (e.g. a dApp building a transfer) MUST use signature bytes **identical** to those the **wallet** produced when it registered—wallet **`signMessage`** wrappers (nonce, domain, etc.) MUST not change the signed payload relative to that registration. |
+| `TwistedEd25519PrivateKey.fromSignature(ed25519Signature)` | Derives a **`TwistedEd25519PrivateKey`** from **Ed25519 signature bytes** (not from arbitrary message text). **Registration** ([`register`](#sec-1-1)) is **wallet-only**; the wallet submits **`ek` = `derivedKey.publicKey()`** with the ZK proof. **Browser dApps MUST NOT** use this API in the page to obtain a Twisted key. Wallet **`signMessage`** wrappers (nonce, domain, etc.) used for registration MUST not change the signed payload relative to the agreed derivation string ([§2](#sec-2) constant). |
 | `TwistedEd25519PrivateKey.generate()`                         | Uniform random key; used when no stable seed-based derivation exists (see [§9](#sec-9)).                                                                                                                                                                                                                                               |
 
 
@@ -159,7 +161,7 @@ Clients MUST pass the **fungible asset metadata object address** (32-byte FA met
 
 ## 3. Client SDK operations (`ConfidentialAsset`)
 
-Wallets and dApps MAY instantiate `**ConfidentialAsset**` wherever proof construction runs.
+Wallets **MUST** run `**ConfidentialAsset**` (or equivalent) **inside the wallet process** for browser-facing CA flows. **Browser dApps MUST NOT** instantiate it with a `**TwistedEd25519PrivateKey**` in the dApp runtime. **Non-browser** tooling MAY instantiate it wherever proof construction is intended (subject to that environment’s own security review).
 
 
 
@@ -196,9 +198,9 @@ Wallets and dApps MAY instantiate `**ConfidentialAsset**` wherever proof constru
 | `rotateEncryptionKey`                   | Old and new keys                                 | MAY require prior rollover/freeze per [§1.1](#sec-1-1). |
 
 
-All write operations require an `**Account**` (Ed25519 transaction signer) plus off-chain proof generation with the decryption key.
+All write operations require an `**Account**` (Ed25519 transaction signer) plus off-chain proof generation with the decryption key **in the party that holds that key** (the wallet for browser dApps—see [§5](#sec-5)).
 
-**SDK + wallet adapter pattern (conforming):** A dApp MAY call `**confidential.transaction.transfer`** (or related builders) to obtain a `**SimpleTransaction**`, then pass the serialized payload to `**signAndSubmitTransaction**` on the wallet adapter. The Ed25519 signer remains the wallet; the dApp holds `**TwistedEd25519PrivateKey**` only for the duration of proof construction in memory.
+**Browser dApp pattern (conforming):** The dApp calls **`ca_transfer`**, **`ca_withdraw`**, etc. ([§5](#sec-5)). The wallet runs the §3 builders internally, signs, and submits; the dApp receives transaction hashes (and optional structured results) **only**—never `**TwistedEd25519PrivateKey**`.
 
 ---
 
@@ -214,9 +216,9 @@ All write operations require an `**Account**` (Ed25519 transaction signer) plus 
 
 ### 4.1 Trust boundary (wallet-native implementations)
 
-For **browser extension** and **mobile** wallets that implement CA **inside** a privileged host process: **decryption keys** and **ZK proof construction** SHOULD execute there. The host **MUST NOT** forward `**TwistedEd25519PrivateKey`** bytes to arbitrary web origins. Returning **decrypted numeric balances** to first-party wallet UI over an authenticated local channel is permitted.
+For **browser extension** and **mobile** wallets that implement CA **inside** a privileged host process: **decryption keys** and **ZK proof construction** MUST execute there for user-facing CA. The host **MUST NOT** forward `**TwistedEd25519PrivateKey`** bytes (or seeds or serialized secrets equivalent to the decryption key) to arbitrary web origins. Returning **decrypted numeric balances** to first-party wallet UI over an authenticated local channel is permitted; returning them to **connected dApp origins** is permitted only via [§5](#sec-5) with explicit consent where required.
 
-This section does **not** forbid the **SDK-in-dApp** pattern in [§3](#sec-3): that pattern runs proofs in the dApp process and is subject to [§6](#sec-6).
+**Non-browser** SDK use ([§3](#sec-3)) in other trust boundaries does not change the browser dApp rules in [§6](#sec-6).
 
 
 
@@ -284,17 +286,19 @@ Wallets MUST configure:
 
 <a id="sec-5"></a>
 
-## 5. Optional dApp-facing `ca_*` API
+## 5. dApp-facing `ca_*` API (browser requirement)
 
-Wallets **MAY** expose Confidential Assets through **additional** namespaced methods (e.g. `aptos.confidentialAssets`) so dApps never materialize `**TwistedEd25519PrivateKey`**. This is **optional**; dApps **MAY** instead use the [§3](#sec-3) **SDK + `signAndSubmitTransaction`** pattern with the **wallet adapter** (see [Terminology](#sec-scope-terminology-wallet-adapter)).
+Wallets that support **browser** dApp integration for Confidential Assets **MUST** expose the methods in this section—or **functionally equivalent** namespaced features documented by the wallet (same request/response semantics)—under the wallet’s injected provider / adapter so **dApp JavaScript never materializes or receives `TwistedEd25519PrivateKey` bytes** (or any equivalent serialization of the CA decryption secret). All decryption and ZK proof work for those calls **MUST** run in the wallet’s privileged process.
 
-Concrete transport (JSON-RPC, `window.aptos`, etc.) SHOULD follow the same conventions as the wallet’s existing Aptos adapter.
+Wallets that do **not** expose browser dApp CA at all **MUST NOT** invite dApps to use the §3 SDK in-page as a substitute; such wallets should document that CA is **wallet-UI-only** until `ca_*` (or equivalent) is implemented.
+
+Concrete transport (JSON-RPC, `window.aptos`, wallet-standard feature objects, etc.) SHOULD follow the same conventions as the wallet’s existing Aptos adapter.
 
 
 
 <a id="sec-5-1"></a>
 
-### 5.1 Read methods (no decryption key export)
+### 5.1 Read methods (wallet decrypts; no decryption key to the dApp)
 
 
 | Method                | Request                        | Response                                                    |
@@ -344,13 +348,12 @@ A wallet adapter **MUST NOT** offer a **generic** “sign arbitrary bytes for CA
 
 | ID  | Requirement                                                                                                                                                                                                                                                                                                                                               |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | In a **browser**, dApps MUST submit CA transactions through the **wallet adapter**’s `**signAndSubmitTransaction`** (or equivalent); dApps MUST NOT hold the user’s **Ed25519** signing private key. dApps **MUST NOT** submit **`register`** / **`registerBalance`** (CA **`ek`** registration is **wallet-only** via [§4](#sec-4) or [§5](#sec-5) `ca_register`).                                                                                                                                                      |
-| A2  | dApps MAY use `**@moveindustries/confidential-assets`** in the **browser** (or any conforming SDK) to build CA payloads **other than registration**—e.g. **`transfer`**, **`deposit`**, **`withdraw`**, rollover/normalize—using a `**TwistedEd25519PrivateKey**` held **only in memory**, **after** the wallet has registered **`ek`** (A1). **`registerBalance`** is excluded. |
-| A3  | dApps MUST NOT **persist** `**TwistedEd25519PrivateKey`** (or seeds) to `localStorage`, `sessionStorage`, cookies, or other origin-controlled storage.                                                                                                                                                                                                    |
-| A4  | If a dApp uses **`fromSignature`** only to **re-derive** the Twisted key after the **wallet** has already registered **`ek`**, the Ed25519 signature bytes MUST match those produced during **that wallet registration**; dApps MUST NOT use **dApp-chosen** messages for registration (registration is not a dApp operation—see A1).                                                                                                       |
-| A5  | dApps SHOULD prefer `**ca_*`** methods ([§5](#sec-5)) when available to reduce exposure of the decryption key to the dApp process and to XSS.                                                                                                                                                                                                             |
-| A6  | dApps MUST pass FA **metadata addresses** for `**token`** ([§1.3](#sec-1-3)).                                                                                                                                                                                                                                                                             |
-| A7  | Deposit and withdraw amounts are public on-chain; dApps MUST NOT infer that confidential **transfer** amounts are visible.                                                                                                                                                                                                                                |
+| A1  | In a **browser**, dApps MUST NOT hold the user’s **Ed25519** signing private key. dApps **MUST NOT** submit **`register`** / **`registerBalance`** (CA **`ek`** registration is **wallet-only** via [§4](#sec-4) or [§5](#sec-5) `ca_register`).                                                                                                                                                     |
+| A2  | **Browser** dApps MUST NOT obtain, derive, or hold `**TwistedEd25519PrivateKey**` (or equivalent CA decryption material) in the dApp process. They MUST NOT run the Confidential Assets SDK for **proof construction** or **balance decryption** in page JavaScript. They **MUST** use [§5](#sec-5) `**ca_*`** (or the wallet’s documented equivalent) for all CA operations that require the decryption key or ZK proofs. |
+| A3  | **Browser** dApps MUST NOT **persist**, log, or forward CA decryption key material. They MUST NOT ask the wallet to **export** `**TwistedEd25519PrivateKey**` (or seeds) to the page.                                                                                                                                                                       |
+| A4  | **Browser** dApps MUST NOT use **`fromSignature`** (or any API) in the page to construct a Twisted key. **`fromSignature`** is a **wallet-internal** (or non-browser tooling) concern for agreed derivation policies ([§2](#sec-2), [§4.3](#sec-4-3)).                                                                                                      |
+| A5  | dApps MUST pass FA **metadata addresses** for `**token`** ([§1.3](#sec-1-3)).                                                                                                                                                                                                                                                                             |
+| A6  | Deposit and withdraw amounts are public on-chain; dApps MUST NOT infer that confidential **transfer** amounts are visible.                                                                                                                                                                                                                                |
 
 
 ---
@@ -361,7 +364,7 @@ A wallet adapter **MUST NOT** offer a **generic** “sign arbitrary bytes for CA
 
 ## 7. End-to-end flows (informative)
 
-The diagrams below are **non-normative** illustrations.
+The diagrams below are **non-normative** illustrations. They describe **browser** dApp ↔ wallet flows where the Twisted key stays in the wallet. **Non-browser** clients MAY still use the §3 SDK with a Twisted key in their own process (outside this document’s browser dApp conformance rules).
 
 
 
@@ -389,16 +392,16 @@ sequenceDiagram
 
 <a id="sec-7-2"></a>
 
-### 7.2 Confidential transfer (SDK + wallet adapter)
+### 7.2 Confidential transfer (browser dApp + `ca_transfer`)
 
 ```mermaid
 sequenceDiagram
   participant App
   participant Wallet
   participant Chain
-  App->>App: SDK build transfer (proofs)
-  App->>Wallet: signAndSubmitTransaction(payload)
-  Wallet->>Chain: confidential_transfer
+  App->>Wallet: ca_transfer (intent: token, recipient, amount)
+  Wallet->>Wallet: SDK build transfer (proofs); Twisted key stays in wallet
+  Wallet->>Chain: confidential_transfer (signed)
   Wallet->>App: Transaction hash
 ```
 
@@ -464,10 +467,10 @@ Losing the **decryption key** does **not** compromise the **Ed25519 signing key*
 
 | Scenario                                             | Consequence                                                                               |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| dApp stores decryption key                           | Privacy compromise; custodial trust model.                                                |
+| dApp stores or receives decryption key               | Privacy compromise; violates [§6](#sec-6) for browser dApps.                              |
 | Wrong `**token**` identifier (coin type vs metadata) | Transaction failure or wrong asset.                                                       |
 | Omitted rollover / normalize                         | Abort or revert; fee spent without state change.                                          |
-| XSS on dApp origin while decryption key in memory    | Ephemeral key may be exfiltrated (risk reduced by [§5](#sec-5) / privileged wallet path). |
+| XSS on dApp origin                                  | Cannot steal CA decryption key if the wallet never injects it ([§5](#sec-5), [§6](#sec-6)); other dApp secrets may still be at risk. |
 
 
 
@@ -529,7 +532,7 @@ Wallets whose **signing** key is not stably derivable from a user-held mnemonic 
 | K1  | On first CA use for a logical account, the wallet MUST generate `**TwistedEd25519PrivateKey.generate()`** (or equivalent CSPRNG) inside the trust boundary.                                     |
 | K2  | The wallet MUST persist the resulting secret encrypted under a **stable identity root** (e.g. OS keystore, secure enclave, user password KDF, provider encrypted backup bound to OIDC subject). |
 | K3  | On subsequent sessions or devices, the wallet MUST load and decrypt that blob before submitting CA transactions or returning decrypted balances.                                                |
-| K4  | dApps without `**ca_*`** support MUST use [§6](#sec-6); they MUST NOT receive long-lived Twisted key material from the wallet except as already covered by ephemeral SDK use.                   |
+| K4  | **Browser** dApps MUST use [§5](#sec-5) `**ca_*`** (or equivalent). Wallets MUST NOT satisfy CA requests by exporting `**TwistedEd25519PrivateKey**` to the page. If a wallet does not yet implement `ca_*`, it MUST treat CA as **wallet-UI-only** for browser origins rather than enabling an SDK-in-page workaround. |
 
 
 ---
