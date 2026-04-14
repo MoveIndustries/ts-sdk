@@ -204,12 +204,10 @@ async function getBalanceCipherText(args: ViewFunctionParams): Promise<{
 
   return {
     pending: chunkedPendingBalance.chunks.map(
-      (el) =>
-        new TwistedElGamalCiphertext(viewRistrettoBytes(el.left.data), viewRistrettoBytes(el.right.data)),
+      (el) => new TwistedElGamalCiphertext(viewRistrettoBytes(el.left.data), viewRistrettoBytes(el.right.data)),
     ),
     available: chunkedActualBalances.chunks.map(
-      (el) =>
-        new TwistedElGamalCiphertext(viewRistrettoBytes(el.left.data), viewRistrettoBytes(el.right.data)),
+      (el) => new TwistedElGamalCiphertext(viewRistrettoBytes(el.left.data), viewRistrettoBytes(el.right.data)),
     ),
   };
 }
@@ -374,10 +372,7 @@ export async function getEncryptionKey(
  * views at the **latest** ledger: `chain_id` is immutable, while pinning other reads to
  * `getLedgerInfo().ledger_version` can lag execution and break transfer sigma proofs.
  */
-export async function getChainIdByteForProofs(args: {
-  client: Movement;
-  options?: LedgerVersionArg;
-}): Promise<number> {
+export async function getChainIdByteForProofs(args: { client: Movement; options?: LedgerVersionArg }): Promise<number> {
   const { client, options } = args;
   try {
     const [id] = await client.view<[number | string | bigint]>({

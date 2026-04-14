@@ -22,11 +22,7 @@ import {
   TwistedEd25519PrivateKey,
 } from "../crypto";
 import { genRegistrationProof } from "../crypto/confidentialRegistration";
-import {
-  DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS,
-  MAX_SENDER_AUDITOR_HINT_BYTES,
-  MODULE_NAME,
-} from "../consts";
+import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MAX_SENDER_AUDITOR_HINT_BYTES, MODULE_NAME } from "../consts";
 import {
   getBalance,
   getChainIdByteForProofs,
@@ -72,13 +68,7 @@ export class ConfidentialAssetTransactionBuilder {
     const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
-    const proof = genRegistrationProof(
-      decryptionKey,
-      chainId,
-      senderAddress,
-      contractAddressBytes,
-      tokenAddressBytes,
-    );
+    const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, contractAddressBytes, tokenAddressBytes);
 
     return this.client.transaction.build.simple({
       sender: args.sender,
@@ -309,9 +299,7 @@ export class ConfidentialAssetTransactionBuilder {
     } = args;
     validateAmount({ amount });
     if (senderAuditorHint.length > MAX_SENDER_AUDITOR_HINT_BYTES) {
-      throw new Error(
-        `senderAuditorHint exceeds MAX_SENDER_AUDITOR_HINT_BYTES (${MAX_SENDER_AUDITOR_HINT_BYTES})`,
-      );
+      throw new Error(`senderAuditorHint exceeds MAX_SENDER_AUDITOR_HINT_BYTES (${MAX_SENDER_AUDITOR_HINT_BYTES})`);
     }
 
     const chainId = await getChainIdByteForProofs({ client: this.client });
@@ -441,13 +429,7 @@ export class ConfidentialAssetTransactionBuilder {
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    const {
-      sender,
-      senderDecryptionKey,
-      newSenderDecryptionKey,
-      checkPendingBalanceEmpty = true,
-      tokenAddress,
-    } = args;
+    const { sender, senderDecryptionKey, newSenderDecryptionKey, checkPendingBalanceEmpty = true, tokenAddress } = args;
 
     const chainId = await getChainIdByteForProofs({ client: this.client });
 
@@ -566,10 +548,10 @@ export class ConfidentialAssetTransactionBuilder {
 }
 
 /** Only forwards options and `withFeePayer` when sponsored tx is explicitly requested (strict `=== true`). */
-function feePayerBuildOpts(args: {
-  withFeePayer?: boolean;
+function feePayerBuildOpts(args: { withFeePayer?: boolean; options?: InputGenerateTransactionOptions }): {
   options?: InputGenerateTransactionOptions;
-}): { options?: InputGenerateTransactionOptions; withFeePayer?: true } {
+  withFeePayer?: true;
+} {
   const out: { options?: InputGenerateTransactionOptions; withFeePayer?: true } = {};
   if (args.options !== undefined) {
     out.options = args.options;
