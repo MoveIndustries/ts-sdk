@@ -28,6 +28,7 @@ export type CreateConfidentialKeyRotationOpArgs = {
   currentEncryptedAvailableBalance: EncryptedAmount;
   chainId: number;
   senderAddress: Uint8Array;
+  contractAddress: Uint8Array;
   tokenAddress: Uint8Array;
   randomness?: bigint[];
 };
@@ -47,6 +48,8 @@ export class ConfidentialKeyRotation {
 
   senderAddress: Uint8Array;
 
+  contractAddress: Uint8Array;
+
   tokenAddress: Uint8Array;
 
   constructor(args: {
@@ -57,6 +60,7 @@ export class ConfidentialKeyRotation {
     newEncryptedAvailableBalance: EncryptedAmount;
     chainId: number;
     senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
     tokenAddress: Uint8Array;
   }) {
     this.randomness = args.randomness;
@@ -66,6 +70,7 @@ export class ConfidentialKeyRotation {
     this.newEncryptedAvailableBalance = args.newEncryptedAvailableBalance;
     this.chainId = args.chainId;
     this.senderAddress = args.senderAddress;
+    this.contractAddress = args.contractAddress;
     this.tokenAddress = args.tokenAddress;
   }
 
@@ -79,6 +84,7 @@ export class ConfidentialKeyRotation {
       newSenderDecryptionKey,
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     } = args;
 
@@ -96,6 +102,7 @@ export class ConfidentialKeyRotation {
       randomness,
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     });
   }
@@ -196,6 +203,7 @@ export class ConfidentialKeyRotation {
       PROTOCOL_ID_ROTATION,
       this.chainId,
       this.senderAddress,
+      this.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.currentEncryptedAvailableBalance.publicKey.toUint8Array(),
@@ -250,7 +258,7 @@ export class ConfidentialKeyRotation {
     newEncryptedBalance: TwistedElGamalCiphertext[];
     chainId: number;
     senderAddress: Uint8Array;
-    tokenAddress: Uint8Array;
+    contractAddress: Uint8Array;
   }) {
     const alpha1LEList = opts.sigmaProof.alpha1List.map(bytesToNumberLE);
     const alpha2LE = bytesToNumberLE(opts.sigmaProof.alpha2);
@@ -262,7 +270,7 @@ export class ConfidentialKeyRotation {
       PROTOCOL_ID_ROTATION,
       opts.chainId,
       opts.senderAddress,
-      opts.tokenAddress,
+      opts.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       opts.currPublicKey.toUint8Array(),

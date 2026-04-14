@@ -22,6 +22,15 @@ describe("Generate 'confidential coin' proofs", () => {
   const aliceConfidentialDecryptionKey: TwistedEd25519PrivateKey = TwistedEd25519PrivateKey.generate();
   const bobConfidentialDecryptionKey: TwistedEd25519PrivateKey = TwistedEd25519PrivateKey.generate();
 
+  const TEST_CHAIN_ID = 1;
+  const TEST_SENDER_ADDR = new Uint8Array(32);
+  const TEST_TOKEN_ADDR = new Uint8Array(32);
+  const TEST_CONTRACT_ADDR = (() => {
+    const a = new Uint8Array(32);
+    a[31] = 0x07;
+    return a;
+  })();
+
   const aliceConfidentialAmount = ChunkedAmount.fromAmount(ALICE_BALANCE);
   const aliceEncryptedBalance = new EncryptedAmount({
     chunkedAmount: aliceConfidentialAmount,
@@ -39,6 +48,10 @@ describe("Generate 'confidential coin' proofs", () => {
         decryptionKey: aliceConfidentialDecryptionKey,
         senderAvailableBalanceCipherText: aliceEncryptedBalanceCipherText,
         amount: WITHDRAW_AMOUNT,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       confidentialWithdrawSigmaProof = await confidentialWithdraw.genSigmaProof();
@@ -57,6 +70,10 @@ describe("Generate 'confidential coin' proofs", () => {
           confidentialWithdraw.senderEncryptedAvailableBalanceAfterWithdrawal,
         amountToWithdraw: WITHDRAW_AMOUNT,
         sigmaProof: confidentialWithdrawSigmaProof,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeTruthy();
@@ -64,7 +81,7 @@ describe("Generate 'confidential coin' proofs", () => {
     longTestTimeout,
   );
 
-  let confidentialWithdrawRangeProof: Uint8Array[];
+  let confidentialWithdrawRangeProof: Uint8Array;
   test(
     "Generate withdraw range proof",
     async () => {
@@ -97,11 +114,28 @@ describe("Generate 'confidential coin' proofs", () => {
         senderAvailableBalanceCipherText: aliceEncryptedBalanceCipherText,
         amount: TRANSFER_AMOUNT,
         recipientEncryptionKey: bobConfidentialDecryptionKey.publicKey(),
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       confidentialTransferSigmaProof = await confidentialTransfer.genSigmaProof();
 
       expect(confidentialTransferSigmaProof).toBeDefined();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "Transfer sigma proof serialize/deserialize roundtrip (no auditors)",
+    () => {
+      const bytes = ConfidentialTransfer.serializeSigmaProof(confidentialTransferSigmaProof);
+      expect(bytes.length).toBe(56 * 32);
+      const decoded = ConfidentialTransfer.deserializeSigmaProof(bytes);
+      expect(decoded.alpha1List.length).toBe(8);
+      expect(decoded.X7List?.length ?? 0).toBe(0);
+      expect(decoded.X8List.length).toBe(4);
     },
     longTestTimeout,
   );
@@ -117,9 +151,65 @@ describe("Generate 'confidential coin' proofs", () => {
         encryptedActualBalanceAfterTransfer: confidentialTransfer.senderEncryptedAvailableBalanceAfterTransfer,
         encryptedTransferAmountByRecipient: confidentialTransfer.transferAmountEncryptedByRecipient,
         sigmaProof: confidentialTransferSigmaProof,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeTruthy();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "Transfer sigma proof binds sender_auditor_hint (wrong hint fails verification)",
+    async () => {
+      const hintOk = new TextEncoder().encode("trace-ref-1");
+      const transferWithHint = await ConfidentialTransfer.create({
+        senderDecryptionKey: aliceConfidentialDecryptionKey,
+        senderAvailableBalanceCipherText: aliceEncryptedBalanceCipherText,
+        amount: TRANSFER_AMOUNT,
+        recipientEncryptionKey: bobConfidentialDecryptionKey.publicKey(),
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
+        senderAuditorHint: hintOk,
+      });
+      const sigmaWithHint = await transferWithHint.genSigmaProof();
+      expect(
+        ConfidentialTransfer.verifySigmaProof({
+          senderPrivateKey: aliceConfidentialDecryptionKey,
+          recipientPublicKey: bobConfidentialDecryptionKey.publicKey(),
+          encryptedActualBalance: aliceEncryptedBalanceCipherText,
+          encryptedTransferAmountBySender: transferWithHint.transferAmountEncryptedBySender,
+          encryptedActualBalanceAfterTransfer: transferWithHint.senderEncryptedAvailableBalanceAfterTransfer,
+          encryptedTransferAmountByRecipient: transferWithHint.transferAmountEncryptedByRecipient,
+          sigmaProof: sigmaWithHint,
+          chainId: TEST_CHAIN_ID,
+          senderAddress: TEST_SENDER_ADDR,
+          contractAddress: TEST_CONTRACT_ADDR,
+          tokenAddress: TEST_TOKEN_ADDR,
+          senderAuditorHint: hintOk,
+        }),
+      ).toBe(true);
+      expect(
+        ConfidentialTransfer.verifySigmaProof({
+          senderPrivateKey: aliceConfidentialDecryptionKey,
+          recipientPublicKey: bobConfidentialDecryptionKey.publicKey(),
+          encryptedActualBalance: aliceEncryptedBalanceCipherText,
+          encryptedTransferAmountBySender: transferWithHint.transferAmountEncryptedBySender,
+          encryptedActualBalanceAfterTransfer: transferWithHint.senderEncryptedAvailableBalanceAfterTransfer,
+          encryptedTransferAmountByRecipient: transferWithHint.transferAmountEncryptedByRecipient,
+          sigmaProof: sigmaWithHint,
+          chainId: TEST_CHAIN_ID,
+          senderAddress: TEST_SENDER_ADDR,
+          contractAddress: TEST_CONTRACT_ADDR,
+          tokenAddress: TEST_TOKEN_ADDR,
+          senderAuditorHint: new TextEncoder().encode("trace-ref-2"),
+        }),
+      ).toBe(false);
     },
     longTestTimeout,
   );
@@ -159,11 +249,27 @@ describe("Generate 'confidential coin' proofs", () => {
         amount: TRANSFER_AMOUNT,
         recipientEncryptionKey: bobConfidentialDecryptionKey.publicKey(),
         auditorEncryptionKeys: [auditor.publicKey()],
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       confidentialTransferWithAuditorsSigmaProof = await confidentialTransferWithAuditors.genSigmaProof();
 
       expect(confidentialTransferWithAuditorsSigmaProof).toBeDefined();
+    },
+    longTestTimeout,
+  );
+  test(
+    "Transfer sigma proof serialize/deserialize roundtrip (with auditors)",
+    () => {
+      const bytes = ConfidentialTransfer.serializeSigmaProof(confidentialTransferWithAuditorsSigmaProof);
+      const decoded = ConfidentialTransfer.deserializeSigmaProof(bytes);
+      expect(decoded.alpha1List.length).toBe(8);
+      expect(decoded.X2List.length).toBe(8);
+      expect(decoded.X7List?.length).toBe(4);
+      expect(decoded.X8List.length).toBe(4);
     },
     longTestTimeout,
   );
@@ -185,6 +291,10 @@ describe("Generate 'confidential coin' proofs", () => {
             el.getCipherText(),
           ),
         },
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeTruthy();
@@ -211,6 +321,10 @@ describe("Generate 'confidential coin' proofs", () => {
             el.getCipherText(),
           ),
         },
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeFalsy();
@@ -253,6 +367,10 @@ describe("Generate 'confidential coin' proofs", () => {
         senderDecryptionKey: aliceConfidentialDecryptionKey,
         currentEncryptedAvailableBalance: aliceEncryptedBalance,
         newSenderDecryptionKey: newAliceConfidentialPrivateKey,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       confidentialKeyRotationSigmaProof = await confidentialKeyRotation.genSigmaProof();
@@ -270,6 +388,9 @@ describe("Generate 'confidential coin' proofs", () => {
         newPublicKey: newAliceConfidentialPrivateKey.publicKey(),
         currEncryptedBalance: aliceEncryptedBalanceCipherText,
         newEncryptedBalance: confidentialKeyRotation.newEncryptedAvailableBalance.getCipherText(),
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
       });
 
       expect(isValid).toBeTruthy();
@@ -277,7 +398,7 @@ describe("Generate 'confidential coin' proofs", () => {
     longTestTimeout,
   );
 
-  let confidentialKeyRotationRangeProof: Uint8Array[];
+  let confidentialKeyRotationRangeProof: Uint8Array;
   test(
     "Generate key rotation range proof",
     async () => {
@@ -329,6 +450,10 @@ describe("Generate 'confidential coin' proofs", () => {
       confidentialNormalization = await ConfidentialNormalization.create({
         decryptionKey: aliceConfidentialDecryptionKey,
         unnormalizedAvailableBalance: unnormalizedEncryptedBalance,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       confidentialNormalizationSigmaProof = await confidentialNormalization.genSigmaProof();
@@ -345,13 +470,17 @@ describe("Generate 'confidential coin' proofs", () => {
         sigmaProof: confidentialNormalizationSigmaProof,
         unnormalizedEncryptedBalance: confidentialNormalization.unnormalizedEncryptedAvailableBalance,
         normalizedEncryptedBalance: confidentialNormalization.normalizedEncryptedAvailableBalance,
+        chainId: TEST_CHAIN_ID,
+        senderAddress: TEST_SENDER_ADDR,
+        contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeTruthy();
     },
     longTestTimeout,
   );
-  let confidentialNormalizationRangeProof: Uint8Array[];
+  let confidentialNormalizationRangeProof: Uint8Array;
   test(
     "Generate normalization range proof",
     async () => {

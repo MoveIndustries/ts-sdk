@@ -25,7 +25,9 @@ import {
   ConfidentialAssetTransactionBuilder,
   ConfidentialBalance,
   getBalance,
+  getChainIdByteForProofs,
   getEncryptionKey,
+  getGlobalAuditorEncryptionKey,
   isBalanceNormalized,
   isPendingBalanceFrozen,
 } from "../internal";
@@ -58,6 +60,8 @@ type WithdrawParams = ConfidentialAssetSubmissionParams & {
 
 type TransferParams = WithdrawParams & {
   additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+  /** Opaque hint bound into the transfer proof and emitted on `Transferred` (max 256 bytes). */
+  senderAuditorHint?: Uint8Array;
 };
 
 type RolloverParams = ConfidentialAssetSubmissionParams & {
@@ -264,17 +268,12 @@ export class ConfidentialAsset {
     tokenAddress: AccountAddressInput;
     options?: LedgerVersionArg;
   }): Promise<TwistedEd25519PublicKey | undefined> {
-    const [{ vec: globalAuditorPubKey }] = await this.client().view<[{ vec: Uint8Array }]>({
+    return getGlobalAuditorEncryptionKey({
+      client: this.client(),
+      moduleAddress: this.moduleAddress(),
+      tokenAddress: args.tokenAddress,
       options: args.options,
-      payload: {
-        function: `${this.moduleAddress()}::${MODULE_NAME}::get_auditor`,
-        functionArguments: [args.tokenAddress],
-      },
     });
-    if (globalAuditorPubKey.length === 0) {
-      return undefined;
-    }
-    return new TwistedEd25519PublicKey(globalAuditorPubKey);
   }
 
   /**
@@ -288,6 +287,7 @@ export class ConfidentialAsset {
    * @param args.amount - The amount to transfer
    * @param args.senderDecryptionKey - The decryption key of the sender
    * @param args.additionalAuditorEncryptionKeys - Optional additional auditor encryption keys
+   * @param args.senderAuditorHint - Optional opaque bytes for the on-chain `sender_auditor_hint` argument
    * @param args.withFeePayer - Whether to use the fee payer for the transaction
    * @param args.options - Optional transaction options
    * @param args.signAndSubmitCallback - Optional callback for custom transaction submission
@@ -301,6 +301,7 @@ export class ConfidentialAsset {
       amount: AnyNumber;
       senderDecryptionKey: TwistedEd25519PrivateKey;
       additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+      senderAuditorHint?: Uint8Array;
     },
   ): Promise<CommittedTransactionResponse> {
     const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
@@ -320,6 +321,7 @@ export class ConfidentialAsset {
       amount: AnyNumber;
       senderDecryptionKey: TwistedEd25519PrivateKey;
       additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+      senderAuditorHint?: Uint8Array;
     },
   ): Promise<CommittedTransactionResponse[]> {
     const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
@@ -511,12 +513,13 @@ export class ConfidentialAsset {
       accountAddress: signer.accountAddress,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
-      useCachedValue: true,
+      // Always read the latest ciphertext from chain; cached balances must not drive normalization proofs.
+      useCachedValue: false,
     });
 
-    const ledgerInfo = await this.client().getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
+    const chainId = await getChainIdByteForProofs({ client: this.client() });
     const senderAddressBytes = AccountAddress.from(signer.accountAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.transaction.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialNormalization = await ConfidentialNormalization.create({
@@ -524,6 +527,7 @@ export class ConfidentialAsset {
       unnormalizedAvailableBalance: available,
       chainId,
       senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
     });
 

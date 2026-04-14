@@ -22,8 +22,19 @@ import {
   TwistedEd25519PrivateKey,
 } from "../crypto";
 import { genRegistrationProof } from "../crypto/confidentialRegistration";
-import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MODULE_NAME } from "../consts";
-import { getBalance, getEncryptionKey, isBalanceNormalized, isPendingBalanceFrozen } from "./viewFunctions";
+import {
+  DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS,
+  MAX_SENDER_AUDITOR_HINT_BYTES,
+  MODULE_NAME,
+} from "../consts";
+import {
+  getBalance,
+  getChainIdByteForProofs,
+  getEncryptionKey,
+  getGlobalAuditorEncryptionKey,
+  isBalanceNormalized,
+  isPendingBalanceFrozen,
+} from "./viewFunctions";
 
 /**
  * A class to handle creating transactions for confidential asset operations
@@ -56,12 +67,18 @@ export class ConfidentialAssetTransactionBuilder {
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
     const { tokenAddress, decryptionKey } = args;
-    const ledgerInfo = await this.client.getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
+    const chainId = await getChainIdByteForProofs({ client: this.client });
     const senderAddress = AccountAddress.from(args.sender).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
-    const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, tokenAddressBytes);
+    const proof = genRegistrationProof(
+      decryptionKey,
+      chainId,
+      senderAddress,
+      contractAddressBytes,
+      tokenAddressBytes,
+    );
 
     return this.client.transaction.build.simple({
       sender: args.sender,
@@ -137,7 +154,7 @@ export class ConfidentialAssetTransactionBuilder {
     const { sender, tokenAddress, amount, senderDecryptionKey, recipient = args.sender, options } = args;
     validateAmount({ amount });
 
-    // Get the sender's available balance from the chain
+    // Get the sender's available balance from the chain (latest state; see transfer() comment on ledger pinning)
     const { available: senderEncryptedAvailableBalance } = await getBalance({
       client: this.client,
       moduleAddress: this.confidentialAssetModuleAddress,
@@ -146,9 +163,9 @@ export class ConfidentialAssetTransactionBuilder {
       decryptionKey: senderDecryptionKey,
     });
 
-    const ledgerInfo = await this.client.getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
+    const chainId = await getChainIdByteForProofs({ client: this.client });
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialWithdraw = await ConfidentialWithdraw.create({
@@ -157,6 +174,7 @@ export class ConfidentialAssetTransactionBuilder {
       amount: BigInt(amount),
       chainId,
       senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
     });
 
@@ -234,17 +252,12 @@ export class ConfidentialAssetTransactionBuilder {
     tokenAddress: AccountAddressInput;
     options?: LedgerVersionArg;
   }): Promise<TwistedEd25519PublicKey | undefined> {
-    const [{ vec: globalAuditorPubKey }] = await this.client.view<[{ vec: Uint8Array }]>({
+    return getGlobalAuditorEncryptionKey({
+      client: this.client,
+      moduleAddress: this.confidentialAssetModuleAddress,
+      tokenAddress: args.tokenAddress,
       options: args.options,
-      payload: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::get_auditor`,
-        functionArguments: [args.tokenAddress],
-      },
     });
-    if (globalAuditorPubKey.length === 0) {
-      return undefined;
-    }
-    return new TwistedEd25519PublicKey(globalAuditorPubKey);
   }
 
   /**
@@ -260,7 +273,12 @@ export class ConfidentialAssetTransactionBuilder {
    * @param args.amount - The amount to transfer
    * @param args.recipient - The address of the recipient
    * @param args.additionalAuditorEncryptionKeys - The encryption keys of the auditors. If not set we will fetch the encryption keys from the chain.
+   * @param args.senderAuditorHint - Opaque bytes (max 256) bound into the transfer sigma proof and emitted on `Transferred`; default empty.
    * @param args.withFeePayer - Whether to use the fee payer for the transaction
+   *
+   * Views (balance, encryption keys, auditor) use the **latest** ledger state. Do not pin `ledgerVersion` to
+   * `getLedgerInfo().ledger_version` when building proofs: that version can lag the state your transaction executes
+   * on, producing a Fiat–Shamir / ciphertext mismatch (`ESIGMA_PROTOCOL_VERIFY_FAILED` on-chain).
    * @returns A SimpleTransaction to transfer the amount
    * @throws {Error} If the recipient's encryption key cannot be found
    * @throws {Error} If the amount to transfer is greater than the available balance
@@ -272,27 +290,54 @@ export class ConfidentialAssetTransactionBuilder {
     amount: AnyNumber;
     senderDecryptionKey: TwistedEd25519PrivateKey;
     additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+    /**
+     * Raw hint bytes (max 256). Bound into the sigma Fiat–Shamir transcript as `BCS(vector<u8>)` inside
+     * {@link ConfidentialTransfer.genSigmaProof}; pass the same bytes here as the **payload** of Move `vector<u8>`
+     * (the transaction builder encodes the vector — do not pre-BCS-wrap with a length prefix).
+     */
+    senderAuditorHint?: Uint8Array;
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    const { senderDecryptionKey, recipient, tokenAddress, amount, additionalAuditorEncryptionKeys = [] } = args;
+    const {
+      senderDecryptionKey,
+      recipient,
+      tokenAddress,
+      amount,
+      additionalAuditorEncryptionKeys = [],
+      senderAuditorHint = new Uint8Array(),
+    } = args;
     validateAmount({ amount });
+    if (senderAuditorHint.length > MAX_SENDER_AUDITOR_HINT_BYTES) {
+      throw new Error(
+        `senderAuditorHint exceeds MAX_SENDER_AUDITOR_HINT_BYTES (${MAX_SENDER_AUDITOR_HINT_BYTES})`,
+      );
+    }
+
+    const chainId = await getChainIdByteForProofs({ client: this.client });
 
     // Get the auditor public key for the token
     const globalAuditorPubKey = await this.getAssetAuditorEncryptionKey({
       tokenAddress,
     });
 
+    // For self-transfers, use the sender's derived encryption key. The on-chain verifier uses `encryption_key(to,
+    // token)` which must match the exact bytes we bind into the transfer sigma Fiat–Shamir hash; re-fetching the
+    // recipient key from a view can theoretically diverge from `senderDecryptionKey.publicKey()` encoding.
     let recipientEncryptionKey: TwistedEd25519PublicKey;
-    try {
-      recipientEncryptionKey = await getEncryptionKey({
-        client: this.client,
-        moduleAddress: this.confidentialAssetModuleAddress,
-        accountAddress: recipient,
-        tokenAddress,
-      });
-    } catch (e) {
-      throw new Error(`Failed to get encryption key for recipient - ${e}`);
+    if (AccountAddress.from(args.sender).equals(AccountAddress.from(recipient))) {
+      recipientEncryptionKey = senderDecryptionKey.publicKey();
+    } else {
+      try {
+        recipientEncryptionKey = await getEncryptionKey({
+          client: this.client,
+          moduleAddress: this.confidentialAssetModuleAddress,
+          accountAddress: recipient,
+          tokenAddress,
+        });
+      } catch (e) {
+        throw new Error(`Failed to get encryption key for recipient - ${e}`);
+      }
     }
     const isFrozen = await isPendingBalanceFrozen({
       client: this.client,
@@ -303,7 +348,7 @@ export class ConfidentialAssetTransactionBuilder {
     if (isFrozen) {
       throw new Error("Recipient balance is frozen");
     }
-    // Get the sender's available balance from the chain
+    // Get the sender's available balance from the chain (latest committed state; matches execution-time views)
     const { available: senderEncryptedAvailableBalance } = await getBalance({
       client: this.client,
       moduleAddress: this.confidentialAssetModuleAddress,
@@ -311,10 +356,8 @@ export class ConfidentialAssetTransactionBuilder {
       tokenAddress,
       decryptionKey: senderDecryptionKey,
     });
-
-    const ledgerInfo = await this.client.getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
     const senderAddressBytes = AccountAddress.from(args.sender).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     // Create the confidential transfer object
@@ -329,7 +372,9 @@ export class ConfidentialAssetTransactionBuilder {
       ],
       chainId,
       senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
+      senderAuditorHint,
     });
 
     const [
@@ -361,6 +406,7 @@ export class ConfidentialAssetTransactionBuilder {
           rangeProofNewBalance,
           rangeProofAmount,
           ConfidentialTransfer.serializeSigmaProof(sigmaProof),
+          senderAuditorHint,
         ],
       },
     });
@@ -401,13 +447,18 @@ export class ConfidentialAssetTransactionBuilder {
       newSenderDecryptionKey,
       checkPendingBalanceEmpty = true,
       tokenAddress,
-      withUnfreezePendingBalance = await isPendingBalanceFrozen({
+    } = args;
+
+    const chainId = await getChainIdByteForProofs({ client: this.client });
+
+    const withUnfreezePendingBalance =
+      args.withUnfreezePendingBalance ??
+      (await isPendingBalanceFrozen({
         client: this.client,
         moduleAddress: this.confidentialAssetModuleAddress,
         accountAddress: sender,
         tokenAddress,
-      }),
-    } = args;
+      }));
 
     // Get the sender's balance from the chain
     const { available: currentEncryptedAvailableBalance, pending: currentEncryptedPendingBalance } = await getBalance({
@@ -423,10 +474,8 @@ export class ConfidentialAssetTransactionBuilder {
         throw new Error("Pending balance must be 0 before rotating encryption key");
       }
     }
-
-    const ledgerInfo = await this.client.getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     // Create the confidential key rotation object
@@ -436,6 +485,7 @@ export class ConfidentialAssetTransactionBuilder {
       currentEncryptedAvailableBalance,
       chainId,
       senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
     });
 
@@ -482,6 +532,8 @@ export class ConfidentialAssetTransactionBuilder {
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
     const { sender, senderDecryptionKey, tokenAddress, withFeePayer, options } = args;
+    const chainId = await getChainIdByteForProofs({ client: this.client });
+
     const { available } = await getBalance({
       client: this.client,
       moduleAddress: this.confidentialAssetModuleAddress,
@@ -489,10 +541,8 @@ export class ConfidentialAssetTransactionBuilder {
       tokenAddress,
       decryptionKey: senderDecryptionKey,
     });
-
-    const ledgerInfo = await this.client.getLedgerInfo();
-    const chainId = ledgerInfo.chain_id;
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialNormalization = await ConfidentialNormalization.create({
@@ -500,6 +550,7 @@ export class ConfidentialAssetTransactionBuilder {
       unnormalizedAvailableBalance: available,
       chainId,
       senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
     });
 

@@ -31,6 +31,7 @@ export type CreateConfidentialNormalizationOpArgs = {
   unnormalizedAvailableBalance: EncryptedAmount;
   chainId: number;
   senderAddress: Uint8Array;
+  contractAddress: Uint8Array;
   tokenAddress: Uint8Array;
   randomness?: bigint[];
 };
@@ -48,6 +49,8 @@ export class ConfidentialNormalization {
 
   senderAddress: Uint8Array;
 
+  contractAddress: Uint8Array;
+
   tokenAddress: Uint8Array;
 
   constructor(args: {
@@ -56,6 +59,7 @@ export class ConfidentialNormalization {
     normalizedEncryptedAvailableBalance: EncryptedAmount;
     chainId: number;
     senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
     tokenAddress: Uint8Array;
   }) {
     this.decryptionKey = args.decryptionKey;
@@ -63,6 +67,7 @@ export class ConfidentialNormalization {
     this.normalizedEncryptedAvailableBalance = args.normalizedEncryptedAvailableBalance;
     this.chainId = args.chainId;
     this.senderAddress = args.senderAddress;
+    this.contractAddress = args.contractAddress;
     this.tokenAddress = args.tokenAddress;
     const randomness = this.normalizedEncryptedAvailableBalance.getRandomness();
     if (!randomness) {
@@ -77,6 +82,7 @@ export class ConfidentialNormalization {
       randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     } = args;
 
@@ -93,6 +99,7 @@ export class ConfidentialNormalization {
       normalizedEncryptedAvailableBalance,
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     });
   }
@@ -190,6 +197,7 @@ export class ConfidentialNormalization {
       PROTOCOL_ID_NORMALIZATION,
       this.chainId,
       this.senderAddress,
+      this.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.decryptionKey.publicKey().toUint8Array(),
@@ -239,6 +247,7 @@ export class ConfidentialNormalization {
     normalizedEncryptedBalance: EncryptedAmount;
     chainId: number;
     senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
     tokenAddress: Uint8Array;
   }): boolean {
     const publicKeyU8 = opts.publicKey.toUint8Array();
@@ -252,6 +261,7 @@ export class ConfidentialNormalization {
       PROTOCOL_ID_NORMALIZATION,
       opts.chainId,
       opts.senderAddress,
+      opts.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       publicKeyU8,

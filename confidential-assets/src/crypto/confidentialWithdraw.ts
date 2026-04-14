@@ -36,6 +36,8 @@ export type CreateConfidentialWithdrawOpArgs = {
   chainId: number;
   /** 32-byte sender address */
   senderAddress: Uint8Array;
+  /** 32-byte `confidential_asset` package address (`@aptos_experimental`), BCS address bytes */
+  contractAddress: Uint8Array;
   /** 32-byte token address */
   tokenAddress: Uint8Array;
   randomness?: bigint[];
@@ -56,6 +58,8 @@ export class ConfidentialWithdraw {
 
   senderAddress: Uint8Array;
 
+  contractAddress: Uint8Array;
+
   tokenAddress: Uint8Array;
 
   constructor(args: {
@@ -66,6 +70,7 @@ export class ConfidentialWithdraw {
     randomness: bigint[];
     chainId: number;
     senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
     tokenAddress: Uint8Array;
   }) {
     const {
@@ -99,6 +104,7 @@ export class ConfidentialWithdraw {
     this.senderEncryptedAvailableBalanceAfterWithdrawal = senderEncryptedAvailableBalanceAfterWithdrawal;
     this.chainId = args.chainId;
     this.senderAddress = args.senderAddress;
+    this.contractAddress = args.contractAddress;
     this.tokenAddress = args.tokenAddress;
   }
 
@@ -108,6 +114,7 @@ export class ConfidentialWithdraw {
       randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     } = args;
 
@@ -129,6 +136,7 @@ export class ConfidentialWithdraw {
       randomness,
       chainId,
       senderAddress,
+      contractAddress,
       tokenAddress,
     });
   }
@@ -224,6 +232,7 @@ export class ConfidentialWithdraw {
       PROTOCOL_ID_WITHDRAWAL,
       this.chainId,
       this.senderAddress,
+      this.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.decryptionKey.publicKey().toUint8Array(),
@@ -276,6 +285,7 @@ export class ConfidentialWithdraw {
     amountToWithdraw: bigint;
     chainId: number;
     senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
     tokenAddress: Uint8Array;
   }): boolean {
     const publicKeyU8 = opts.senderEncryptedAvailableBalance.publicKey.toUint8Array();
@@ -292,6 +302,7 @@ export class ConfidentialWithdraw {
       PROTOCOL_ID_WITHDRAWAL,
       opts.chainId,
       opts.senderAddress,
+      opts.contractAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       publicKeyU8,

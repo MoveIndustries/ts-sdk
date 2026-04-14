@@ -32,7 +32,8 @@ export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000
 const networkRaw = process.env.MOVEMENT_NETWORK;
 const MOVEMENT_NETWORK: Network = networkRaw ? NetworkToNetworkName[networkRaw] : Network.LOCAL;
 
-// Use CONFIDENTIAL_MODULE_ADDRESS env var if set, otherwise use testnet default
+// Address of the published Move package that contains `confidential_asset` (same as `@aptos_experimental` / publish signer).
+// Must match the chain; override with CONFIDENTIAL_MODULE_ADDRESS when not using the default dev account.
 const CONFIDENTIAL_MODULE_ADDRESS =
   process.env.CONFIDENTIAL_MODULE_ADDRESS || "0x8dae5044bef3b2d33004490c486894fee52ac62bb8070234dc965ab1cdfdae04";
 

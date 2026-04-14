@@ -458,6 +458,7 @@ describe("Confidential Asset Sender API", () => {
       const rolloverTxs = await confidentialAsset.rolloverPendingBalance({
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceConfidential,
       });
 
       for (const tx of rolloverTxs) {

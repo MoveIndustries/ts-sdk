@@ -36,7 +36,7 @@ export type RegistrationProof = {
  * Protocol:
  * 1. Prover picks random k
  * 2. Computes R = k * H
- * 3. Computes e = fiatShamirChallenge("Registration", chainId, sender, token, ek, R)
+ * 3. Computes e = fiatShamirChallenge("Registration", chainId, sender, contract, token, ek, R)
  * 4. Computes s = k - e * dk^{-1}  (mod l)
  *
  * Verifier checks: s * H + e * ek == R
@@ -44,6 +44,7 @@ export type RegistrationProof = {
  * @param dk - The decryption key (private key)
  * @param chainId - Chain ID for domain separation
  * @param senderAddress - 32-byte sender address
+ * @param contractAddress - 32-byte address of the published `confidential_asset` package (`@aptos_experimental`); must match Move `bcs::to_bytes` of the address passed to `verify_registration_proof`.
  * @param tokenAddress - 32-byte token address
  * @returns RegistrationProof with commitment and response
  */
@@ -51,6 +52,7 @@ export function genRegistrationProof(
   dk: TwistedEd25519PrivateKey,
   chainId: number,
   senderAddress: Uint8Array,
+  contractAddress: Uint8Array,
   tokenAddress: Uint8Array,
 ): RegistrationProof {
   const ek = dk.publicKey().toUint8Array();
@@ -62,8 +64,16 @@ export function genRegistrationProof(
   const R = H_RISTRETTO.multiply(k);
   const RBytes = R.toRawBytes();
 
-  // Step 3: Fiat-Shamir challenge
-  const e = fiatShamirChallenge(PROTOCOL_ID_REGISTRATION, chainId, senderAddress, tokenAddress, ek, RBytes);
+  // Step 3: Fiat-Shamir challenge (must match `confidential_proof::verify_registration_proof`: chain_id || sender || contract || token || ek || R)
+  const e = fiatShamirChallenge(
+    PROTOCOL_ID_REGISTRATION,
+    chainId,
+    senderAddress,
+    contractAddress,
+    tokenAddress,
+    ek,
+    RBytes,
+  );
 
   // Step 4: Response s = k - e * dk_inv (mod l)
   // Since ek = dk_inv * H, the secret being proved is dk_inv
@@ -87,6 +97,7 @@ export function genRegistrationProof(
  * @param proof - The registration proof to verify
  * @param chainId - Chain ID used during proof generation
  * @param senderAddress - 32-byte sender address
+ * @param contractAddress - 32-byte confidential-asset package address (same as on-chain `@aptos_experimental`)
  * @param tokenAddress - 32-byte token address
  * @returns true if the proof is valid
  */
@@ -95,13 +106,22 @@ export function verifyRegistrationProof(
   proof: RegistrationProof,
   chainId: number,
   senderAddress: Uint8Array,
+  contractAddress: Uint8Array,
   tokenAddress: Uint8Array,
 ): boolean {
   const ekPoint = RistrettoPoint.fromHex(ek);
   const R = RistrettoPoint.fromHex(proof.commitment);
 
   // Recompute challenge
-  const e = fiatShamirChallenge(PROTOCOL_ID_REGISTRATION, chainId, senderAddress, tokenAddress, ek, proof.commitment);
+  const e = fiatShamirChallenge(
+    PROTOCOL_ID_REGISTRATION,
+    chainId,
+    senderAddress,
+    contractAddress,
+    tokenAddress,
+    ek,
+    proof.commitment,
+  );
 
   // Parse response scalar
   const s = BigInt(`0x${Buffer.from(proof.response).reverse().toString("hex")}`);

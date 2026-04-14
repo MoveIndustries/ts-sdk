@@ -109,7 +109,11 @@ export class ChunkedAmount {
 
   static createTransferAmount(amount: AnyNumber): ChunkedAmount {
     const amountChunks = ChunkedAmount.amountToChunks(amount, TRANSFER_AMOUNT_CHUNK_COUNT, CHUNK_BITS);
-    return new ChunkedAmount({ amount, amountChunks });
+    return new ChunkedAmount({
+      amount,
+      amountChunks,
+      chunksCount: TRANSFER_AMOUNT_CHUNK_COUNT,
+    });
   }
 
   static fromChunks(chunks: bigint[]): ChunkedAmount {

@@ -34,7 +34,8 @@ export function taggedHash(tag: string, ...data: Uint8Array[]): Uint8Array {
  *   reduced mod the ed25519 curve order l.
  *
  * Note: tokenAddress is NOT automatically included in the hash. For protocols
- * that need it (e.g. Registration), pass it as part of publicInputs.
+ * that need it (e.g. Registration: `contractAddress` then `tokenAddress`), pass
+ * those as part of `publicInputs` in the same order as on-chain Move.
  *
  * @param protocolId - Protocol identifier (e.g. "Withdrawal", "Transfer", "Registration")
  * @param chainId - Chain ID for domain separation (prevents cross-chain replay)
@@ -49,7 +50,8 @@ export function fiatShamirChallenge(
   ...publicInputs: Uint8Array[]
 ): bigint {
   const tag = `MovementConfidentialAsset/${protocolId}`;
-  const chainIdBytes = numberToBytesLE(chainId, 1);
+  // Move passes `(chain_id::get() as u8)` into proofs; keep the transcript byte aligned.
+  const chainIdBytes = numberToBytesLE(Number(chainId) & 0xff, 1);
   const hash = taggedHash(tag, chainIdBytes, senderAddress, ...publicInputs);
   return ed25519modN(bytesToNumberLE(hash));
 }
