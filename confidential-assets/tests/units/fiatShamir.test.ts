@@ -1,29 +1,28 @@
-import { describe, it, expect } from "vitest";
-import { taggedHash, fiatShamirChallenge } from "../../src/crypto/fiatShamir";
+import { dstHash, fiatShamirChallenge } from "../../src/crypto/fiatShamir";
 
-describe("SHA3-512 Tagged Fiat-Shamir", () => {
-  it("taggedHash produces 64-byte output", () => {
-    const result = taggedHash("test-tag", new Uint8Array([1, 2, 3]));
+describe("SHA2-512 DST-prefix Fiat-Shamir", () => {
+  it("dstHash produces 64-byte output", () => {
+    const result = dstHash("test-tag", new Uint8Array([1, 2, 3]));
     expect(result.length).toBe(64);
   });
 
-  it("taggedHash is deterministic", () => {
+  it("dstHash is deterministic", () => {
     const data = new Uint8Array([1, 2, 3, 4]);
-    const a = taggedHash("tag", data);
-    const b = taggedHash("tag", data);
+    const a = dstHash("tag", data);
+    const b = dstHash("tag", data);
     expect(a).toEqual(b);
   });
 
-  it("different tags produce different hashes", () => {
+  it("different DSTs produce different hashes", () => {
     const data = new Uint8Array([1, 2, 3]);
-    const a = taggedHash("tag-a", data);
-    const b = taggedHash("tag-b", data);
+    const a = dstHash("tag-a", data);
+    const b = dstHash("tag-b", data);
     expect(a).not.toEqual(b);
   });
 
   it("different data produces different hashes", () => {
-    const a = taggedHash("tag", new Uint8Array([1]));
-    const b = taggedHash("tag", new Uint8Array([2]));
+    const a = dstHash("tag", new Uint8Array([1]));
+    const b = dstHash("tag", new Uint8Array([2]));
     expect(a).not.toEqual(b);
   });
 

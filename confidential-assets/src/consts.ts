@@ -18,7 +18,7 @@ export const SIGMA_PROOF_REGISTRATION_SIZE = PROOF_CHUNK_SIZE * 2; // 1 point + 
 export const DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS = "0x1";
 export const MODULE_NAME = "confidential_asset";
 
-/** Fiat-Shamir protocol identifiers for tagged hashing. */
+/** Fiat-Shamir protocol identifiers (used as DST suffix: "MovementConfidentialAsset/" + id). */
 export const PROTOCOL_ID_WITHDRAWAL = "Withdrawal";
 export const PROTOCOL_ID_TRANSFER = "Transfer";
 export const PROTOCOL_ID_ROTATION = "Rotation";

@@ -8,7 +8,7 @@ import { ed25519modN } from "./utils";
 /**
  * Generate Fiat-Shamir challenge using SHA2-512 with raw concatenation.
  * @deprecated Use {@link fiatShamirChallenge} from `./crypto/fiatShamir` instead,
- * which uses SHA3-512 tagged hashing with domain separation and chain ID.
+ * which uses SHA2-512 with DST prefix, domain separation, and chain ID.
  */
 export function genFiatShamirChallenge(...arrays: Uint8Array[]): bigint {
   const hash = sha512(concatBytes(...arrays));
