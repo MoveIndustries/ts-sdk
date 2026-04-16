@@ -2,7 +2,7 @@
 
 > **Status:** Draft / proposal — for alignment before implementation.
 >
-> **Companion spec:** [`WALLET_AND_APPLICATION_APIS.md`](./WALLET_AND_APPLICATION_APIS.md) is the normative specification for wallet/dApp conformance. This document focuses on **practical integration design**: what the wallet needs to do, how the application talks to it, and the open questions we should settle before writing code.
+> This document defines the **practical integration design** for confidential assets in the wallet: what the wallet needs to do, how the application talks to it, and the decisions we should settle before writing code.
 
 ---
 
@@ -22,7 +22,8 @@
 6. [Auditor support](#auditor-support)
 7. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
 8. [Wallet ↔ application interface](#wallet--application-interface)
-9. [Open questions](#open-questions)
+9. [Application conformance rules](#application-conformance-rules)
+10. [Open questions](#open-questions)
 
 ---
 
@@ -78,7 +79,6 @@ The wallet derives `dk` from existing root material — it is never generated in
 |---|---|---|
 | **Mnemonic** | `TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/0'/1'/{accountIndex}'", mnemonic)` — change index `1'` avoids collision with signing paths. | motion-wallet `account.ts` |
 | **Imported raw key** | Sign the fixed string `"Sign this message to derive decryption key from your private key"` with the Ed25519 account key → `TwistedEd25519PrivateKey.fromSignature(sig)`. | SDK `twistedEd25519.ts` |
-| **Keyless (OIDC)** | `TwistedEd25519PrivateKey.generate()` — must be persisted encrypted under a stable identity root. | Spec §9 |
 
 ### Security invariants
 
@@ -324,6 +324,27 @@ const { txHash } = await caTransfer({ token, recipient, amount: "100" });
 ```
 
 This is **not** the same as running the `ConfidentialAsset` SDK in the browser — these are RPC calls to the wallet.
+
+The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook whose output could be passed to `fromSignature` — if the signed bytes are controlled by the dApp and differ from the agreed derivation string, it enables phishing or wrong-`ek` registration.
+
+### Token addressing
+
+All `ca_*` methods that take a `token` parameter must use the **fungible asset metadata object address** (32-byte FA metadata). Legacy coin type strings (e.g., `0x1::aptos_coin::AptosCoin`) must not be used.
+
+---
+
+## Application conformance rules
+
+Browser dApps integrating with confidential assets must follow these rules:
+
+| ID | Rule |
+|---|---|
+| A1 | dApps must not hold the user's Ed25519 signing private key. `ek` registration is **wallet-only** via `ca_register`. |
+| A2 | dApps must not obtain, derive, or hold `TwistedEd25519PrivateKey` in the dApp process. They must not run the CA SDK for proof construction or balance decryption in page JavaScript. They must use `ca_*` methods for all CA operations. |
+| A3 | dApps must not persist, log, or forward CA decryption key material. They must not ask the wallet to export `TwistedEd25519PrivateKey` to the page. |
+| A4 | dApps must not use `fromSignature` in the page to construct a Twisted key. That is a wallet-internal concern. |
+| A5 | dApps must pass FA metadata addresses for `token` (see [token addressing](#token-addressing)). |
+| A6 | Deposit and withdraw amounts are public on-chain; dApps must not imply that confidential transfer amounts are visible. |
 
 ---
 
