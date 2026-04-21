@@ -1,8 +1,10 @@
 # @moveindustries/shielded-assets
 
-**Shielded pool** on Movement: **incremental Merkle tree** (fixed depth 20), **nullifier set**, **FA** shield/unshield via [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core) (vanilla FA), **historical Merkle roots** (ring buffer **128** entries per token), and **optional viewer ciphertexts** on module events (incoming / outgoing viewing, for audit and wallet sync).
+Movement package for **shielded fungible-asset flows**: move tokens **into** shared custody (**shield**), **between shielded notes** without withdrawing (**shielded transfer**), and **out** to a normal account (**unshield**). Value inside the pool is tracked as **note commitments** in an **incremental Merkle tree** (fixed depth **20**), with **nullifiers** to prevent double-spends and a **ring buffer of historical roots** (**128** per token) so spends can reference older roots. [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core) is used for transparent deposits and withdrawals. Events can carry **optional ciphertext** for **incoming / outgoing viewing** (audit and wallet sync); the chain does not decrypt them.
 
-Sibling of [`confidential-assets`](../confidential-assets/): that stack hides amounts with visible counterparties; this one is a **note commitment + Merkle + nullifier** model with **optional encrypted event payloads**.
+**“Shielded pool”** here means: one on-chain **module** custodies the FA, while individual **balances** are represented only as **leaves** (commitments) in that Merkle tree—not as per-user FA balances in cleartext.
+
+Sibling of [`confidential-assets`](../confidential-assets/): that stack hides amounts with **visible** sender/recipient accounts; this package uses a **note + Merkle + nullifier** layout and supports **shielded → shielded** transfers via **`shielded_transfer`** (see Protocol below).
 
 ## Protocol (what happens on-chain)
 
@@ -22,7 +24,7 @@ Sibling of [`confidential-assets`](../confidential-assets/): that stack hides am
 | **`TokenPool`** | `filled_subtrees`, `next_leaf_index`, `current_root`, `roots_ring` + `roots_write_seq`, `nullifiers` table. |
 | **`merkle.move`** | Keccak pairing, `incremental_append`, `verify_proof` (fixed depth), `precompute_zero_levels`. |
 | **Events** | `ShieldedInsertEvent` / `ShieldedTransferEvent` / `UnshieldEvent` — indexers and auditors consume these; decrypt ciphertext off-chain with IVK/OVK. |
-| **TS SDK** | `noteCommitment`, `deriveNullifier`, `MerkleTreeSimulator`, `viewKey` (XChaCha), `ShieldedPoolClient` tx builders. |
+| **TS SDK** | `noteCommitment`, `deriveNullifier`, `MerkleTreeSimulator`, `viewKey` (XChaCha), `ShieldedPoolClient` (`buildShield`, `buildShieldedTransfer`, `buildUnshield`). |
 
 ## On-chain `#[view]` helpers
 
