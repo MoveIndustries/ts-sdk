@@ -3,7 +3,7 @@
 This directory contains **both**:
 
 - **`npm` package** `@moveindustries/shielded-assets` — TypeScript helpers and transaction builders (`src/`, published to the registry).
-- **Move package** (`move/`) — on-chain **shielded pool** modules to compile and publish to **Movement** (or another Aptos-compatible network).
+- **Move package** (`move/`) — on-chain **shielded pool** modules to compile and publish on **Movement** (testnet / mainnet).
 
 Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): **shield** (deposit into pool custody), **shielded transfer** (move value between notes without leaving the pool), and **unshield** (withdraw to a normal account).
 
@@ -119,7 +119,7 @@ await client.buildShield({
 
 ## Privacy notes
 
-- **`shield`, `shielded_transfer`, and `unshield`** in this package still use a **witness in transaction arguments** (`amount`, blindings, Merkle siblings where applicable). Indexers see those fields. Viewer ciphertexts are for **audit / wallet sync**, not on-chain zero-knowledge. Replacing witness revelation with **ZK spends** is the path to global observer privacy for shielded activity.
+- **`shield`, `shielded_transfer`, and `unshield`** in this package still use a **witness in transaction arguments** (`amount`, blindings, Merkle siblings where applicable). Indexers see those fields. Viewer ciphertexts are for **audit / wallet sync**, not on-chain zero-knowledge. Replacing witness revelation with **ZK proofs for note spends** (transfers and unshield, and optionally shield) is the path to global observer privacy for shielded activity.
 
 ## Plan: Zcash-like shielded transactions + auditability
 
@@ -127,27 +127,32 @@ await client.buildShield({
 
 This section lists what is still required to close the gap between the current **MVP** and that goal.
 
-### What Aptos / Move already provides
+### What Movement provides
 
-The [Aptos cryptography guide](https://aptos.dev/build/smart-contracts/cryptography) documents:
+**Movement** runs **Move** with the standard framework modules (`aptos_std`, `aptos_framework`). This package pins [`movementlabsxyz/aptos-core`](https://github.com/movementlabsxyz/aptos-core) in [`Move.toml`](./move/Move.toml).
 
-- **Groth16 zkSNARK verification** and **Bulletproofs range-proof verification** as supported directions (with concrete modules and examples).
-- **Pairing-friendly curve arithmetic** via [`aptos_std::crypto_algebra`](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/cryptography/crypto_algebra.move) and curve marker modules, notably **BN254** ([`aptos_std::bn254_algebra`](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/cryptography/bn254_algebra.move))—the usual setting for **circom / snarkjs** Groth16 artifacts on **bn128**.
-- A reference **generic Groth16 verifier** in the upstream [**`groth16_example`**](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/move-examples/groth16_example/sources/groth16.move) (pairing equation; works with supported curves).
-- Hashing primitives including **Keccak256** ([`aptos_std::aptos_hash`](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/hash.move)) for Merkle interoperability with this repo’s current tree.
+Relevant primitives for a future ZK spend path include:
 
-**Network requirement:** `crypto_algebra` operations abort unless **[cryptography algebra natives](https://aptos.dev/build/smart-contracts/cryptography)** are enabled on the deployment target. Confirm for a given Movement / Aptos deployment before relying on on-chain verification.
+- **Pairing-friendly curve arithmetic** via [`aptos_std::crypto_algebra`](https://github.com/movementlabsxyz/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/cryptography/crypto_algebra.move) and curve markers such as **BN254** ([`aptos_std::bn254_algebra`](https://github.com/movementlabsxyz/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/cryptography/bn254_algebra.move))—the usual setting for **circom / snarkjs** Groth16 artifacts on **bn128**.
+- A reference **Groth16 verifier pattern** in [**`groth16_example`**](https://github.com/movementlabsxyz/aptos-core/blob/main/aptos-move/move-examples/groth16_example/sources/groth16.move) (generic pairing check).
+- **Hashing** including **Keccak256** ([`aptos_std::aptos_hash`](https://github.com/movementlabsxyz/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/hash.move)) for Merkle interoperability with this repo’s current tree.
 
-### Remaining work (ZK shielded spends)
+The [`aptos-stdlib/sources/cryptography`](https://github.com/movementlabsxyz/aptos-core/tree/main/aptos-move/framework/aptos-stdlib/sources/cryptography) tree in that fork lists further modules (signatures, Ristretto255, etc.) for other protocols.
+
+**Network requirement:** On-chain use of `crypto_algebra` requires the **cryptography algebra natives** feature to be enabled on the **Movement** deployment. Confirm with the target network’s documentation or operators before relying on pairing verification in production.
+
+### Remaining work (zero-knowledge note spends)
+
+In Zcash-style wording, a **spend** is any transaction that **consumes** a shielded note. That includes **`shielded_transfer`** (outputs stay in the pool) and **`unshield`** (output goes to transparent FA)—not only “transfers” between users. Zero-knowledge proofs are what remove witness data from calldata for those flows (and similarly for **`shield`** if deposits are also proved in ZK).
 
 | Area | Target outcome |
 |------|----------------|
-| **Spend circuit** | A circuit (e.g. **circom**) proving, in zero knowledge, validity of a shielded spend: knowledge of note opening(s), **Merkle inclusion** against an allowed historic root, correct **nullifier(s)**, **value conservation**, and well-formed **output note commitment(s)**. Public inputs are typically **roots, nullifiers, output commitments**—not raw amounts or blinding factors. |
+| **Spend circuit** | A circuit (e.g. **circom**) proving, in zero knowledge, validity of such a spend: knowledge of note opening(s), **Merkle inclusion** against an allowed historic root, correct **nullifier(s)**, **value conservation**, and well-formed **output note commitment(s)**. Public inputs are typically **roots, nullifiers, output commitments**—not raw amounts or blinding factors. |
 | **Hash / tree alignment** | The **on-chain** Merkle leaf hash and commitment scheme must match what the circuit proves. **Keccak** Merkle paths inside a SNARK are constraint-heavy; many designs use **Poseidon** (or similar) in-circuit and either implement the same hash on-chain or rely on proofs-only checks—both imply a **protocol decision** and possibly a **v2 tree** or migration. |
-| **Move verifier + VK** | Integrate a Groth16 verifier (pattern from `groth16_example`): **deserialize** proof + **verification key**, run **`verify_proof`** (or the prepared variant), then apply **state transitions** (insert nullifiers, append output commitments, FA unshield only as the public inputs allow). The VK is **per-circuit**, not a single global Aptos syscall; deployments supply a **circuit-specific** VK (constants or on-chain config). |
+| **Move verifier + VK** | Integrate a Groth16 verifier (pattern from `groth16_example`): **deserialize** proof + **verification key**, run **`verify_proof`** (or the prepared variant), then apply **state transitions** (insert nullifiers, append output commitments, FA unshield only as the public inputs allow). The VK is **per-circuit**, not a single global Move native bundled with the framework; each deployment supplies a **circuit-specific** VK (constants or on-chain config). |
 | **Trusted setup / SRS** | Groth16 needs a **circuit-specific** proving key. Production expects an appropriate **ceremony** or reuse of a trusted SRS—not ad-hoc local keys. |
 | **Client prover** | A wallet or service performs witness generation, proof creation (e.g. **snarkjs**, **wasm** prover), and encoding public inputs as **`Fr`** for BN254. |
-| **Tooling** | The Aptos docs reference a community helper [**snarkjs-to-aptos**](https://github.com/zjma/snarkjs-to-aptos) for converting **snarkjs** verification keys, proofs, and public inputs into Move-friendly formats. The `circuits/` folder can hold **circom** sources and build scripts for CI and reproducible keys. |
+| **Tooling** | Community helper [**snarkjs-to-aptos**](https://github.com/zjma/snarkjs-to-aptos) converts **snarkjs** verification keys, proofs, and public inputs into **`aptos_std`-compatible** Move formats (name reflects the module lineage). The `circuits/` folder can hold **circom** sources and build scripts for CI and reproducible keys. |
 
 ### Auditability (Zcash-style viewing, policy-friendly)
 
@@ -175,7 +180,3 @@ The design supports **staged releases** (testnet → hardened mainnet). Beyond t
 - **Scope honesty:** each release should state what is guaranteed (witness-based vs ZK spends, what viewing keys can and cannot prove on-chain).
 
 The **Merkle + nullifier + FA + event ciphertext** layout is intended to **increment** toward stricter privacy and policy without throwing away the whole design.
-
-## See also
-
-- [PLAN_SHIELDED_POOL_ZCASH_STYLE.md](./PLAN_SHIELDED_POOL_ZCASH_STYLE.md)
