@@ -22,11 +22,13 @@ module.exports = {
     "./src/types/generated",
     "./tests/e2e/ans/publishANSContracts.ts",
     "./confidential-assets/*",
+    "./shielded-assets/*",
   ],
   testPathIgnorePatterns: [
     "dist/*",
     "examples/*",
     "confidential-assets/*",
+    "shielded-assets/*",
     // Skip tests for features not supported on Movement localnet
     "tests/e2e/api/keyless.test.ts",
     "tests/e2e/api/abstraction.test.ts",

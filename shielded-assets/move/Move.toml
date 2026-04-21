@@ -1,0 +1,16 @@
+[package]
+name = "ShieldedAssets"
+version = "0.1.0"
+authors = []
+
+[addresses]
+shielded_assets = "_"
+
+# Used by `aptos move compile --dev` so the package resolves without a publish address.
+[dev-addresses]
+shielded_assets = "0xcafe"
+
+[dependencies.AptosFramework]
+git = "https://github.com/movementlabsxyz/aptos-core.git"
+rev = "m1"
+subdir = "aptos-move/framework/aptos-framework"
