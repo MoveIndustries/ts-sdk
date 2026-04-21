@@ -5,9 +5,9 @@
 /// incoming / outgoing viewing keys. The chain does not decrypt them; wallets and auditors recover
 /// plaintext off-chain using the same key material conventions as the TypeScript SDK.
 ///
-/// **Privacy:** Shield / unshield / `shielded_transfer` still use a **witness** in tx args
-/// (`amount`, blindings, Merkle siblings) for this MVP; ciphertext fields are for **wallet sync /
-/// audit**, not on-chain zero-knowledge. A future ZK spend can hide these.
+/// **Privacy:** Shield / unshield / `shielded_transfer` use a **witness** in tx args (`amount`,
+/// blindings, Merkle siblings) in this witness-based protocol; ciphertext fields are for **wallet
+/// sync / audit**, not on-chain zero-knowledge. A future ZK spend can hide these.
 module shielded_assets::shielded_pool {
     use std::bcs;
     use std::error;
@@ -267,8 +267,8 @@ module shielded_assets::shielded_pool {
     /// **Shielded → shielded:** spend one note (Merkle proof + nullifier) and append a **new** note
     /// with the same `amount` and `blinding_out`. Pool FA balance is unchanged (no unshield).
     ///
-    /// The recipient learns `blinding_out` out-of-band; this MVP does not embed a payee address in
-    /// the note format.
+    /// The recipient learns `blinding_out` out-of-band; this format does not embed a payee address
+    /// on-chain.
     public entry fun shielded_transfer(
         _witness: &signer,
         metadata: Object<Metadata>,

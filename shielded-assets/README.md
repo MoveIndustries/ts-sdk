@@ -5,17 +5,28 @@ This directory contains **both**:
 - **`npm` package** `@moveindustries/shielded-assets` — TypeScript helpers and transaction builders (`src/`, published to the registry).
 - **Move package** (`move/`) — on-chain **shielded pool** modules to compile and publish on **Movement** (testnet / mainnet).
 
-Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): **shield** (deposit into pool custody), **shielded transfer** (move value between notes without leaving the pool), and **unshield** (withdraw to a normal account).
+Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): **shield** (deposit into pool custody), **shielded transfer** (move value **inside** the pool without an account-to-account FA transfer), and **unshield** (withdraw to a normal account).
 
-On-chain, value in the pool is **not** stored as per-user FA balances. It is tracked as **note commitments** (leaves) in a **Merkle tree** (depth **20**), with **nullifiers** to stop double-spends and a **history of past roots** (up to **128** per token) so a spend can prove inclusion against an older root. Optional **event ciphertext** supports viewing keys for audit and wallet sync; validators do **not** decrypt it.
+### Shielded Assets end goal
 
-Compared to [`confidential-assets`](../confidential-assets/): that product hides **amounts** with **visible** accounts. Here, the model is **notes + Merkle + nullifiers**, including **shielded → shielded** moves via **`shielded_transfer`** (details in **Protocol**).
+The **goal** is **Zcash-style shielded activity on Movement**: fungible value can live in a **shared pool** instead of hopping wallet-to-wallet on the ledger for every payment. For **shielded** steps, observers should **not** be able to read **amounts** or reconstruct **who paid whom** from public data the way they can on a normal transfer. **Shield** and **unshield** are the **edges** where tokens enter and leave the pool—there, **which accounts** move FA is **visible**, like any other transfer. **Inside the pool**, the **target** is: **amounts hidden**, **no on-chain recipient address** for the shielded payment itself, and **auditability** (issuers, compliance, recovery) via **optional viewing-key ciphertext on events**—the chain never needs to decrypt those blobs for consensus.
+
+**Compared to [`confidential-assets`](../confidential-assets/)** (same chain, different privacy shape):
+
+- **Confidential-assets:** **Amounts** are hidden on each transfer. **Sender and recipient** addresses are **visible** on every transfer (normal account-to-account FA move).
+- **Shielded-assets (target):** **Amounts** should be hidden on **shielded** hops once zero-knowledge verification replaces witness data in arguments. **Who is visible** depends on the step: **inside the pool**, there is **no on-chain recipient address** for the shielded payment; the **account that signs** the transaction (e.g. gas payer) may still be visible. **At shield and unshield**, **depositor** and **withdrawal recipient** are **visible** wherever FA moves in or out of the pool.
+
+### Where the implementation is today
+
+The **Move modules and TS client** implement the **real** pool, Merkle tree, nullifiers, FA custody, and **shielded transfer** without moving FA between user accounts for that hop. **Until ZK spends land**, **amounts and sensitive proof material still appear in transaction arguments**—so this is **not** yet the privacy level described above; it is the **scaffolding** that work is building on. See **Privacy: today vs target** and **Plan: Zcash-like shielded transactions + auditability**.
+
+On-chain, pool value is **not** stored as per-user FA balances. It is tracked as **commitments** (tree leaves) in a **Merkle tree** (depth **20**), with **nullifiers** to prevent double-spends and a **history of past roots** (up to **128** per token) so inclusion can be checked against an older root. Optional **event ciphertext** supports viewing keys for audit and wallet sync; validators do **not** decrypt it.
 
 ## Protocol (what happens on-chain)
 
-1. **Shield** — User withdraws FA from their primary store and deposits into the pool’s primary store. A **note commitment** `cm = keccak256("SA_NOTE_v1" || bcs(amount) || blinding)` is appended to the **incremental Merkle tree** for that token. A **new root** is stored and appended to **root history** (up to 128 roots). Optional **`incoming_view_ciphertext`** is accepted and emitted in **`ShieldedInsertEvent`** (the chain does **not** decrypt or verify it against `cm`).
+1. **Shield** — User withdraws FA from their primary store and deposits into the pool’s primary store. A **commitment** `cm = keccak256("SA_NOTE_v1" || bcs(amount) || blinding)` is appended to the **incremental Merkle tree** for that token. A **new root** is stored and appended to **root history** (up to 128 roots). Optional **`incoming_view_ciphertext`** is accepted and emitted in **`ShieldedInsertEvent`** (the chain does **not** decrypt or verify it against `cm`).
 
-2. **Shielded → shielded (`shielded_transfer`)** — Spend one note (same Merkle/nullifier checks as unshield, against a **`historic_root`**) and append **one new note** with the same **`amount`** and a fresh **`blinding_out`**. **Pool FA balance does not change** (no transparent payout). The recipient must learn **`blinding_out`** off-chain; optional **`outgoing_view_ciphertext`** is emitted on **`ShieldedTransferEvent`**.
+2. **Shielded → shielded (`shielded_transfer`)** — **Spend** one existing commitment (same Merkle/nullifier checks as unshield, against a **`historic_root`**) and append **one new commitment** with the same **`amount`** and a fresh **`blinding_out`**. **Pool FA balance does not change** (no transparent payout). The payee learns **`blinding_out`** off-chain; optional **`outgoing_view_ciphertext`** is emitted on **`ShieldedTransferEvent`**.
 
 3. **Unshield** — Submitter provides **amount**, **blinding**, **leaf index**, **Merkle siblings** (exactly **20** × 32-byte hashes), a **`historic_root`** that must appear in **`roots_ring`**, and **recipient**. The contract checks the nullifier is fresh, verifies the Merkle proof against that historic root, transfers FA to the recipient’s primary store, and emits **`UnshieldEvent`**. Optional **`outgoing_view_ciphertext`** is emitted but not verified on-chain.
 
@@ -125,7 +136,7 @@ await client.buildShield({
 
 **Goal:** Inside the pool, observers should not learn **amounts** or **who paid whom** from calldata; **nullifiers** and **commitments** remain public as in Zcash-style models. **Auditability** (issuers, compliance, wallet recovery) is handled by **viewing keys** and **optional ciphertext on events** (see **Viewer keys (auditability)** earlier in this README)—without requiring the chain to decrypt or trust those blobs for consensus.
 
-This section lists what is still required to close the gap between the current **MVP** and that goal.
+This section lists what is still required to close the gap between **today’s witness-based protocol**—**shield**, **`shielded_transfer`**, and **unshield`** are already implemented on-chain—and **that goal** (hiding amounts and spend linkage from calldata via ZK).
 
 ### What Movement provides
 
@@ -166,7 +177,7 @@ When **ZK spends** land, the same event + IVK/OVK model still applies: encrypt *
 
 ### Staged delivery (suggested)
 
-1. **MVP (current):** Merkle + nullifiers + FA + witness-based ops + viewer ciphertexts on events. Good for **correctness** scaffolding and **wallet sync**, not for **strong privacy** against observers.
+1. **Current (witness-based):** **Shield**, **`shielded_transfer`**, and **unshield** with Merkle proofs, nullifiers, FA custody, and optional viewer ciphertext on events. Transaction arguments still expose witnesses—good for **correctness** and **wallet sync**, not for **strong privacy** against observers.
 2. **ZK spend (testnet):** One **Groth16** spend path + minimal circuit + Move verifier + dev SRS; optional parallel **test-only** tree depth or separate module address.
 3. **Hardening:** Audits, gas limits, DoS bounds on proof size, upgrade story, and **production SRS**.
 4. **Product fit:** Indexer requirements, issuer policy, and clear **privacy / audit** labeling per release.
