@@ -3,9 +3,9 @@
 This directory contains **both**:
 
 - **`npm` package** `@moveindustries/shielded-assets` — TypeScript helpers and transaction builders (`src/`, published to the registry).
-- **Move package** (`move/`) — on-chain **shielded pool** logic you compile and publish to **Movement** (or another Aptos-compatible network).
+- **Move package** (`move/`) — on-chain **shielded pool** modules to compile and publish to **Movement** (or another Aptos-compatible network).
 
-Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): deposit tokens into pool custody, move value **between shielded notes** (`shielded_transfer`), or withdraw to a normal account (`unshield`).
+Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): **shield** (deposit into pool custody), **shielded transfer** (move value between notes without leaving the pool), and **unshield** (withdraw to a normal account).
 
 On-chain, value in the pool is **not** stored as per-user FA balances. It is tracked as **note commitments** (leaves) in a **Merkle tree** (depth **20**), with **nullifiers** to stop double-spends and a **history of past roots** (up to **128** per token) so a spend can prove inclusion against an older root. Optional **event ciphertext** supports viewing keys for audit and wallet sync; validators do **not** decrypt it.
 
@@ -115,7 +115,7 @@ await client.buildShield({
 
 **Shielded transfer:** Same **`historic_root`** / **`merkleSiblings`** pattern as unshield for the **input** note; then append a new commitment with `buildShieldedTransfer({ … blindingIn, blindingOut, … })` (pool balance unchanged).
 
-**Unshield:** Use the **`merkle_root` from your `ShieldedInsertEvent`** (or any root still in `roots_ring`) as **`historic_root`**. Preflight with **`is_known_root`**. Build **`merkleSiblings`** with **`MerkleTreeSimulator`** by replaying **all** note commitments for that FA **in chain order** (length **20**).
+**Unshield:** Use the **`merkle_root` from the relevant `ShieldedInsertEvent`** (or any root still in `roots_ring`) as **`historic_root`**. Preflight with **`is_known_root`**. Build **`merkleSiblings`** with **`MerkleTreeSimulator`** by replaying **all** note commitments for that FA **in chain order** (length **20**).
 
 ## Privacy notes
 
@@ -125,7 +125,7 @@ await client.buildShield({
 
 **Goal:** Inside the pool, observers should not learn **amounts** or **who paid whom** from calldata; **nullifiers** and **commitments** remain public as in Zcash-style models. **Auditability** (issuers, compliance, wallet recovery) is handled by **viewing keys** and **optional ciphertext on events** (see **Viewer keys (auditability)** earlier in this README)—without requiring the chain to decrypt or trust those blobs for consensus.
 
-This section is the engineering checklist for closing the gap between the current **MVP** and that goal.
+This section lists what is still required to close the gap between the current **MVP** and that goal.
 
 ### What Aptos / Move already provides
 
@@ -136,18 +136,18 @@ The [Aptos cryptography guide](https://aptos.dev/build/smart-contracts/cryptogra
 - A reference **generic Groth16 verifier** in the upstream [**`groth16_example`**](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/move-examples/groth16_example/sources/groth16.move) (pairing equation; works with supported curves).
 - Hashing primitives including **Keccak256** ([`aptos_std::aptos_hash`](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/framework/aptos-stdlib/sources/hash.move)) for Merkle interoperability with this repo’s current tree.
 
-**Network requirement:** `crypto_algebra` operations abort unless **[cryptography algebra natives](https://aptos.dev/build/smart-contracts/cryptography)** are enabled on the chain you deploy to. Confirm for your Movement / Aptos deployment before relying on on-chain verification.
+**Network requirement:** `crypto_algebra` operations abort unless **[cryptography algebra natives](https://aptos.dev/build/smart-contracts/cryptography)** are enabled on the deployment target. Confirm for a given Movement / Aptos deployment before relying on on-chain verification.
 
-### What you still need to build (shielded pool–specific)
+### Remaining work (ZK shielded spends)
 
-| Area | What “done” looks like |
-|------|-------------------------|
+| Area | Target outcome |
+|------|----------------|
 | **Spend circuit** | A circuit (e.g. **circom**) proving, in zero knowledge, validity of a shielded spend: knowledge of note opening(s), **Merkle inclusion** against an allowed historic root, correct **nullifier(s)**, **value conservation**, and well-formed **output note commitment(s)**. Public inputs are typically **roots, nullifiers, output commitments**—not raw amounts or blinding factors. |
 | **Hash / tree alignment** | The **on-chain** Merkle leaf hash and commitment scheme must match what the circuit proves. **Keccak** Merkle paths inside a SNARK are constraint-heavy; many designs use **Poseidon** (or similar) in-circuit and either implement the same hash on-chain or rely on proofs-only checks—both imply a **protocol decision** and possibly a **v2 tree** or migration. |
-| **Move verifier + VK** | Integrate a Groth16 verifier (pattern from `groth16_example`) into this package: **deserialize** proof + **verification key**, run **`verify_proof`** (or the prepared variant), then apply **state transitions** (insert nullifiers, append output commitments, FA unshield only as the public inputs allow). The VK is **per-circuit**; it is **not** a single global Aptos syscall—you ship **your** VK (constants or on-chain config). |
-| **Trusted setup / SRS** | Groth16 needs a **circuit-specific** proving key. Production requires an appropriate **ceremony** or reuse of an SRS your team trusts—not ad-hoc local keys. |
-| **Client prover** | Wallet or service: witness generation, proof creation (e.g. **snarkjs**, **wasm** prover), encoding public inputs as **`Fr`** for BN254. |
-| **Tooling** | The Aptos docs reference a community helper [**snarkjs-to-aptos**](https://github.com/zjma/snarkjs-to-aptos) for converting **snarkjs** verification keys, proofs, and public inputs into Move-friendly formats. This repo’s `circuits/` folder can hold **circom** sources and build scripts for CI and reproducible keys. |
+| **Move verifier + VK** | Integrate a Groth16 verifier (pattern from `groth16_example`): **deserialize** proof + **verification key**, run **`verify_proof`** (or the prepared variant), then apply **state transitions** (insert nullifiers, append output commitments, FA unshield only as the public inputs allow). The VK is **per-circuit**, not a single global Aptos syscall; deployments supply a **circuit-specific** VK (constants or on-chain config). |
+| **Trusted setup / SRS** | Groth16 needs a **circuit-specific** proving key. Production expects an appropriate **ceremony** or reuse of a trusted SRS—not ad-hoc local keys. |
+| **Client prover** | A wallet or service performs witness generation, proof creation (e.g. **snarkjs**, **wasm** prover), and encoding public inputs as **`Fr`** for BN254. |
+| **Tooling** | The Aptos docs reference a community helper [**snarkjs-to-aptos**](https://github.com/zjma/snarkjs-to-aptos) for converting **snarkjs** verification keys, proofs, and public inputs into Move-friendly formats. The `circuits/` folder can hold **circom** sources and build scripts for CI and reproducible keys. |
 
 ### Auditability (Zcash-style viewing, policy-friendly)
 
@@ -168,7 +168,7 @@ When **ZK spends** land, the same event + IVK/OVK model still applies: encrypt *
 
 ## Production / roadmap considerations
 
-This repo is structured so you can **ship in stages** (testnet → hardened mainnet). Beyond the **Plan: Zcash-like shielded transactions + auditability** section above:
+The design supports **staged releases** (testnet → hardened mainnet). Beyond the **Plan: Zcash-like shielded transactions + auditability** section above:
 
 - **Security:** third-party review of Move + TS, fuzzing, and explicit invariants (no double-spend, no silent inflation, nullifier uniqueness, proof verification soundness).
 - **Operations:** published module address, indexers subscribed to pool events, monitoring, upgrade policy.
