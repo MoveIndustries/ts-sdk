@@ -17,7 +17,7 @@
    - [Withdraw](#withdraw)
    - [Confidential transfer](#confidential-transfer)
    - [Rollover & normalization](#rollover--normalization)
-   - [Key rotation](#key-rotation)
+   - [Key rotation (not wallet-supported)](#key-rotation-not-wallet-supported)
 5. [Wallet UX decisions](#wallet-ux-decisions)
 6. [Auditor support](#auditor-support)
 7. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
@@ -30,7 +30,7 @@
 ## Guiding principles
 
 1. **The decryption key (`dk`) never leaves the wallet.** It has the same security posture as the Ed25519 signing key. Browser dApps must not derive, hold, or see it.
-2. **Proof generation happens inside the wallet.** Every ZK proof (registration, transfer, withdraw, normalize, rotate) requires `dk`. Since `dk` stays in the wallet, proofs are built there too.
+2. **Proof generation happens inside the wallet** for operations the wallet exposes. Every ZK proof for those flows (registration, transfer, withdraw, normalize) requires `dk`. Since `dk` stays in the wallet, proofs are built there too. **Key rotation** is **not** a wallet-supported operation here (see [Key rotation](#key-rotation-not-wallet-supported)); it would still require `dk` in a trusted environment if implemented elsewhere.
 3. **The wallet owns rollover and normalization.** These are protocol bookkeeping that users should not think about. The wallet chains them automatically before spends.
 4. **The application sends intents, not transactions.** The dApp says "transfer 50 tokens to Alice"; the wallet figures out whether it needs to rollover, normalize, build proofs, and submit.
 
@@ -77,14 +77,15 @@ The wallet derives `dk` from existing root material — it is never generated in
 
 | Account type | Derivation | Reference |
 |---|---|---|
-| **Mnemonic** | `TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/0'/1'/{accountIndex}'", mnemonic)` — change index `1'` avoids collision with signing paths. | motion-wallet `account.ts` |
-| **Imported raw key** | Sign the fixed string `"Sign this message to derive decryption key from your private key"` with the Ed25519 account key → `TwistedEd25519PrivateKey.fromSignature(sig)`. | SDK `twistedEd25519.ts` |
+| **Mnemonic (typical Movement wallet)** | `TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/0'/1'/{accountIndex}'", mnemonic)` — change index `1'` avoids collision with signing paths. | motion-wallet `account.ts` |
+
+The SDK also implements `TwistedEd25519PrivateKey.fromSignature` (fixed message + Ed25519 signature) for **tests and tooling**; **wallets are not expected to use it** for normal user accounts when `fromDerivationPath` from the mnemonic is available.
 
 ### Security invariants
 
 - `dk` is derived on demand while the wallet is unlocked. When the wallet locks, the mnemonic/password are zeroed — `dk` ceases to exist in memory.
 - `dk` bytes are never returned to any web origin, never logged, never serialized to extension storage as a standalone blob.
-- If `dk` is derived via `fromSignature`, the wallet must use the **exact same** derivation string on every session. Changing it means a different `ek`, which breaks all existing registered balances.
+- The **`fromDerivationPath` template and account-index rules** must stay stable across releases. Changing the path or how `accountIndex` is chosen yields a different `dk` / `ek` and breaks existing registrations—document any change in wallet release notes.
 
 ---
 
@@ -177,11 +178,15 @@ While transaction fees remain low, the wallet should automatically rollover pend
 
 **The dApp should not need to know about normalization at all.** It is an internal protocol detail. The wallet should present a single combined balance to the user. If the wallet needs to show a brief "processing incoming funds" state while rollover transactions confirm, that is acceptable.
 
-### Key rotation
+### Key rotation (not wallet-supported)
 
-**What happens:** The user's encryption key is replaced (e.g., after a suspected compromise of `dk`). Requires old + new keys, proofs, and a freeze/unfreeze dance to prevent inbound transfers during rotation.
+**On-chain protocol:** The `confidential_asset` module can replace a user’s registered encryption key (`rotate_encryption_key`, with optional **`rotate_encryption_key_and_unfreeze`**). That typically involves old and new `dk` material, sigma/range proofs, and often **freezing** the confidential store so inbound transfers do not land mid-rotation—see the Move module and the SDK’s `rotateEncryptionKey` builder for the full sequence.
 
-This is a **wallet-only** operation (settings/advanced). The dApp does not need a `ca_rotateEncryptionKey` in v1, but the wallet UI should support it.
+**Movement Wallet scope:** Motion Wallet does **not** plan to support Ed25519 **signing key** rotation. For the same product scope, this integration treats **decryption key rotation as out of scope**: there is **no** wallet UI and **no** `ca_rotateEncryptionKey` (or similar) on the wallet ↔ dApp surface.
+
+**Advanced users:** If you need same-account key rotation (e.g., suspected `dk` compromise), use the **Confidential Assets TypeScript SDK** (`@moveindustries/confidential-assets`) **directly** in an environment you trust—build transactions with `ConfidentialAsset` / `ConfidentialAssetTransactionBuilder` (e.g. `rotateEncryptionKey`) and submit them like any other custom script. That path is for **technical users** who can hold `dk` and follow the freeze/rotate/unfreeze rules themselves; it is **not** something this document promises from the wallet.
+
+**dApps:** Do not rely on the wallet to perform or orchestrate key rotation.
 
 ---
 
@@ -251,8 +256,8 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 | Scenario | Impact | Mitigation |
 |---|---|---|
 | **dk lost** (wallet uninstalled, mnemonic lost) | Funds remain on-chain but cannot be spent or withdrawn — effectively frozen forever. The Ed25519 signing key is not compromised. | Same mnemonic backup story as the signing key. Wallet should clearly communicate that mnemonic recovery restores both signing and CA decryption capability. |
-| **dk derived differently after restore** (derivation policy changed, different wallet software) | Restored `dk` does not match the registered `ek` — same as key loss. | Wallets must use a stable, documented derivation path/policy. The `fromSignature` derivation string must never change. Wallet version notes must flag any derivation changes. |
-| **dk compromised** (malware, leaked) | Attacker can decrypt all balances and construct valid proofs. Combined with a compromised Ed25519 key, attacker can transfer funds. `dk` alone cannot sign transactions. | Key rotation (`rotate_encryption_key`) re-encrypts the balance under a new key. Wallet should support this as an advanced operation. |
+| **dk derived differently after restore** (derivation policy changed, different wallet software) | Restored `dk` does not match the registered `ek` — same as key loss. | Wallets must use a stable, documented **`fromDerivationPath` policy** (path string, account index). Wallet version notes must flag any derivation changes. |
+| **dk compromised** (malware, leaked) | Attacker can decrypt all balances and construct valid proofs. Combined with a compromised Ed25519 key, attacker can transfer funds. `dk` alone cannot sign transactions. | Prefer moving funds to a **new account** with fresh keys when possible. On-chain **`rotate_encryption_key`** can re-encrypt in place, but **Movement Wallet does not expose rotation**—use **`@moveindustries/confidential-assets`** directly if you must rotate without a wallet UI. |
 | **Wrong `ek` registered** (registered from a key not held by the user's wallet) | Wallet cannot decrypt or spend — same as key loss for that `(account, token)` pair. | Registration is wallet-only; the dApp cannot register an arbitrary `ek`. The wallet always derives and registers its own key. |
 
 ### Operational risks
@@ -270,7 +275,7 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 | Scenario | Impact | Mitigation |
 |---|---|---|
-| **Frozen store** (pending balance frozen for key rotation) | Inbound transfers rejected until unfrozen. | Wallet UI should indicate frozen state. Key rotation flow should complete promptly (freeze → rotate → unfreeze). |
+| **Frozen store** (e.g. frozen for rotation or protocol reasons) | Inbound transfers rejected until unfrozen. | Wallet UI should show **frozen** clearly. Movement Wallet **does not** run freeze → rotate → unfreeze; if the user froze or rotated via **`@moveindustries/confidential-assets`** (or another tool), they must complete recovery there or move funds per protocol rules. |
 | **Allow list / token disabled** | Deposits and transfers may abort. Withdrawals may still work. | Wallet should check token status before building transactions and surface clear errors. |
 | **Pending counter overflow** (too many inbound operations before rollover) | Further deposits and transfers to this account are rejected. | Auto-rollover after each inbound operation prevents this from accumulating. |
 
@@ -325,7 +330,7 @@ const { txHash } = await caTransfer({ token, recipient, amount: "100" });
 
 This is **not** the same as running the `ConfidentialAsset` SDK in the browser — these are RPC calls to the wallet.
 
-The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook whose output could be passed to `fromSignature` — if the signed bytes are controlled by the dApp and differ from the agreed derivation string, it enables phishing or wrong-`ek` registration.
+The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook. If the wallet ever derives `dk` from a signature, the signed payload must be **fixed by the wallet**, not supplied by the dApp—otherwise phishing or wrong-`ek` registration is possible. Normal wallet flows use **`fromDerivationPath`** from the mnemonic instead.
 
 ### Token addressing
 
@@ -342,7 +347,7 @@ Browser dApps integrating with confidential assets must follow these rules:
 | A1 | dApps must not hold the user's Ed25519 signing private key. `ek` registration is **wallet-only** via `ca_register`. |
 | A2 | dApps must not obtain, derive, or hold `TwistedEd25519PrivateKey` in the dApp process. They must not run the CA SDK for proof construction or balance decryption in page JavaScript. They must use `ca_*` methods for all CA operations. |
 | A3 | dApps must not persist, log, or forward CA decryption key material. They must not ask the wallet to export `TwistedEd25519PrivateKey` to the page. |
-| A4 | dApps must not use `fromSignature` in the page to construct a Twisted key. That is a wallet-internal concern. |
+| A4 | dApps must not derive `TwistedEd25519PrivateKey` in the page (`fromDerivationPath`, `fromSignature`, or otherwise). CA key derivation is wallet-internal. |
 | A5 | dApps must pass FA metadata addresses for `token` (see [token addressing](#token-addressing)). |
 | A6 | Deposit and withdraw amounts are public on-chain; dApps must not imply that confidential transfer amounts are visible. |
 
@@ -358,6 +363,7 @@ Captured from team discussion:
 | 2 | **Balance visibility** | **Show confidential balances by default** as a separate asset row (e.g., "Shielded MOVE" below "MOVE"). Confidential means on-chain privacy, not hiding from the user's own display. |
 | 3 | **Normalization** | **Never user-facing.** If auto-rollover happens after each inbound operation, normalization is handled transparently. Even if it is needed, the wallet chains it internally before rollover. |
 | 4 | **Auditor model** | One **global auditor per asset** stored on-chain. Sender can add **additional per-transfer auditors** that appear only in the transaction and emitted events. Both must be supported by the wallet. |
+| 5 | **Encryption key rotation** | **Not supported in Movement Wallet** (aligned with no Ed25519 signing-key rotation in product). On-chain rotation remains available via **`@moveindustries/confidential-assets`** for advanced users. |
 
 ---
 
