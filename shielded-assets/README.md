@@ -1,10 +1,15 @@
 # @moveindustries/shielded-assets
 
-Movement package for **shielded fungible-asset flows**: move tokens **into** shared custody (**shield**), **between shielded notes** without withdrawing (**shielded transfer**), and **out** to a normal account (**unshield**). Value inside the pool is tracked as **note commitments** in an **incremental Merkle tree** (fixed depth **20**), with **nullifiers** to prevent double-spends and a **ring buffer of historical roots** (**128** per token) so spends can reference older roots. [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core) is used for transparent deposits and withdrawals. Events can carry **optional ciphertext** for **incoming / outgoing viewing** (audit and wallet sync); the chain does not decrypt them.
+This directory contains **both**:
 
-**“Shielded pool”** here means: one on-chain **module** custodies the FA, while individual **balances** are represented only as **leaves** (commitments) in that Merkle tree—not as per-user FA balances in cleartext.
+- **`npm` package** `@moveindustries/shielded-assets` — TypeScript helpers and transaction builders (`src/`, published to the registry).
+- **Move package** (`move/`) — on-chain **shielded pool** logic you compile and publish to **Movement** (or another Aptos-compatible network).
 
-Sibling of [`confidential-assets`](../confidential-assets/): that stack hides amounts with **visible** sender/recipient accounts; this package uses a **note + Merkle + nullifier** layout and supports **shielded → shielded** transfers via **`shielded_transfer`** (see Protocol below).
+Together they implement **shielded fungible-asset** flows using [`fungible_asset`](https://github.com/movementlabsxyz/aptos-core): deposit tokens into pool custody, move value **between shielded notes** (`shielded_transfer`), or withdraw to a normal account (`unshield`).
+
+On-chain, value in the pool is **not** stored as per-user FA balances. It is tracked as **note commitments** (leaves) in a **Merkle tree** (depth **20**), with **nullifiers** to stop double-spends and a **history of past roots** (up to **128** per token) so a spend can prove inclusion against an older root. Optional **event ciphertext** supports viewing keys for audit and wallet sync; validators do **not** decrypt it.
+
+Compared to [`confidential-assets`](../confidential-assets/): that product hides **amounts** with **visible** accounts. Here, the model is **notes + Merkle + nullifiers**, including **shielded → shielded** moves via **`shielded_transfer`** (details in **Protocol**).
 
 ## Protocol (what happens on-chain)
 
