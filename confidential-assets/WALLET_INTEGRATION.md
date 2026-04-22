@@ -50,7 +50,7 @@
 │  • Rollover / normalize orchestration                   │
 │  • Auditor key lookup                                   │
 │                                                         │
-│  Exposes: ca_* methods (§5 of spec)                     │
+│  Exposes: proposed ca_* dApp → wallet API (tables below)     │
 └──────────────────────┬──────────────────────────────────┘
                        │ ca_register, ca_transfer, ...
                        │ (intents in, tx hashes out)
@@ -66,6 +66,8 @@
 │  MUST NOT: hold dk, build proofs, call SDK directly     │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**Normative location:** The `ca_*` method set is defined under [Method namespace](#method-namespace) in [Wallet ↔ application interface](#wallet--application-interface), not in a separate published document.
 
 ---
 
@@ -149,8 +151,8 @@ The SDK also implements `TwistedEd25519PrivateKey.fromSignature` (fixed message 
 | Fetch sender's actual balance, decrypt with `dk` | Wallet |
 | If actual < amount: rollover/normalize first | Wallet |
 | Fetch recipient's `ek` from chain | Wallet |
-| Fetch global auditor `ek` for the token (if configured) | Wallet |
-| Merge global auditor + any additional auditor keys from the request | Wallet |
+| Fetch per-asset auditor `ek` for the token (if configured via `get_auditor`) | Wallet |
+| Merge that auditor + any additional auditor keys from the request | Wallet |
 | Build `ConfidentialTransfer` with proofs (sigma + 2× range) | Wallet |
 | Sign and submit `confidential_transfer(...)` | Wallet |
 | Return tx hash | Wallet → App |
@@ -212,22 +214,22 @@ For well-known assets (MOVE, USDC, WETH, WBTC, etc.), auto-rollover should happe
 
 The on-chain protocol supports **auditors** — third parties who receive encrypted copies of transfer amounts under their own encryption keys. There are two distinct sources:
 
-1. **Global (per-token) auditor:** One auditor encryption key is recorded **on-chain** per asset, set by the token issuer via the module. The SDK fetches this automatically via `get_auditor(token)`. This auditor sees every confidential transfer for that asset.
+1. **Per-asset (primary) auditor:** One optional auditor encryption key is stored **on-chain** per fungible asset. It is **installed or updated only by the framework account** (`set_auditor` in Move — i.e. **network / governance**, not a user’s or “issuer’s” wallet). The SDK reads it with `get_auditor(token)`. When set, senders must include that auditor in the transfer; it sees every confidential transfer for that asset.
 
 2. **Per-transfer (voluntary) auditors:** The sender can include **additional** auditor encryption keys at transfer time. These are **not** stored on-chain — they only appear in the transaction data and the emitted `Transferred` event. They are useful for compliance, personal accounting, or regulated counterparties.
 
 ### What the wallet needs to do
 
-- **Always include the global auditor** if one is configured for the token (the SDK handles this automatically when building `ConfidentialTransfer`).
+- **Always include the per-asset auditor** if one is configured for the token (the SDK handles this automatically when building `ConfidentialTransfer`).
 - **Accept optional additional auditor keys** from the dApp or user via the transfer request.
 - **Build encrypted copies** of the transfer amount for each auditor key (handled by the SDK — each auditor gets the transfer amount encrypted under their `ek`, plus `D` components bound into the sigma proof's Fiat-Shamir transcript).
-- **Let users view** which global auditor is configured for a given token.
+- **Let users view** which per-asset auditor is configured for a given token.
 
 ### What the dApp can do
 
-- **Display** which global auditor is configured for an asset (fetch via `ca_getAuditor` or equivalent view function). This is informational — the auditor `ek` is public on-chain.
+- **Display** the configured per-asset auditor, if any: the [`ca_getAuditor`](#read-methods) read in [Wallet ↔ application interface](#wallet--application-interface) corresponds to the on-chain `get_auditor` view. The per-asset auditor `ek` is **public** chain state; showing it in the UI is for transparency and does not expose a value the user is expected to keep secret.
 - **Let users enter or select additional auditor addresses** to include in a transfer. The dApp passes these to `ca_transfer`; the wallet builds the encrypted auditor copies.
-- **Enterprise/compliance dApps** may show a dashboard of auditor addresses and names per asset, potentially with the ability to update the global auditor (token issuer only).
+- **Enterprise/compliance dApps** may show dashboards and policy labels per asset. **Changing** the on-chain per-asset auditor is **governance / framework** (`set_auditor`) — not a capability exposed to dApps or typical asset / FA accounts.
 
 ### Proposed `ca_transfer` request shape with auditor support
 
@@ -283,13 +285,22 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 ## Wallet ↔ application interface
 
+### Method namespace
+
+**Identifier convention.** Methods in the tables below are named with the prefix `ca_` (confidential assets). They denote the **dApp–wallet interface**: request/response operations invoked from a web application on a wallet or wallet adapter. They are **not** exports of the TypeScript SDK; wallet support for each method is **implementation-defined** until a release documents conformance.
+
+**Normative reference.** The read and write method tables in this section are the **definitive** list of `ca_*` names and shapes referenced elsewhere in this document.
+
+**Mapping to the chain and SDK.** Implementations of these entry points call the confidential-asset module’s Move `view` and `entry` functions as required. For example, the per-asset auditor is read via the on-chain `get_auditor` view. The package `@moveindustries/confidential-assets` provides the corresponding API for **trusted (non–browser) code** as `ConfidentialAsset.getAssetAuditorEncryptionKey`.
+
 ### Read methods
 
 | Method | Request | Response | Notes |
 |---|---|---|---|
 | `ca_getBalances` | `{ tokens: string[] }` | `{ balances: { token, registered, available, pending }[] }` | Wallet decrypts; dApp sees plaintext numbers only |
-| `ca_isRegistered` | `{ token }` | `{ registered: boolean }` | No dk needed |
+| `ca_isRegistered` | `{ token }` | `{ registered: boolean }` | No `dk` needed |
 | `ca_getEncryptionKey` | `{ token }` | `{ encryptionKey: string }` | Public key — safe to return |
+| `ca_getAuditor` | `{ token }` | `{ auditorEncryptionKey?: string }` | Optional per-asset auditor; corresponds to on-chain `get_auditor` / SDK `getAssetAuditorEncryptionKey` — omit or empty if no auditor is configured |
 
 ### Write methods
 
@@ -301,11 +312,11 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 | `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint? }` | `{ txHash }` | Auto-rollover/normalize if needed |
 | `ca_rolloverPending` | `{ token }` | `{ txHash }` | Explicit rollover; auto-normalizes if needed |
 
-### What the dApp gets back
+### Return values
 
 - **Transaction hashes** (and optionally structured event data after confirmation).
 - **Decrypted balances** via `ca_getBalances`.
-- **Never:** `dk`, proof data, raw ciphertext, or anything that would let the dApp reconstruct the key.
+- The dApp **must not** receive: `dk`, proof material, raw ciphertext, or any data from which the decryption key could be derived.
 
 ### Wallet adapter integration
 
@@ -318,13 +329,14 @@ The wallet adapter (`@moveindustries/wallet-adapter-react`) provides `useWallet(
 Example (conceptual):
 
 ```ts
-const { caTransfer, caGetBalances, caSupported } = useConfidentialAssets();
+const { caTransfer, caGetBalances, caGetAuditor, caSupported } = useConfidentialAssets();
 
 if (!caSupported) {
   // show "wallet does not support confidential assets"
 }
 
 const balances = await caGetBalances({ tokens: [tokenAddress] });
+const { auditorEncryptionKey } = await caGetAuditor({ token: tokenAddress }); // optional: display only
 const { txHash } = await caTransfer({ token, recipient, amount: "100" });
 ```
 
@@ -362,7 +374,7 @@ Captured from team discussion:
 | 1 | **Rollover strategy** | **Automatic after each inbound transfer/deposit** while fees are low. This avoids exposing "pending balance" as a user concept and avoids normalization being user-visible. |
 | 2 | **Balance visibility** | **Show confidential balances by default** as a separate asset row (e.g., "Shielded MOVE" below "MOVE"). Confidential means on-chain privacy, not hiding from the user's own display. |
 | 3 | **Normalization** | **Never user-facing.** If auto-rollover happens after each inbound operation, normalization is handled transparently. Even if it is needed, the wallet chains it internally before rollover. |
-| 4 | **Auditor model** | One **global auditor per asset** stored on-chain. Sender can add **additional per-transfer auditors** that appear only in the transaction and emitted events. Both must be supported by the wallet. |
+| 4 | **Auditor model** | One **optional per-asset auditor** (governance-set via `set_auditor`) plus **optional per-transfer auditors** chosen by the sender. Both must be supported by the wallet. |
 | 5 | **Encryption key rotation** | **Not supported in Movement Wallet** (aligned with no Ed25519 signing-key rotation in product). On-chain rotation remains available via **`@moveindustries/confidential-assets`** for advanced users. |
 
 ---
