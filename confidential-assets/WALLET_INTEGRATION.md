@@ -89,6 +89,20 @@ The SDK also implements `TwistedEd25519PrivateKey.fromSignature` (fixed message 
 - `dk` bytes are never returned to any web origin, never logged, never serialized to extension storage as a standalone blob.
 - The **`fromDerivationPath` template and account-index rules** must stay stable across releases. Changing the path or how `accountIndex` is chosen yields a different `dk` / `ek` and breaks existing registrations—document any change in wallet release notes.
 
+### Decryption key scope: one `dk` per account
+
+The wallet derives **one `dk` per account**, used as the encryption keypair for **every** CA registration that account makes. There is no per-asset `dk`. Reasoning:
+
+- **Same threat model as the signing key.** Guiding principle 1 already treats `dk` as having the same security posture as the Ed25519 signing key. Wallets do not shard signing keys per asset; sharding `dk` per asset is inconsistent with that posture.
+- **Front-running is already mitigated** at the protocol layer by the pending/actual balance split. It does not depend on per-asset key separation.
+- **Rotation is per-`(user, token)` registration on-chain regardless.** Each registered asset has its own `ek` slot in the confidential store; rotating one registration does not affect the others, whether `dk` is shared or not. Per-asset keys multiply the number of independent rotation flows to manage; they do not reduce partial-failure surface.
+- **Recovery is simpler.** With one `dk` per account, mnemonic recovery is equivalent to account recovery — no need to enumerate which assets were ever registered.
+- **Per-asset isolation, when wanted, is achieved by using a separate account** (different `accountIndex`), exactly as users already isolate signing-key authority today.
+
+The Aptos confidential-asset documentation notes that reusing one encryption keypair across tokens is permitted (its "unique keypair per token" guidance is a recommendation, not a requirement) and explicitly states that encryption keypairs are **standalone** from account signing keys.
+
+**Path structure recap.** The signing key lives at `m/44'/637'/0'/0'/{accountIndex}'`; `dk` lives at the sibling change branch `m/44'/637'/0'/1'/{accountIndex}'`. Same account, domain-separated by the BIP-44 change index — so `dk` is bound to the account but is **not** the same scalar as the signing key (which would conflate two cryptosystems on shared raw bytes).
+
 ---
 
 ## Operation-by-operation design
@@ -187,6 +201,10 @@ While transaction fees remain low, the wallet should automatically rollover pend
 **Movement Wallet scope:** Motion Wallet does **not** plan to support Ed25519 **signing key** rotation. For the same product scope, this integration treats **decryption key rotation as out of scope**: there is **no** wallet UI and **no** `ca_rotateEncryptionKey` (or similar) on the wallet ↔ dApp surface.
 
 **Advanced users:** If you need same-account key rotation (e.g., suspected `dk` compromise), use the **Confidential Assets TypeScript SDK** (`@moveindustries/confidential-assets`) **directly** in an environment you trust—build transactions with `ConfidentialAsset` / `ConfidentialAssetTransactionBuilder` (e.g. `rotateEncryptionKey`) and submit them like any other custom script. That path is for **technical users** who can hold `dk` and follow the freeze/rotate/unfreeze rules themselves; it is **not** something this document promises from the wallet.
+
+**Threat-model note: rotation only addresses `dk`-only compromise.** `rotate_encryption_key` re-encrypts in place under a new `ek` for a single registration. It is the right tool when **only `dk` is suspected to be exposed** while the Ed25519 signing key and mnemonic remain safe. **It is not** the right tool for the "lost device / lost backup" case, where the **mnemonic** is potentially exposed: in that scenario every key derivable from the mnemonic — signing key, `dk`, and any future per-account material — is compromised. The correct response is the same as for signing-key compromise: **generate a new account from a fresh mnemonic and confidentially-transfer balances out of the old one**, not rotate `dk` in place. Wallet UI should communicate this distinction clearly.
+
+**Rotating across multiple registered assets.** Because rotation is per-`(user, token)` registration on-chain, an advanced user who has registered `ek` for several assets and wants to rotate all of them must submit one rotation flow per asset. SDK-side helpers (e.g., a `rotateEncryptionKeyAll` convenience that loops over the user's registered assets) **must be resumable and idempotent per asset**: if rotation succeeds for assets `A` and `B` but fails for `C`, re-running the helper must pick up at `C` without retrying `A`/`B`. A natural implementation is: enumerate registered assets, check whether each registration's on-chain `ek` already matches the new key, and skip the ones that do. This addresses the partial-failure concern raised in PR review without requiring per-asset `dk` separation.
 
 **dApps:** Do not rely on the wallet to perform or orchestrate key rotation.
 
