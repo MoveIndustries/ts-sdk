@@ -19,11 +19,12 @@
    - [Rollover & normalization](#rollover--normalization)
    - [Key rotation (not wallet-supported)](#key-rotation-not-wallet-supported)
 5. [Wallet UX decisions](#wallet-ux-decisions)
-6. [Auditor support](#auditor-support)
-7. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
-8. [Wallet ↔ application interface](#wallet--application-interface)
-9. [Application conformance rules](#application-conformance-rules)
-10. [Open questions](#open-questions)
+6. [Hardware wallets and multisig (out of scope)](#hardware-wallets-and-multisig-out-of-scope)
+7. [Auditor support](#auditor-support)
+8. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
+9. [Wallet ↔ application interface](#wallet--application-interface)
+10. [Application conformance rules](#application-conformance-rules)
+11. [Open questions](#open-questions)
 
 ---
 
@@ -223,6 +224,41 @@ The user should never see "pending balance" or "normalization" as concepts. The 
 ### Spam token handling
 
 For well-known assets (MOVE, USDC, WETH, WBTC, etc.), auto-rollover should happen unconditionally. For unknown or low-value tokens, the wallet may prompt the user before rolling over, to avoid accepting spammy assets automatically. This is an enhancement for later — v1 can auto-rollover everything.
+
+---
+
+## Hardware wallets and multisig (out of scope)
+
+Hardware wallets (e.g., Ledger) and multisig are **explicit non-goals for v1** of this integration. The reasoning is that CA changes the custody story in ways that go beyond "the same flows, with a different signer," and pretending otherwise would mislead users about what protection they have.
+
+### Why a hardware wallet doesn't transparently apply
+
+For a normal Aptos transfer, a Ledger protects the Ed25519 signing key and that is sufficient. CA is different: every confidential operation needs `dk` available to **decrypt the current balance** and to **construct ZK proofs** (sigma + range / bulletproofs). Today's Ledger Aptos app does not implement Ristretto scalar arithmetic or bulletproof generation, so the practical options are:
+
+- **Hold `dk` outside the Ledger** (in the wallet host) — defeats most of the point of using a hardware wallet for CA.
+- **Extend the Ledger app** to do CA decryption and proof generation on-device — a substantial firmware/app effort, not a wallet-side feature.
+
+A v1 wallet integration cannot honestly advertise "Ledger-protected confidential balances" without that on-device support existing.
+
+### Why multisig is not a drop-in either
+
+Aptos multisig today authorizes **signing**. CA proofs are constructed by whoever holds `dk`. A k-of-n signing policy that wraps a single shared `dk` is just shared-secret custody — every signer (or anyone who compromises one) can decrypt and prove independently, so it does not give the security properties users expect from "multisig."
+
+True threshold CA — where decryption and proof generation are themselves k-of-n, and no single party ever holds `dk` — requires threshold ElGamal decryption and threshold proof construction. That is a protocol/research item, not something a wallet can paper over.
+
+### Recommended pattern for treasury-scale users
+
+Until on-device CA or threshold CA exists, users with large balances should keep the bulk in a **normal (non-CA) cold or multisig account** and only top up a CA hot account as needed for confidential transfers. This sidesteps both problems: the cold-storage account uses standard Ed25519 custody (Ledger / multisig work as usual), and the CA account behaves like a hot wallet sized to recent activity.
+
+### Summary
+
+| Concern | v1 status | Future path |
+|---|---|---|
+| Hardware wallet (Ledger) custody of CA | **Not supported.** `dk` cannot live on a Ledger that does not implement Ristretto / bulletproofs. | Ledger Aptos app extension for on-device CA decryption and proof generation. |
+| Multisig over CA operations | **Not supported.** Aptos multisig signs transactions but does not split `dk`. | Threshold CA (threshold decryption + threshold proof generation) — protocol-level work. |
+| Treasury-scale CA usage | Use a cold/multisig **non-CA** account for storage, top up a CA hot account for spending. | Same, until threshold CA is available. |
+
+Wallet UI should not surface "Ledger" or "multisig" affordances against confidential balances in v1, and dApps must not assume either is available behind `ca_*` calls.
 
 ---
 
