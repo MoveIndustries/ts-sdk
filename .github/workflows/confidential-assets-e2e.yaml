@@ -47,6 +47,12 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - uses: pnpm/action-setup@v4
+        with:
+          # The repo's root `package.json` `packageManager` field is the source of
+          # truth for which pnpm version to use. We can't rely on action-setup
+          # auto-detecting it because the checkout above lives at `ts-sdk/` (not
+          # the workspace root), so point it at the nested package.json.
+          package_json_file: ts-sdk/package.json
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master

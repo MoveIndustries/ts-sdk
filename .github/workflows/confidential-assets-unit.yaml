@@ -1,0 +1,54 @@
+name: Confidential Assets Unit Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ca-unit:
+    name: Confidential Assets Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout ts-sdk
+        uses: actions/checkout@v6
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install root deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build root SDK
+        run: pnpm build
+
+      - name: Install confidential-assets deps
+        working-directory: confidential-assets
+        run: pnpm install --frozen-lockfile
+
+      - name: Build confidential-assets
+        working-directory: confidential-assets
+        run: pnpm build
+
+      # Unit tests don't need a localnet; setting MOVEMENT_NETWORK=local makes
+      # `tests/preTest.cjs` and `tests/setupPerFile.cjs` skip their localnet
+      # startup. `--globalSetup=` / `--globalTeardown=` clear the parent jest
+      # config's hooks for extra safety.
+      #
+      # `--coverage=false` matches `.github/actions/run-unit-tests/action.yaml`:
+      # the package's `coverageThreshold` is sized for a full test run that
+      # includes e2e, so units-only would fail the threshold even with all
+      # tests passing.
+      - name: Run confidential-assets unit tests
+        working-directory: confidential-assets
+        env:
+          MOVEMENT_NETWORK: local
+        run: pnpm jest tests/units --globalSetup= --globalTeardown= --coverage=false
