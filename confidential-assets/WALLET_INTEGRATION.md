@@ -251,6 +251,49 @@ Motion Wallet can back a single account with a hardware device (e.g. Ledger) and
 
 A multisig account is a resource account: it holds funds but has no private key, so a multisig account cannot run `fromDerivationPath` itself. CA proofs for multisig CA operations must bind to the multisig account's address — the SDK's Fiat–Shamir transcript includes `senderAddress` (see `src/crypto/fiatShamir.ts`), and proofs built against any other address abort on chain.
 
+### Data ownership
+
+For a k-of-n multisig CA account, each co-owner's wallet holds the same kinds of material it would for a single-owner account — the one thing *shared* across owners is `dk`, the encryption keypair for the multisig account itself. Nothing else crosses owner boundaries.
+
+| Held by | Material | How it's obtained | Used for |
+|---|---|---|---|
+| Each owner (private to that owner) | Owner's mnemonic / device | Generated at wallet setup | Producing that owner's Ed25519 signatures on multisig proposals |
+| Each owner (private to that owner) | Owner's personal Ed25519 signing key | Derived from owner's mnemonic / device | Approving or rejecting multisig proposals on chain |
+| Every owner (shared, identical bytes) | Multisig account's `dk` (32 bytes) | Derived once by the designated owner; exported and imported by co-owners (see [DK sharing](#dk-sharing-among-co-owners)) | Decrypting the multisig account's CA balances; building CA proofs against the multisig address |
+| On chain (public) | Multisig account address, owner set, threshold `k` | Set when the multisig account is created | Authorizing transactions: any submitted tx requires k-of-n owner approvals |
+| On chain (public) | Multisig account's `ek` (encryption key) | Registered via the first multisig CA proposal | Letting senders encrypt CA transfers to this multisig recipient |
+| On chain (public, encrypted) | Multisig account's CA balances (`pending_balance`, `actual_balance`) ciphertexts under `ek` | Updated by every CA op the multisig executes | Source of truth for confidential balances |
+
+### Transfer flow — actions and data
+
+A confidential transfer **out of** a multisig CA account has two phases: off-chain proof construction (one owner, with `dk`) and on-chain k-of-n approval (every owner, with their personal Ed25519 key only).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as dApp
+    participant W1 as Owner 1 (proposer)
+    participant W2 as Owner 2 (approver)
+    participant Wn as Owner n (approver)
+    participant Chain as Movement chain
+
+    App->>W1: ca_transfer sender=multisigAddr, mode=buildOnly
+    W1->>Chain: read multisig ek, encrypted balance, recipient ek, auditor ek
+    W1->>W1: decrypt balance with shared dk
+    W1->>W1: build ZK proofs bound to multisigAddr
+    W1-->>App: BCS EntryFunction bytes
+    App->>Chain: create_transaction signed by Owner 1 Ed25519 key
+    W2->>Chain: approve_transaction signed by Owner 2 Ed25519 key
+    Wn->>Chain: approve_transaction signed by Owner n Ed25519 key
+    Chain->>Chain: after k approvals, execute and verify proofs
+```
+
+Key properties of this split:
+
+- **Only the proposer needs `dk` *for that proposal*.** Approvers verify on-chain semantics (recipient, amount-as-ciphertext, auditor inclusion, proposal hash) using their wallet UI; they don't re-run proof construction. They still hold `dk` so that *any* of them can be a future proposer, and so they can decrypt balances to audit the account locally.
+- **Approvers' Ed25519 keys never touch `dk`.** A compromise of an approver's wallet at approval time risks one signature on one proposal — same blast radius as a non-CA multisig.
+- **Proofs are not aggregated across owners.** There is one set of ZK proofs per proposal, built by the proposer. Aggregation across approvers would only be meaningful if each approver held a *share* of `dk` — see [Algorithm choice](#algorithm-choice) below.
+
 ### Wallet API requirements
 
 A CA-aware wallet supports multisig CA operations by accepting two extra parameters on every `ca_*` write method:
@@ -283,6 +326,26 @@ This export/import pattern is a **narrow carveout to [Principle 1](#guiding-prin
 ### Treasury-scale balances
 
 Users with large balances should keep the bulk in a **normal (non-CA) cold or multisig account** and only top up a CA hot account (or CA multisig account) as needed for confidential transfers. The cold account uses standard Ed25519 custody with no privacy posture to defend; the CA account is sized to recent activity, so a privacy compromise has bounded blast radius.
+
+### Algorithm choice
+
+Multi-owner CA custody could in principle be built several ways. They are not equivalent in security, and most are not viable for this protocol as it stands. Listing them so the trade-offs are explicit before we lock the design in code:
+
+| Approach | What each owner holds | How proofs are produced | Privacy if one owner's wallet is compromised | Funds if one owner's wallet is compromised | Viable today? |
+|---|---|---|---|---|---|
+| **Shared-`dk`** (this design) | Identical 32-byte `dk` + own Ed25519 key | One proposer builds the full proof set with `dk`; approvers add Ed25519 sigs only | **Lost** for this account (attacker has `dk`) | Safe — still needs k-of-n Ed25519 | **Yes** — works against the deployed Move modules with no protocol change |
+| **Per-owner separate `dk`** (re-encrypt to all owners) | Their own `dk`; transfers carry one ciphertext per owner | Proposer builds proofs against multiple `ek`s; on-chain verifier checks all | Privacy lost only for the compromised owner's view; others retain it | Safe | **No** — current Move modules store one `ek` per account; would require protocol changes and breaks per-asset auditor accounting |
+| **Threshold ElGamal + threshold ZK** (true MPC) | A *share* of `dk`; no owner can decrypt alone | k owners run an interactive MPC to jointly decrypt and to build a proof; output is a single, indistinguishable proof | **Preserved** — attacker holds one share, below threshold | Safe | **No** — needs threshold-ElGamal-aware Move verifier, threshold-friendly Bulletproofs/Sigma, and a multi-round MPC channel between wallets. Substantial protocol + wallet work |
+| **Trusted-coordinator service** (one server holds `dk`, owners auth to it) | Their own Ed25519 key; auth token to coordinator | Coordinator builds proofs on owners' behalf | Lost if coordinator is compromised — single point of failure outside the wallet trust boundary | Safe (still k-of-n on chain) | Possible to build, **but rejected** — violates [Principle 1](#guiding-principles): `dk` must not leave the wallet, let alone live on a shared server |
+
+**Reasons why shared-`dk` is optimal for v1:**
+
+- It is the **only option** that runs against the existing on-chain modules without protocol changes.
+- The privacy degradation is *bounded and explicit*: the user types a confirmation to import the hex, and we document that this account's privacy is now equivalent to the weakest co-owner's wallet hygiene. This is the same trust boundary co-owners already accept for non-CA multisig (any one owner can phish-leak the account address, observed activity, etc.); we are extending that boundary to "and balance amounts."
+- Funds remain safe under the stronger guarantee — `dk` cannot produce Ed25519 signatures, so leaking `dk` cannot move money. This is the property that matters most to most users; privacy being best-effort with a clear threat model is acceptable.
+- The wallet API surface (`sender` + `mode: "buildOnly"`) is independent of the multi-owner key scheme: if we move to threshold CA later, the same dApp-facing interface keeps working — only the wallet-internal proof construction changes.
+
+The threshold approach is the right end-state. Shipping it requires Move-side changes plus an MPC protocol between wallets; both are out of scope for this wallet integration nor would they be advantageous as shared-dk is secure provided that the dk is shared securely eg with 1-Password. 
 
 ### Future path
 
@@ -432,7 +495,7 @@ The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook. Whe
 
 ### Token addressing
 
-All `ca_*` methods that take a `token` parameter must use the **fungible asset metadata object address** (32-byte FA metadata). Legacy coin type strings (e.g., `0x1::aptos_coin::AptosCoin`) must not be used.
+All `ca_*` methods that take a `token` parameter must use the **fungible asset metadata object address** (32-byte FA metadata). Legacy coin type strings (the `0x1::module::CoinType` form) must not be used.
 
 ---
 
