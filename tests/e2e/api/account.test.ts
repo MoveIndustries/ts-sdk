@@ -273,21 +273,21 @@ describe("account api", () => {
         accountAddress: senderAccount.accountAddress,
         coinType: "0x1::string::String",
       });
-      expect(getOtherCoinAmount).toBe(0);
+      expect(getOtherCoinAmount).toBe(0n);
 
       // MOVE Movement coin
       const accountMOVEAmount = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         coinType: MOVEMENT_COIN,
       });
-      expect(accountMOVEAmount).toBe(100000000);
+      expect(accountMOVEAmount).toBe(100000000n);
 
       // MOVE Movement coin by fungible asset metadata
       const accountMOVEAmount2 = await movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
         faMetadataAddress: AccountAddress.A,
       });
-      expect(accountMOVEAmount2).toBe(100000000);
+      expect(accountMOVEAmount2).toBe(100000000n);
       // By both
       // MOVE Movement coin by fungible asset metadata
       const accountMOVEAmount3 = await movement.getAccountCoinAmount({
@@ -295,7 +295,7 @@ describe("account api", () => {
         coinType: MOVEMENT_COIN,
         faMetadataAddress: "0xA",
       });
-      expect(accountMOVEAmount3).toBe(100000000);
+      expect(accountMOVEAmount3).toBe(100000000n);
       // By neither
       const failForNoCoinTypeGiven = movement.getAccountCoinAmount({
         accountAddress: senderAccount.accountAddress,
@@ -317,7 +317,7 @@ describe("account api", () => {
         accountAddress: account.accountAddress,
         asset: MOVEMENT_COIN,
       });
-      expect(balance).toBe(FUND_AMOUNT);
+      expect(balance).toBe(BigInt(FUND_AMOUNT));
     });
 
     test("it fetches account balance by FA metadata address (MOVE)", async () => {
@@ -334,7 +334,7 @@ describe("account api", () => {
         accountAddress: account.accountAddress,
         asset: AccountAddress.A,
       });
-      expect(balance).toBe(FUND_AMOUNT);
+      expect(balance).toBe(BigInt(FUND_AMOUNT));
     });
 
     test("lookupOriginalAccountAddress - Look up account address before key rotation", async () => {

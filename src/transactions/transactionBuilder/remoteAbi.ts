@@ -28,6 +28,7 @@ import {
 } from "../typeTag";
 import { parseTypeTag } from "../typeTag/parser";
 import {
+  assertSafeBigIntArg,
   convertNumber,
   findFirstNonSignerArg,
   isBcsAddress,
@@ -404,18 +405,21 @@ function parseArg(
   }
   if (param.isU64()) {
     if (isLargeNumber(arg)) {
+      assertSafeBigIntArg(arg, "u64", position);
       return new U64(BigInt(arg));
     }
     throwTypeMismatch("bigint | number | string", position);
   }
   if (param.isU128()) {
     if (isLargeNumber(arg)) {
+      assertSafeBigIntArg(arg, "u128", position);
       return new U128(BigInt(arg));
     }
     throwTypeMismatch("bigint | number | string", position);
   }
   if (param.isU256()) {
     if (isLargeNumber(arg)) {
+      assertSafeBigIntArg(arg, "u256", position);
       return new U256(BigInt(arg));
     }
     throwTypeMismatch("bigint | number | string", position);
