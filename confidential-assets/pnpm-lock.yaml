@@ -9,8 +9,8 @@ dependencies:
     specifier: ^0.0.3
     version: 0.0.3
   '@moveindustries/ts-sdk':
-    specifier: file:..
-    version: file:..(got@11.8.6)
+    specifier: ^5.0.0
+    version: 5.1.7(got@11.8.6)
   '@noble/curves':
     specifier: ^1.6.0
     version: 1.9.7
@@ -979,6 +979,24 @@ packages:
       got: ^11.8.6
     dependencies:
       got: 11.8.6
+    dev: false
+
+  /@moveindustries/ts-sdk@5.1.7(got@11.8.6):
+    resolution: {integrity: sha512-u/1ozDVDpRAUjdsLaZpopZAM5P4EeO03nkhQnCe+ScXhqOHc/A8BAdMZk5RIWObKWlQ0WQomKF1icRmAkRLO8A==}
+    engines: {node: '>=20.0.0'}
+    dependencies:
+      '@moveindustries/movement-cli': 1.1.0
+      '@moveindustries/movement-client': 2.0.0(got@11.8.6)
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      eventemitter3: 5.0.4
+      js-base64: 3.7.8
+      jwt-decode: 4.0.0
+      poseidon-lite: 0.2.1
+    transitivePeerDependencies:
+      - got
     dev: false
 
   /@napi-rs/nice-android-arm-eabi@1.1.1:
@@ -5129,23 +5147,3 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
     dev: true
-
-  file:..(got@11.8.6):
-    resolution: {directory: .., type: directory}
-    id: file:..
-    name: '@moveindustries/ts-sdk'
-    engines: {node: '>=20.0.0'}
-    dependencies:
-      '@moveindustries/movement-cli': 1.1.0
-      '@moveindustries/movement-client': 2.0.0(got@11.8.6)
-      '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      eventemitter3: 5.0.4
-      js-base64: 3.7.8
-      jwt-decode: 4.0.0
-      poseidon-lite: 0.2.1
-    transitivePeerDependencies:
-      - got
-    dev: false
