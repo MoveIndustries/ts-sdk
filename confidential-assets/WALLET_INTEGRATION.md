@@ -19,12 +19,13 @@
    - [Rollover & normalization](#rollover--normalization)
    - [Key rotation (not wallet-supported)](#key-rotation-not-wallet-supported)
 5. [Wallet UX decisions](#wallet-ux-decisions)
-6. [Hardware wallets and multisig (out of scope)](#hardware-wallets-and-multisig-out-of-scope)
-7. [Auditor support](#auditor-support)
-8. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
-9. [Wallet ↔ application interface](#wallet--application-interface)
-10. [Application conformance rules](#application-conformance-rules)
-11. [Open questions](#open-questions)
+6. [Hardware wallets](#hardware-wallets)
+7. [Multisig accounts](#multisig-accounts)
+8. [Auditor support](#auditor-support)
+9. [Safety & loss-of-funds analysis](#safety--loss-of-funds-analysis)
+10. [Wallet ↔ application interface](#wallet--application-interface)
+11. [Application conformance rules](#application-conformance-rules)
+12. [Open questions](#open-questions)
 
 ---
 
@@ -40,32 +41,33 @@
 ## Trust boundary
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Wallet (privileged process / extension background)     │
-│                                                         │
-│  • Ed25519 signing key                                  │
-│  • TwistedEd25519PrivateKey (dk) — derived, not stored  │
-│  • ZK proof construction (registration, sigma, range)   │
-│  • Balance decryption                                   │
-│  • Transaction building, signing, submission             │
-│  • Rollover / normalize orchestration                   │
-│  • Auditor key lookup                                   │
-│                                                         │
-│  Exposes: proposed ca_* dApp → wallet API (tables below)     │
-└──────────────────────┬──────────────────────────────────┘
-                       │ ca_register, ca_transfer, ...
-                       │ (intents in, tx hashes out)
-┌──────────────────────▼──────────────────────────────────┐
-│  Application (browser dApp)                             │
-│                                                         │
-│  • Token selection UI                                   │
-│  • Recipient / amount input                             │
-│  • Balance display (from wallet-decrypted values)       │
-│  • Auditor address input (optional)                     │
-│  • Transaction status / history                         │
-│                                                         │
-│  MUST NOT: hold dk, build proofs, call SDK directly     │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  Wallet (privileged process / extension background)        │
+│                                                            │
+│  - Ed25519 signing key                                     │
+│  - TwistedEd25519PrivateKey (dk) - derived on demand, or   │
+│    held in encrypted keystore (imported, multisig)         │
+│  - ZK proof construction (registration, sigma, range)      │
+│  - Balance decryption                                      │
+│  - Transaction building, signing, submission               │
+│  - Rollover / normalize orchestration                      │
+│  - Auditor key lookup                                      │
+│                                                            │
+│  Exposes: ca_* dApp -> wallet API (tables below)           │
+└──────────────────────────┬─────────────────────────────────┘
+                           │ ca_register, ca_transfer, ...
+                           │ (intents in, tx hashes out)
+┌──────────────────────────▼─────────────────────────────────┐
+│  Application (browser dApp)                                │
+│                                                            │
+│  - Token selection UI                                      │
+│  - Recipient / amount input                                │
+│  - Balance display (from wallet-decrypted values)          │
+│  - Auditor address input (optional)                        │
+│  - Transaction status / history                            │
+│                                                            │
+│  MUST NOT: hold dk, build proofs, call SDK directly        │
+└────────────────────────────────────────────────────────────┘
 ```
 
 **Normative location:** The `ca_*` method set is defined under [Method namespace](#method-namespace) in [Wallet ↔ application interface](#wallet--application-interface), not in a separate published document.
@@ -76,19 +78,21 @@
 
 ### Derivation (wallet-internal)
 
-The wallet derives `dk` from existing root material — it is never generated independently or stored as a separate secret.
+The wallet derives `dk` from existing root material the user already controls. It is never generated independently. The only persisted form is one or more user-imported standalone blobs held in the wallet's encrypted keystore for multi-owner CA custody — see the storage rule in [Security invariants](#security-invariants) below and [DK sharing among co-owners](#dk-sharing-among-co-owners).
 
-| Account type | Derivation | Reference |
+| Account backing | Derivation | Reference |
 |---|---|---|
-| **Mnemonic (typical Movement wallet)** | `TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/0'/1'/{accountIndex}'", mnemonic)` — change index `1'` avoids collision with signing paths. | motion-wallet `account.ts` |
+| **Software wallet (mnemonic in extension)** | `TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/0'/1'/{accountIndex}'", mnemonic)` — change index `1'` avoids collision with signing paths. | `twistedEd25519.ts:163` |
+| **Hardware wallet (mnemonic on-device)** | `TwistedEd25519PrivateKey.fromSignature(deviceSign(message))` — extension asks the device to sign a wallet-hard-coded derivation message and reduces the signature mod L. Ed25519 is deterministic, so the same device + same message always yields the same `dk`. The mnemonic never leaves the device. | `twistedEd25519.ts:172`; recommended message at `twistedEd25519.ts:170` |
 
-The SDK also implements `TwistedEd25519PrivateKey.fromSignature` (fixed message + Ed25519 signature) for **tests and tooling**; **wallets are not expected to use it** for normal user accounts when `fromDerivationPath` from the mnemonic is available.
+The derivation message used with `fromSignature` MUST be hard-coded in the wallet — never supplied by a dApp. Letting a dApp choose the signed payload allows it to coerce derivation of an arbitrary `dk` (phishing, wrong-`ek` registration). See [Wallet adapter integration](#wallet-adapter-integration).
 
 ### Security invariants
 
-- `dk` is derived on demand while the wallet is unlocked. When the wallet locks, the mnemonic/password are zeroed — `dk` ceases to exist in memory.
-- `dk` bytes are never returned to any web origin, never logged, never serialized to extension storage as a standalone blob.
-- The **`fromDerivationPath` template and account-index rules** must stay stable across releases. Changing the path or how `accountIndex` is chosen yields a different `dk` / `ek` and breaks existing registrations—document any change in wallet release notes.
+- `dk` is held in extension RAM only while the wallet is unlocked. On lock, the cached `dk` is zeroed along with the rest of the unlocked key material. For software-backed accounts the mnemonic is also zeroed; for hardware-backed accounts no mnemonic was in memory to begin with.
+- `dk` bytes are never returned to any web origin and never logged.
+- `dk` is stored at rest only in one of two forms: (a) **derivable on demand** from root key material the wallet already holds (the mnemonic for software-backed accounts; or, for hardware-backed accounts, re-obtained per unlock by asking the device to sign the hard-coded derivation message), or (b) a **user-imported standalone blob** in the encrypted keystore — same protections as imported Ed25519 signing keys, gated behind an explicit user import action. Form (b) exists only to support multi-owner CA custody (see [DK sharing among co-owners](#dk-sharing-among-co-owners)) and is never written by a dApp-callable code path.
+- The **derivation policy** must stay stable across releases. For software-backed accounts that means the BIP-44 path and `accountIndex` rules; for hardware-backed accounts that means the exact bytes of the `fromSignature` derivation message. Changing either yields a different `dk` / `ek` and breaks existing registrations — document any change in wallet release notes.
 
 ### Decryption key scope: one `dk` per account
 
@@ -97,10 +101,10 @@ The wallet derives **one `dk` per account**, used as the encryption keypair for 
 - **Same threat model as the signing key.** Guiding principle 1 already treats `dk` as having the same security posture as the Ed25519 signing key. Wallets do not shard signing keys per asset; sharding `dk` per asset is inconsistent with that posture.
 - **Front-running is already mitigated** at the protocol layer by the pending/actual balance split. It does not depend on per-asset key separation.
 - **Rotation is per-`(user, token)` registration on-chain regardless.** Each registered asset has its own `ek` slot in the confidential store; rotating one registration does not affect the others, whether `dk` is shared or not. Per-asset keys multiply the number of independent rotation flows to manage; they do not reduce partial-failure surface.
-- **Recovery is simpler.** With one `dk` per account, mnemonic recovery is equivalent to account recovery — no need to enumerate which assets were ever registered.
+- **Recovery is simpler.** With one `dk` per account, mnemonic recovery is equivalent to account recovery for that account's natively-derived `dk` — no need to enumerate which assets were ever registered. (Imported `dk` for multi-owner CA custody is recovered separately from the user's external hex backup; mnemonic recovery does not reproduce it. See [DK sharing among co-owners](#dk-sharing-among-co-owners).)
 - **Per-asset isolation, when wanted, is achieved by using a separate account** (different `accountIndex`), exactly as users already isolate signing-key authority today.
 
-The Aptos confidential-asset documentation notes that reusing one encryption keypair across tokens is permitted (its "unique keypair per token" guidance is a recommendation, not a requirement) and explicitly states that encryption keypairs are **standalone** from account signing keys.
+The on-chain `confidential_asset` module permits reusing one encryption keypair across tokens; per-asset separation is a deployment choice, not a protocol requirement. Encryption keypairs are also independent of account signing keys — they are not derived from the Ed25519 scalar.
 
 **Path structure recap.** The signing key lives at `m/44'/637'/0'/0'/{accountIndex}'`; `dk` lives at the sibling change branch `m/44'/637'/0'/1'/{accountIndex}'`. Same account, domain-separated by the BIP-44 change index — so `dk` is bound to the account but is **not** the same scalar as the signing key (which would conflate two cryptosystems on shared raw bytes).
 
@@ -108,13 +112,15 @@ The Aptos confidential-asset documentation notes that reusing one encryption key
 
 ## Operation-by-operation design
 
+The tables in this section describe the default **`mode: "submit"`** flow, where the wallet signs and submits a transaction for its own account. For multisig CA operations the dApp passes `sender = <multisig account address>` and `mode: "buildOnly"`; the wallet stops at proof construction and returns BCS-encoded `EntryFunction` bytes instead of submitting (see [Multisig accounts](#multisig-accounts) and [Wallet ↔ application interface](#wallet--application-interface)).
+
 ### Register
 
 **What happens:** The wallet registers an encryption key (`ek`) for a `(user, token)` pair on-chain, along with a ZK proof-of-knowledge that it holds the corresponding `dk`.
 
 **Who does what:**
 
-| Step | Owner |
+| Step | Actor |
 |---|---|
 | User clicks "Enable confidential balance" for a token | App |
 | App calls `ca_register({ token })` | App → Wallet |
@@ -129,7 +135,7 @@ The Aptos confidential-asset documentation notes that reusing one encryption key
 
 **What happens:** Public fungible asset balance is moved into the confidential pending balance. The deposited amount is **public** on-chain.
 
-| Step | Owner |
+| Step | Actor |
 |---|---|
 | User enters amount to deposit | App |
 | App calls `ca_deposit({ token, amount })` | App → Wallet |
@@ -143,7 +149,7 @@ The Aptos confidential-asset documentation notes that reusing one encryption key
 
 **What happens:** Confidential balance is moved back to public fungible asset balance. The withdrawn amount is **public** on-chain. Requires a ZK proof that the remaining balance is non-negative.
 
-| Step | Owner |
+| Step | Actor |
 |---|---|
 | User enters amount to withdraw | App |
 | App calls `ca_withdraw({ token, amount })` | App → Wallet |
@@ -159,7 +165,7 @@ The Aptos confidential-asset documentation notes that reusing one encryption key
 
 **What happens:** Encrypted value moves from sender to recipient. The transfer amount is **hidden** on-chain. Requires sigma proof + two range proofs (new balance, transfer amount).
 
-| Step | Owner |
+| Step | Actor |
 |---|---|
 | User enters recipient, amount, (optionally auditor addresses) | App |
 | App calls `ca_transfer({ token, recipient, amount, auditorAddresses? })` | App → Wallet |
@@ -197,15 +203,15 @@ While transaction fees remain low, the wallet should automatically rollover pend
 
 ### Key rotation (not wallet-supported)
 
-**On-chain protocol:** The `confidential_asset` module can replace a user’s registered encryption key (`rotate_encryption_key`, with optional **`rotate_encryption_key_and_unfreeze`**). That typically involves old and new `dk` material, sigma/range proofs, and often **freezing** the confidential store so inbound transfers do not land mid-rotation—see the Move module and the SDK’s `rotateEncryptionKey` builder for the full sequence.
+**On-chain protocol:** The `confidential_asset` module can replace a user's registered encryption key (`rotate_encryption_key`, with optional **`rotate_encryption_key_and_unfreeze`**). That typically involves old and new `dk` material, sigma/range proofs, and often **freezing** the confidential store so inbound transfers do not land mid-rotation—see the Move module and the SDK's `rotateEncryptionKey` builder for the full sequence.
 
-**Movement Wallet scope:** Motion Wallet does **not** plan to support Ed25519 **signing key** rotation. For the same product scope, this integration treats **decryption key rotation as out of scope**: there is **no** wallet UI and **no** `ca_rotateEncryptionKey` (or similar) on the wallet ↔ dApp surface.
+**Motion Wallet scope:** Motion Wallet does **not** plan to support Ed25519 **signing key** rotation. For the same product scope, this integration treats **decryption key rotation as out of scope**: there is **no** wallet UI and **no** `ca_rotateEncryptionKey` (or similar) on the wallet ↔ dApp surface.
 
 **Advanced users:** If you need same-account key rotation (e.g., suspected `dk` compromise), use the **Confidential Assets TypeScript SDK** (`@moveindustries/confidential-assets`) **directly** in an environment you trust—build transactions with `ConfidentialAsset` / `ConfidentialAssetTransactionBuilder` (e.g. `rotateEncryptionKey`) and submit them like any other custom script. That path is for **technical users** who can hold `dk` and follow the freeze/rotate/unfreeze rules themselves; it is **not** something this document promises from the wallet.
 
 **Threat-model note: rotation only addresses `dk`-only compromise.** `rotate_encryption_key` re-encrypts in place under a new `ek` for a single registration. It is the right tool when **only `dk` is suspected to be exposed** while the Ed25519 signing key and mnemonic remain safe. **It is not** the right tool for the "lost device / lost backup" case, where the **mnemonic** is potentially exposed: in that scenario every key derivable from the mnemonic — signing key, `dk`, and any future per-account material — is compromised. The correct response is the same as for signing-key compromise: **generate a new account from a fresh mnemonic and confidentially-transfer balances out of the old one**, not rotate `dk` in place. Wallet UI should communicate this distinction clearly.
 
-**Rotating across multiple registered assets.** Because rotation is per-`(user, token)` registration on-chain, an advanced user who has registered `ek` for several assets and wants to rotate all of them must submit one rotation flow per asset. SDK-side helpers (e.g., a `rotateEncryptionKeyAll` convenience that loops over the user's registered assets) **must be resumable and idempotent per asset**: if rotation succeeds for assets `A` and `B` but fails for `C`, re-running the helper must pick up at `C` without retrying `A`/`B`. A natural implementation is: enumerate registered assets, check whether each registration's on-chain `ek` already matches the new key, and skip the ones that do. This addresses the partial-failure concern raised in PR review without requiring per-asset `dk` separation.
+**Rotating across multiple registered assets.** Because rotation is per-`(user, token)` registration on-chain, an advanced user who has registered `ek` for several assets and wants to rotate all of them must submit one rotation flow per asset. SDK-side helpers (e.g., a `rotateEncryptionKeyAll` convenience that loops over the user's registered assets) **must be resumable and idempotent per asset**: if rotation succeeds for assets `A` and `B` but fails for `C`, re-running the helper must pick up at `C` without retrying `A`/`B`. A natural implementation is: enumerate registered assets, check whether each registration's on-chain `ek` already matches the new key, and skip the ones that do.
 
 **dApps:** Do not rely on the wallet to perform or orchestrate key rotation.
 
@@ -227,38 +233,60 @@ For well-known assets (MOVE, USDC, WETH, WBTC, etc.), auto-rollover should happe
 
 ---
 
-## Hardware wallets and multisig (out of scope)
+## Hardware wallets
 
-Hardware wallets (e.g., Ledger) and multisig are **explicit non-goals for v1** of this integration. The reasoning is that CA changes the custody story in ways that go beyond "the same flows, with a different signer," and pretending otherwise would mislead users about what protection they have.
+Motion Wallet can back a single account with a hardware device (e.g. Ledger) and still expose the `ca_*` interface. Because the mnemonic stays on-device, the extension cannot run `fromDerivationPath`; it derives `dk` via `fromSignature` instead — see [Decryption key lifecycle](#decryption-key-lifecycle). The natively-derived `dk` is re-derived from a fresh device signature each time the wallet unlocks; it is not persisted at rest. (A hardware-backed wallet that has additionally imported a `dk` for multi-owner CA custody persists that imported `dk` in its encrypted keystore — see [Security invariants](#security-invariants).)
 
-### Why a hardware wallet doesn't transparently apply
+**What this protects.** The Ed25519 signing key stays on the device. An extension compromise cannot move funds via standard transactions or sign multisig approvals; the user has to press the device button.
 
-For a normal Aptos transfer, a Ledger protects the Ed25519 signing key and that is sufficient. CA is different: every confidential operation needs `dk` available to **decrypt the current balance** and to **construct ZK proofs** (sigma + range / bulletproofs). Today's Ledger Aptos app does not implement Ristretto scalar arithmetic or bulletproof generation, so the practical options are:
+**What it does not protect.** `dk` lives in extension RAM whenever a CA operation runs (decrypting balances, building proofs). An extension compromise during that window leaks balance privacy and lets the attacker construct valid CA proofs against the user's `ek`. Those proofs still require a device button-press to execute on chain, so funds remain safe; **privacy** is lost. Wallet UI for hardware-backed accounts must not represent confidential balances as device-protected.
 
-- **Hold `dk` outside the Ledger** (in the wallet host) — defeats most of the point of using a hardware wallet for CA.
-- **Extend the Ledger app** to do CA decryption and proof generation on-device — a substantial firmware/app effort, not a wallet-side feature.
+**Requires.** The device's chain app must expose deterministic message-signing for arbitrary fixed bytes. Without that capability, CA cannot run against that hardware backing.
 
-A v1 wallet integration cannot honestly advertise "Ledger-protected confidential balances" without that on-device support existing.
+**Future path.** Device-side Ristretto and bulletproof support (chain app extension) would move `dk` and proof construction on-device, closing the privacy gap above.
 
-### Why multisig is not a drop-in either
+---
 
-Aptos multisig today authorizes **signing**. CA proofs are constructed by whoever holds `dk`. A k-of-n signing policy that wraps a single shared `dk` is just shared-secret custody — every signer (or anyone who compromises one) can decrypt and prove independently, so it does not give the security properties users expect from "multisig."
+## Multisig accounts
 
-True threshold CA — where decryption and proof generation are themselves k-of-n, and no single party ever holds `dk` — requires threshold ElGamal decryption and threshold proof construction. That is a protocol/research item, not something a wallet can paper over.
+A multisig account is a resource account: it holds funds but has no private key, so a multisig account cannot run `fromDerivationPath` itself. CA proofs for multisig CA operations must bind to the multisig account's address — the SDK's Fiat–Shamir transcript includes `senderAddress` (see `src/crypto/fiatShamir.ts`), and proofs built against any other address abort on chain.
 
-### Recommended pattern for treasury-scale users
+### Wallet API requirements
 
-Until on-device CA or threshold CA exists, users with large balances should keep the bulk in a **normal (non-CA) cold or multisig account** and only top up a CA hot account as needed for confidential transfers. This sidesteps both problems: the cold-storage account uses standard Ed25519 custody (Ledger / multisig work as usual), and the CA account behaves like a hot wallet sized to recent activity.
+A CA-aware wallet supports multisig CA operations by accepting two extra parameters on every `ca_*` write method:
 
-### Summary
+- **`sender?: string`** — the address bound into the Fiat–Shamir transcript. Defaults to the wallet's own account; for multisig CA operations the dApp passes the multisig account's address. Without this, every proof is implicitly bound to the wallet account and aborts when executed by the multisig account.
+- **`mode?: "submit" | "buildOnly"`** — in `buildOnly` mode the wallet returns BCS-encoded `EntryFunction` bytes instead of submitting. The dApp wraps the bytes in `MultiSigTransactionPayload` and proposes via `multisig_account::create_transaction`.
 
-| Concern | v1 status | Future path |
-|---|---|---|
-| Hardware wallet (Ledger) custody of CA | **Not supported.** `dk` cannot live on a Ledger that does not implement Ristretto / bulletproofs. | Ledger Aptos app extension for on-device CA decryption and proof generation. |
-| Multisig over CA operations | **Not supported.** Aptos multisig signs transactions but does not split `dk`. | Threshold CA (threshold decryption + threshold proof generation) — protocol-level work. |
-| Treasury-scale CA usage | Use a cold/multisig **non-CA** account for storage, top up a CA hot account for spending. | Same, until threshold CA is available. |
+A request with `sender` set to anything other than the wallet's own account address MUST also set `mode: "buildOnly"`. The wallet has no key for the multisig account and cannot sign a transaction with a non-wallet sender; the wallet MUST reject `{ sender: <other>, mode: "submit" }` requests.
 
-Wallet UI should not surface "Ledger" or "multisig" affordances against confidential balances in v1, and dApps must not assume either is available behind `ca_*` calls.
+With those in place the dApp builds no proofs and holds no `dk`: the wallet builds proofs against the multisig account's address, returns the entry function bytes, and the dApp proposes it through the standard multisig flow. Approval and execution paths require no `dk` and are unchanged.
+
+### DK sharing among co-owners
+
+`dk` is per-account material derived inside one owner's wallet — by `fromDerivationPath` for software-backed accounts or `fromSignature` for hardware-backed accounts — and cannot be reproduced by any other co-owner from their own wallet alone. Multi-owner CA custody therefore requires sharing `dk`:
+
+1. One designated owner derives `dk` normally in their wallet.
+2. They register the corresponding `ek` against the **multisig account's** address on-chain (via a multisig proposal).
+3. They export the 32-byte `dk` hex from their wallet UI and share it with co-owners through a secure out-of-band channel (e.g. 1Password).
+4. Co-owners import the hex into their wallets.
+
+After that, every co-owner's wallet can build proofs for multisig CA operations.
+
+This export/import pattern is a **narrow carveout to [Principle 1](#guiding-principles)**, permitted only:
+
+- Behind an explicit, user-initiated wallet UI action with a clear warning and a typed confirmation.
+- Never via a dApp-callable method on the `ca_*` interface — there is no `ca_exportDk`, no `ca_importDk`. The dApp cannot ask the wallet for `dk` bytes; only the user can.
+
+**Threat model.** If the shared `dk` hex leaks (compromised password manager, screenshot, etc.), the multisig account's **privacy** is lost: the attacker can decrypt its confidential balances and observe transfer amounts. The multisig account's **funds** remain safe — moving funds still requires k-of-n owner Ed25519 signatures on the multisig proposal, which `dk` alone cannot produce. The shared 32-byte hex is a one-way function of the originating owner's root key material in both `fromDerivationPath` and `fromSignature`, so leaking the hex never leaks the mnemonic or device key.
+
+### Treasury-scale balances
+
+Users with large balances should keep the bulk in a **normal (non-CA) cold or multisig account** and only top up a CA hot account (or CA multisig account) as needed for confidential transfers. The cold account uses standard Ed25519 custody with no privacy posture to defend; the CA account is sized to recent activity, so a privacy compromise has bounded blast radius.
+
+### Future path
+
+Threshold CA — per-owner secret shares of `dk`, threshold ElGamal decryption, threshold proof construction — removes the DK-sharing step entirely. Protocol-level work, not a wallet feature.
 
 ---
 
@@ -268,7 +296,7 @@ Wallet UI should not surface "Ledger" or "multisig" affordances against confiden
 
 The on-chain protocol supports **auditors** — third parties who receive encrypted copies of transfer amounts under their own encryption keys. There are two distinct sources:
 
-1. **Per-asset (primary) auditor:** One optional auditor encryption key is stored **on-chain** per fungible asset. It is **installed or updated only by the framework account** (`set_auditor` in Move — i.e. **network / governance**, not a user’s or “issuer’s” wallet). The SDK reads it with `get_auditor(token)`. When set, senders must include that auditor in the transfer; it sees every confidential transfer for that asset.
+1. **Per-asset (primary) auditor:** One optional auditor encryption key is stored **on-chain** per fungible asset. It is **installed or updated only by the framework account** (`set_auditor` in Move — i.e. **network / governance**, not a user's or "issuer's" wallet). The SDK reads it with `get_auditor(token)`. When set, senders must include that auditor in the transfer; it sees every confidential transfer for that asset.
 
 2. **Per-transfer (voluntary) auditors:** The sender can include **additional** auditor encryption keys at transfer time. These are **not** stored on-chain — they only appear in the transaction data and the emitted `Transferred` event. They are useful for compliance, personal accounting, or regulated counterparties.
 
@@ -299,7 +327,7 @@ The on-chain protocol supports **auditors** — third parties who receive encryp
 
 ### Auditor epoch (future consideration)
 
-A security review of the upstream Aptos CA protocol recommends adding an `auditor_epoch` field to the confidential store to track auditor key rotations and prevent stale auditor keys from being used. This is a potential on-chain enhancement to track and integrate when available.
+An `auditor_epoch` field on the confidential store would let senders tell whether their cached per-asset auditor key is current and refuse to encrypt to a stale one. This is a potential on-chain enhancement; the wallet would read the epoch alongside `get_auditor` and refresh on mismatch.
 
 ---
 
@@ -311,9 +339,9 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 | Scenario | Impact | Mitigation |
 |---|---|---|
-| **dk lost** (wallet uninstalled, mnemonic lost) | Funds remain on-chain but cannot be spent or withdrawn — effectively frozen forever. The Ed25519 signing key is not compromised. | Same mnemonic backup story as the signing key. Wallet should clearly communicate that mnemonic recovery restores both signing and CA decryption capability. |
-| **dk derived differently after restore** (derivation policy changed, different wallet software) | Restored `dk` does not match the registered `ek` — same as key loss. | Wallets must use a stable, documented **`fromDerivationPath` policy** (path string, account index). Wallet version notes must flag any derivation changes. |
-| **dk compromised** (malware, leaked) | Attacker can decrypt all balances and construct valid proofs. Combined with a compromised Ed25519 key, attacker can transfer funds. `dk` alone cannot sign transactions. | Prefer moving funds to a **new account** with fresh keys when possible. On-chain **`rotate_encryption_key`** can re-encrypt in place, but **Movement Wallet does not expose rotation**—use **`@moveindustries/confidential-assets`** directly if you must rotate without a wallet UI. |
+| **dk lost** (wallet uninstalled, mnemonic lost) | Funds remain on-chain but cannot be spent or withdrawn — effectively frozen forever. The Ed25519 signing key is not compromised. | Same mnemonic backup story as the signing key for natively-derived `dk`: mnemonic recovery restores both signing and CA decryption capability. Imported `dk` (multi-owner CA custody) is **not** covered by mnemonic recovery — the user must independently retain the imported hex (e.g., 1Password). Wallet UI should communicate both. |
+| **dk derived differently after restore** (derivation policy changed, different wallet software) | Restored `dk` does not match the registered `ek` — same as key loss. | Wallets must use a stable, documented derivation policy: BIP-44 path and `accountIndex` rules for software-backed accounts; exact `fromSignature` message bytes for hardware-backed accounts. Wallet version notes must flag any change. |
+| **dk compromised** (malware, leaked) | Attacker can decrypt all balances and construct valid proofs. Combined with a compromised Ed25519 key, attacker can transfer funds. `dk` alone cannot sign transactions. | Prefer moving funds to a **new account** with fresh keys when possible. On-chain **`rotate_encryption_key`** can re-encrypt in place, but **Motion Wallet does not expose rotation**—use **`@moveindustries/confidential-assets`** directly if you must rotate without a wallet UI. |
 | **Wrong `ek` registered** (registered from a key not held by the user's wallet) | Wallet cannot decrypt or spend — same as key loss for that `(account, token)` pair. | Registration is wallet-only; the dApp cannot register an arbitrary `ek`. The wallet always derives and registers its own key. |
 
 ### Operational risks
@@ -331,7 +359,7 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 | Scenario | Impact | Mitigation |
 |---|---|---|
-| **Frozen store** (e.g. frozen for rotation or protocol reasons) | Inbound transfers rejected until unfrozen. | Wallet UI should show **frozen** clearly. Movement Wallet **does not** run freeze → rotate → unfreeze; if the user froze or rotated via **`@moveindustries/confidential-assets`** (or another tool), they must complete recovery there or move funds per protocol rules. |
+| **Frozen store** (e.g. frozen for rotation or protocol reasons) | Inbound transfers rejected until unfrozen. | Wallet UI should show **frozen** clearly. Motion Wallet **does not** run freeze → rotate → unfreeze; if the user froze or rotated via **`@moveindustries/confidential-assets`** (or another tool), they must complete recovery there or move funds per protocol rules. |
 | **Allow list / token disabled** | Deposits and transfers may abort. Withdrawals may still work. | Wallet should check token status before building transactions and surface clear errors. |
 | **Pending counter overflow** (too many inbound operations before rollover) | Further deposits and transfers to this account are rejected. | Auto-rollover after each inbound operation prevents this from accumulating. |
 
@@ -345,7 +373,7 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 **Normative reference.** The read and write method tables in this section are the **definitive** list of `ca_*` names and shapes referenced elsewhere in this document.
 
-**Mapping to the chain and SDK.** Implementations of these entry points call the confidential-asset module’s Move `view` and `entry` functions as required. For example, the per-asset auditor is read via the on-chain `get_auditor` view. The package `@moveindustries/confidential-assets` provides the corresponding API for **trusted (non–browser) code** as `ConfidentialAsset.getAssetAuditorEncryptionKey`.
+**Mapping to the chain and SDK.** Implementations of these entry points call the confidential-asset module's Move `view` and `entry` functions as required. For example, the per-asset auditor is read via the on-chain `get_auditor` view. The package `@moveindustries/confidential-assets` provides the corresponding API for **trusted (non-browser) code** as `ConfidentialAsset.getAssetAuditorEncryptionKey`.
 
 ### Read methods
 
@@ -360,11 +388,15 @@ Every CA scenario must be validated to ensure it does not lead to loss of funds 
 
 | Method | Request | Response | Notes |
 |---|---|---|---|
-| `ca_register` | `{ token }` | `{ txHash }` | Wallet derives dk, builds proof, submits |
-| `ca_deposit` | `{ token, amount }` | `{ txHash }` | Auto-registers if needed |
-| `ca_withdraw` | `{ token, amount }` | `{ txHash }` | Auto-rollover/normalize if needed |
-| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint? }` | `{ txHash }` | Auto-rollover/normalize if needed |
-| `ca_rolloverPending` | `{ token }` | `{ txHash }` | Explicit rollover; auto-normalizes if needed |
+| `ca_register` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Wallet derives dk, builds proof, submits (or returns BCS bytes if `mode: "buildOnly"`) |
+| `ca_deposit` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Auto-registers if needed |
+| `ca_withdraw` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Auto-rollover/normalize if needed |
+| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint?, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Auto-rollover/normalize if needed |
+| `ca_rolloverPending` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Explicit rollover; auto-normalizes if needed |
+
+**`sender`** defaults to the wallet's own account address. Pass an explicit value (e.g. a multisig account address) when the executing signer is not the wallet account; the value is bound into the proof's Fiat–Shamir transcript and must match the executor at chain-verification time. A non-default `sender` requires `mode: "buildOnly"` — the wallet cannot sign a transaction on behalf of an account whose key it does not hold.
+
+**`mode`** defaults to `"submit"`. `"buildOnly"` returns BCS-encoded `EntryFunction` bytes (which the dApp wraps in `MultiSigTransactionPayload`) instead of submitting a transaction. See [Multisig accounts](#multisig-accounts).
 
 ### Return values
 
@@ -396,7 +428,7 @@ const { txHash } = await caTransfer({ token, recipient, amount: "100" });
 
 This is **not** the same as running the `ConfidentialAsset` SDK in the browser — these are RPC calls to the wallet.
 
-The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook. If the wallet ever derives `dk` from a signature, the signed payload must be **fixed by the wallet**, not supplied by the dApp—otherwise phishing or wrong-`ek` registration is possible. Normal wallet flows use **`fromDerivationPath`** from the mnemonic instead.
+The adapter **must not** offer a generic "sign arbitrary bytes for CA" hook. When the wallet derives `dk` via `fromSignature` (the supported path for hardware-backed accounts — see [Decryption key lifecycle](#decryption-key-lifecycle)), the signed payload must be **fixed by the wallet**, not supplied by the dApp — otherwise phishing or wrong-`ek` registration is possible. Software-backed accounts use `fromDerivationPath` from the mnemonic and never sign anything for derivation.
 
 ### Token addressing
 
@@ -411,7 +443,7 @@ Browser dApps integrating with confidential assets must follow these rules:
 | ID | Rule |
 |---|---|
 | A1 | dApps must not hold the user's Ed25519 signing private key. `ek` registration is **wallet-only** via `ca_register`. |
-| A2 | dApps must not obtain, derive, or hold `TwistedEd25519PrivateKey` in the dApp process. They must not run the CA SDK for proof construction or balance decryption in page JavaScript. They must use `ca_*` methods for all CA operations. |
+| A2 | dApps must not obtain, derive, or hold `TwistedEd25519PrivateKey` in the dApp process. They must not run the CA SDK for proof construction or balance decryption in page JavaScript. They must use `ca_*` methods for all CA operations, including multisig CA operations (which use the `sender` and `mode: "buildOnly"` parameters — see [Multisig accounts](#multisig-accounts)). |
 | A3 | dApps must not persist, log, or forward CA decryption key material. They must not ask the wallet to export `TwistedEd25519PrivateKey` to the page. |
 | A4 | dApps must not derive `TwistedEd25519PrivateKey` in the page (`fromDerivationPath`, `fromSignature`, or otherwise). CA key derivation is wallet-internal. |
 | A5 | dApps must pass FA metadata addresses for `token` (see [token addressing](#token-addressing)). |
@@ -421,15 +453,13 @@ Browser dApps integrating with confidential assets must follow these rules:
 
 ## Resolved decisions
 
-Captured from team discussion:
-
 | # | Decision | Resolution |
 |---|---|---|
 | 1 | **Rollover strategy** | **Automatic after each inbound transfer/deposit** while fees are low. This avoids exposing "pending balance" as a user concept and avoids normalization being user-visible. |
 | 2 | **Balance visibility** | **Show confidential balances by default** as a separate asset row (e.g., "Shielded MOVE" below "MOVE"). Confidential means on-chain privacy, not hiding from the user's own display. |
 | 3 | **Normalization** | **Never user-facing.** If auto-rollover happens after each inbound operation, normalization is handled transparently. Even if it is needed, the wallet chains it internally before rollover. |
 | 4 | **Auditor model** | One **optional per-asset auditor** (governance-set via `set_auditor`) plus **optional per-transfer auditors** chosen by the sender. Both must be supported by the wallet. |
-| 5 | **Encryption key rotation** | **Not supported in Movement Wallet** (aligned with no Ed25519 signing-key rotation in product). On-chain rotation remains available via **`@moveindustries/confidential-assets`** for advanced users. |
+| 5 | **Encryption key rotation** | **Not supported in Motion Wallet** (aligned with no Ed25519 signing-key rotation in product). On-chain rotation remains available via **`@moveindustries/confidential-assets`** for advanced users. |
 
 ---
 
@@ -441,7 +471,7 @@ These should be resolved before implementation:
 |---|---|---|---|
 | 1 | **Should `ca_deposit` auto-register?** | (a) Yes — seamless. (b) No — require explicit `ca_register` first. | Auto-register is better UX; two transactions (register + deposit) can be sequenced by the wallet. |
 | 2 | **Auditor address UX** | (a) Per-transfer entry only. (b) Wallet-managed address book. (c) dApp provides a list, wallet confirms. | For v1, (a) or (c) is likely sufficient. An enterprise dashboard for managing auditors per asset is a separate concern. |
-| 3 | **Auditor epoch** | Should the on-chain module track an auditor epoch to prevent stale auditor keys? | Flagged in the upstream security review. Needs on-chain changes. |
+| 3 | **Auditor epoch** | Should the on-chain module track an auditor epoch to prevent stale auditor keys? | Needs on-chain changes; out of scope for the wallet itself. |
 | 4 | **Error reporting granularity** | What does the dApp see when rollover fails, normalization fails, proof generation fails, or the chain rejects? | Wallet should map internal failures to meaningful dApp-facing errors without leaking protocol internals. |
 | 5 | **Multi-transaction flows** | When withdraw requires rollover + normalize + withdraw (3 txs), does the wallet handle all three silently, or notify the dApp of intermediate steps? | Recommend silent chaining with a single response for the final operation. |
 | 6 | **Concurrent operations** | Can a dApp fire `ca_transfer` while a `ca_rolloverPending` is in flight? | Wallet should serialize CA operations per account/token to avoid on-chain race conditions. |
@@ -449,4 +479,4 @@ These should be resolved before implementation:
 
 ---
 
-*This document is a starting point for discussion. Once we agree on the remaining open questions, the implementation plan follows from the operation tables above.*
+*Once the open questions above are resolved, the implementation plan follows from the operation tables.*
