@@ -391,6 +391,7 @@ describe("Generate 'confidential coin' proofs", () => {
         chainId: TEST_CHAIN_ID,
         senderAddress: TEST_SENDER_ADDR,
         contractAddress: TEST_CONTRACT_ADDR,
+        tokenAddress: TEST_TOKEN_ADDR,
       });
 
       expect(isValid).toBeTruthy();
