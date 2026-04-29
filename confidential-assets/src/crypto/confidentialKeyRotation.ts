@@ -204,6 +204,7 @@ export class ConfidentialKeyRotation {
       this.chainId,
       this.senderAddress,
       this.contractAddress,
+      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.currentEncryptedAvailableBalance.publicKey.toUint8Array(),
@@ -259,6 +260,7 @@ export class ConfidentialKeyRotation {
     chainId: number;
     senderAddress: Uint8Array;
     contractAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     const alpha1LEList = opts.sigmaProof.alpha1List.map(bytesToNumberLE);
     const alpha2LE = bytesToNumberLE(opts.sigmaProof.alpha2);
@@ -271,6 +273,7 @@ export class ConfidentialKeyRotation {
       opts.chainId,
       opts.senderAddress,
       opts.contractAddress,
+      opts.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       opts.currPublicKey.toUint8Array(),

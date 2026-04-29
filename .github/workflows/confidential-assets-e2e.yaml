@@ -1,0 +1,230 @@
+name: Confidential Assets E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run nightly at 02:00 UTC.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  # Pinned to a commit on movementlabsxyz/aptos-core's confidential-asset-prod
+  # branch so CI is reproducible and won't drift if the branch advances.
+  # Bump when intentional changes to the localnet/module setup are needed.
+  #
+  # f496b6c1: bind token_address into the FS transcript for transfer/withdraw/
+  # rotation/normalization sigma proofs. Wire-format-breaking change; ships
+  # together with the corresponding TS SDK updates in this repo.
+  APTOS_CORE_COMMIT: f496b6c1679e5b1da5983569c909d9c9fccd5e9e
+
+jobs:
+  ca-e2e:
+    name: Confidential Assets E2E (Localnet)
+    runs-on: ubuntu-latest
+    # The aptos-core localnet script builds the movement CLI from source,
+    # which is slow on a clean runner. Allow generous headroom.
+    timeout-minutes: 90
+    steps:
+      - name: Checkout ts-sdk
+        uses: actions/checkout@v6
+        with:
+          path: ts-sdk
+
+      - name: Checkout aptos-core (pinned)
+        uses: actions/checkout@v6
+        with:
+          repository: movementlabsxyz/aptos-core
+          ref: ${{ env.APTOS_CORE_COMMIT }}
+          path: aptos-core
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ts-sdk/.node-version
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.90"
+
+      - name: Install aptos-core build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake clang lld pkg-config \
+            libssl-dev libudev-dev libdw-dev curl jq
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            aptos-core
+
+      # Binary cache keyed on the pinned aptos-core commit. The first run on a
+      # new APTOS_CORE_COMMIT compiles movement CLI (~30 min); every run after
+      # that on the same pin restores ~/.../target/release/movement directly,
+      # and start-localnet-confidential-assets.sh skips its cargo build because
+      # the binary already exists at $REPO_ROOT/target/release/movement.
+      - name: Cache movement CLI binary
+        id: movement-bin-cache
+        uses: actions/cache@v4
+        with:
+          path: aptos-core/target/release/movement
+          key: movement-bin-${{ runner.os }}-${{ env.APTOS_CORE_COMMIT }}
+
+      - name: Report movement CLI cache status
+        run: |
+          if [[ "${{ steps.movement-bin-cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "movement CLI restored from cache for commit ${APTOS_CORE_COMMIT} — skipping compile."
+            ls -l aptos-core/target/release/movement
+          else
+            echo "movement CLI cache miss for commit ${APTOS_CORE_COMMIT} — script will build it (slow first run)."
+          fi
+
+      # Install root + confidential-assets package deps and build, before
+      # localnet is up — keeps the localnet's idle window short.
+      - name: Install root deps
+        working-directory: ts-sdk
+        run: pnpm install --frozen-lockfile
+
+      - name: Build root SDK
+        working-directory: ts-sdk
+        run: pnpm build
+
+      - name: Install confidential-assets deps
+        working-directory: ts-sdk/confidential-assets
+        run: pnpm install --frozen-lockfile
+
+      - name: Build confidential-assets
+        working-directory: ts-sdk/confidential-assets
+        run: pnpm build
+
+      - name: Start localnet + publish confidential_asset module
+        working-directory: aptos-core
+        run: |
+          set -euo pipefail
+          LOG="${RUNNER_TEMP}/ca-localnet-script.log"
+          # Run the script detached; it builds movement CLI, starts localnet,
+          # enables feature flag 87, and publishes AptosExperimental. Output
+          # is tee'd so we can parse the publish-signer address out of it.
+          nohup bash ./scripts/start-localnet-confidential-assets.sh \
+            > "$LOG" 2>&1 &
+          SCRIPT_PID=$!
+          echo "SCRIPT_PID=$SCRIPT_PID" >> "$GITHUB_ENV"
+          echo "CA_LOCALNET_LOG=$LOG" >> "$GITHUB_ENV"
+          echo "Started script (PID=$SCRIPT_PID), tailing $LOG"
+
+      - name: Wait for module publish + extract address
+        run: |
+          set -euo pipefail
+          LOG="${CA_LOCALNET_LOG}"
+          # The script prints, partway through:
+          #   Funding move publish signer (default profile) 0x<64-hex> via faucet ...
+          # and then later:
+          #   Done — feature flag and (if enabled) publish finished.
+          # We wait for the "Done" line so the module is actually on-chain
+          # before extracting the publish-signer address.
+          DEADLINE=$((SECONDS + 60 * 60))  # 60 min cap on the localnet script
+          NEXT_HEARTBEAT=$((SECONDS + 30))
+          while (( SECONDS < DEADLINE )); do
+            if grep -q "Done — feature flag" "$LOG" 2>/dev/null; then
+              break
+            fi
+            if ! kill -0 "$SCRIPT_PID" 2>/dev/null; then
+              echo "Localnet script exited before publish completed:" >&2
+              cat "$LOG"
+              exit 1
+            fi
+            # Heartbeat: every 30s print elapsed time and the tail of the log so
+            # CI viewers can see progress (cargo build lines, faucet polling, etc.)
+            # instead of staring at a blank step.
+            if (( SECONDS >= NEXT_HEARTBEAT )); then
+              echo "--- waiting for module publish (elapsed ${SECONDS}s; tail of $LOG) ---"
+              tail -n 20 "$LOG" 2>/dev/null || echo "(no log yet)"
+              echo "--- end tail ---"
+              NEXT_HEARTBEAT=$((SECONDS + 30))
+            fi
+            sleep 5
+          done
+          if ! grep -q "Done — feature flag" "$LOG"; then
+            echo "Timed out waiting for module publish." >&2
+            cat "$LOG"
+            exit 1
+          fi
+          ADDR=$(grep -oE 'publish signer \(default profile\) 0x[0-9a-f]{64}' "$LOG" \
+                 | head -n1 | awk '{print $NF}')
+          if [[ -z "$ADDR" ]]; then
+            echo "Could not parse publish-signer address from script output." >&2
+            cat "$LOG"
+            exit 1
+          fi
+          echo "CONFIDENTIAL_MODULE_ADDRESS=$ADDR"
+          echo "CONFIDENTIAL_MODULE_ADDRESS=$ADDR" >> "$GITHUB_ENV"
+
+      - name: Verify REST endpoint is up
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/v1 > /dev/null; then
+              echo "REST ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "REST not ready" >&2
+          cat "${CA_LOCALNET_LOG}"
+          exit 1
+
+      # The TS e2e helper uses movement.getAccountCoinAmount, which queries the
+      # indexer GraphQL endpoint at 127.0.0.1:8090. start-localnet-confidential-assets.sh
+      # boots localnet with --with-indexer-api so that endpoint should be up; verify
+      # before running tests so a missing indexer fails fast with a clear message
+      # instead of a forest of ECONNREFUSED inside jest.
+      - name: Verify indexer endpoint is up
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf -X POST http://127.0.0.1:8090/v1/graphql \
+                 -H 'content-type: application/json' \
+                 -d '{"query":"{ __typename }"}' > /dev/null; then
+              echo "Indexer GraphQL ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Indexer GraphQL not ready at 127.0.0.1:8090" >&2
+          cat "${CA_LOCALNET_LOG}"
+          exit 1
+
+      - name: Run confidential-assets e2e tests
+        working-directory: ts-sdk/confidential-assets
+        env:
+          # `tests/preTest.cjs` skips its own localnet startup when MOVEMENT_NETWORK
+          # is set to one of the known network names (including "local"); we use
+          # the localnet booted above instead.
+          MOVEMENT_NETWORK: local
+        # `--globalSetup=` / `--globalTeardown=` blank out the parent jest config's
+        # localnet hooks for extra safety (the env-var guard above also handles it).
+        run: pnpm jest tests/e2e --globalSetup= --globalTeardown= --testTimeout=180000
+
+      - name: Print localnet script log on failure
+        if: failure()
+        run: |
+          echo "=== ca-localnet-script.log ==="
+          cat "${CA_LOCALNET_LOG}" || true
+          echo "=== aptos-core .movement/localnet.log ==="
+          cat aptos-core/.movement/localnet.log || true
+
+      - name: Stop localnet
+        if: always()
+        run: |
+          kill "${SCRIPT_PID}" 2>/dev/null || true
+          pkill -f "movement node" 2>/dev/null || true
+          # PID file written by the script
+          if [[ -f aptos-core/.movement/localnet.pid ]]; then
+            kill "$(cat aptos-core/.movement/localnet.pid)" 2>/dev/null || true
+          fi
