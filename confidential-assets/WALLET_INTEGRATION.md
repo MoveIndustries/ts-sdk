@@ -323,6 +323,29 @@ This export/import pattern is a **narrow carveout to [Principle 1](#guiding-prin
 
 **Threat model.** If the shared `dk` hex leaks (compromised password manager, screenshot, etc.), the multisig account's **privacy** is lost: the attacker can decrypt its confidential balances and observe transfer amounts. The multisig account's **funds** remain safe — moving funds still requires k-of-n owner Ed25519 signatures on the multisig proposal, which `dk` alone cannot produce. The shared 32-byte hex is a one-way function of the originating owner's root key material in both `fromDerivationPath` and `fromSignature`, so leaking the hex never leaks the mnemonic or device key.
 
+### Recovery from a shared `dk` leak
+
+If the shared `dk` hex leaks (one co-owner's password manager is compromised, the import dialog is screenshotted, etc.), the recovery path is to rotate to a fresh `dk` / `ek` pair against the **same** multisig address. Funds never have to move — only the encryption key registered against the multisig changes.
+
+Two layers to keep separate:
+
+- **Cryptographically**, `dk` is a 32-byte scalar with no address baked in. Any owner can generate a fresh `dk'` from any source.
+- **By virtue of registration**, the *currently registered* `dk` / `ek` pair is the one that decrypts the multisig's on-chain balance and the one proofs verify against. A fresh `dk'` alone does not decrypt anything until its `ek'` is registered and the existing balance is re-encrypted under it. That re-encryption is what `rotate_encryption_key` does in a single Move call.
+
+**Rotation flow (out of band of this wallet design):**
+
+1. One owner generates a fresh `dk'` and computes `ek'`.
+2. They use **`@moveindustries/confidential-assets`** (`ConfidentialAsset` / `ConfidentialAssetTransactionBuilder.rotateEncryptionKey`) to build a `rotate_encryption_key` entry function bound to the multisig address. The builder needs the current `dk` (still held by the proposer) and the new `dk'`; it emits the sigma + range proofs that re-encrypt the on-chain balance from `ek` to `ek'`.
+3. The bytes are wrapped in a `MultiSigTransactionPayload` and proposed via `multisig_account::create_transaction`. Co-owners approve with their Ed25519 keys; once k-of-n is reached, anyone executes.
+4. After execution, `ek'` is the registered key for the multisig and the old `dk` no longer matches. The proposer exports `dk'` and re-shares it to co-owners over the same out-of-band channel used for initial setup.
+
+**What is and isn't covered:**
+
+- **Funds are safe throughout.** Rotation does not move balances or transfer ownership; it re-encrypts in place. `dk` cannot produce Ed25519 signatures, so even during the leak window the attacker cannot drain the multisig.
+- **Past privacy is lost.** Balance ciphertexts the attacker observed and decrypted before rotation stay decrypted to them. Rotation closes the going-forward window only.
+- **Mnemonic compromise is a different incident.** If the leak is the originating owner's *mnemonic* (not just the exported `dk` hex), every key derivable from that mnemonic is suspect and rotation in place is not sufficient — see the threat-model note in [Key rotation](#key-rotation-not-wallet-supported). Move funds to a fresh multisig with fresh owner keys.
+- **Wallet UI does not expose this.** Consistent with [Key rotation (not wallet-supported)](#key-rotation-not-wallet-supported), Motion Wallet does not provide a `ca_rotateEncryptionKey` method or a UI flow. The path runs through the SDK in a trusted environment, then through the standard multisig proposal UI.
+
 ### Treasury-scale balances
 
 Users with large balances should keep the bulk in a **normal (non-CA) cold or multisig account** and only top up a CA hot account (or CA multisig account) as needed for confidential transfers. The cold account uses standard Ed25519 custody with no privacy posture to defend; the CA account is sized to recent activity, so a privacy compromise has bounded blast radius.
