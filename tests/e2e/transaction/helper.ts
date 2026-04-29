@@ -190,8 +190,8 @@ export async function simpleCoinTransactionHeler(movement: Movement, sender: Acc
     minimumLedgerVersion: version,
   });
 
-  expect(senderOldBalance - senderNewBalance).toBeGreaterThan(TRANSFER_AMOUNT);
-  expect(recipientNewBalance - recipientOldBalance).toEqual(TRANSFER_AMOUNT);
+  expect(senderOldBalance - senderNewBalance).toBeGreaterThan(BigInt(TRANSFER_AMOUNT));
+  expect(recipientNewBalance - recipientOldBalance).toEqual(BigInt(TRANSFER_AMOUNT));
 }
 
 // Transaction builder helpers

@@ -16,9 +16,9 @@ import {
 import dotenv from "dotenv";
 dotenv.config();
 
-const ALICE_INITIAL_BALANCE = 100_000_000;
-const BOB_INITIAL_BALANCE = 0;
-const TRANSFER_AMOUNT = 1_000_000;
+const ALICE_INITIAL_BALANCE = 100_000_000n;
+const BOB_INITIAL_BALANCE = 0n;
+const TRANSFER_AMOUNT = 1_000_000n;
 
 // Set up the client
 const MOVEMENT_NETWORK: Network = NetworkToNetworkName[process.env.MOVEMENT_NETWORK ?? Network.DEVNET];
@@ -30,10 +30,10 @@ const movement = new Movement(config);
  * @param name
  * @param accountAddress
  * @param versionToWaitFor
- * @returns {Promise<number>}
+ * @returns {Promise<bigint>}
  *
  */
-const balance = async (name: string, accountAddress: AccountAddress, versionToWaitFor?: bigint): Promise<number> => {
+const balance = async (name: string, accountAddress: AccountAddress, versionToWaitFor?: bigint): Promise<bigint> => {
   const amount = await movement.getAccountMOVEAmount({
     accountAddress,
     minimumLedgerVersion: versionToWaitFor,
@@ -61,7 +61,7 @@ const example = async () => {
   // Fund alice account
   await movement.fundAccount({
     accountAddress: alice.accountAddress,
-    amount: ALICE_INITIAL_BALANCE,
+    amount: Number(ALICE_INITIAL_BALANCE),
   });
 
   // Show the balances

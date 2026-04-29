@@ -100,7 +100,7 @@ describe("abstraction api", () => {
 
         const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100n);
       });
 
       it("should disable account abstraction without specifying authentication function", async () => {
@@ -160,7 +160,7 @@ describe("abstraction api", () => {
 
         const response = await movement.waitForTransaction({ transactionHash: txn.hash });
         expect(response.success).toBe(true);
-        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100);
+        expect(await movement.getAccountMOVEAmount({ accountAddress: recipient.accountAddress })).toBe(100n);
       });
 
       it("should fail to send a transaction with wrong custom signer", async () => {
