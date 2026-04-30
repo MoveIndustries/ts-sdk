@@ -511,7 +511,7 @@ The shared-`dk` design (per asset) is the chosen construction for this integrati
 The on-chain protocol supports auditors: parties that receive encrypted copies of transfer amounts under their own encryption keys. A confidential transfer carries one encrypted copy per included auditor. Three distinct sources contribute auditor encryption keys to a transfer:
 
 1. **Global (chain-level) auditor.** A single encryption key configured at the chain level applies to every confidential transfer of every fungible asset on the chain, with no exceptions. The wallet must include this auditor's encryption key in every confidential transfer it constructs. The key is read from a chain-wide view (denoted `get_global_auditor` in this document; the exact Move name is fixed by the protocol). It is installed or updated only by the chain's governance authority.
-2. **Per-asset auditor.** An optional encryption key is stored on chain per fungible asset and applies to every confidential transfer of that asset. It is installed or updated only by the framework account (`set_auditor` in Move — that is, network or governance authority, not a user or asset issuer wallet). The SDK reads it via `get_auditor(token)`. When set, the wallet must include this auditor in transfers of the affected asset.
+2. **Per-asset auditor.** An optional encryption key is stored on chain per fungible asset and applies to every confidential transfer of that asset. It is installed or updated only by the asset issuer — the root owner of the asset's FA metadata object — via `set_auditor` in Move. The SDK reads it via `get_auditor(token)`. When set, the wallet must include this auditor in transfers of the affected asset.
 3. **Per-transfer (voluntary) auditors.** The sender may include additional auditor encryption keys at transfer time. These are not stored on chain; they appear only in the transaction data and the emitted `Transferred` event.
 
 The three sources compose: a single confidential transfer always carries an encrypted copy for the global auditor, also carries one for the per-asset auditor when one is configured, and may additionally carry one for each per-transfer auditor supplied with the request.
@@ -529,7 +529,7 @@ The three sources compose: a single confidential transfer always carries an encr
 
 - The dApp may read the global auditor and the per-asset auditor for a given token through the read methods defined in [Wallet ↔ application interface](#wallet--application-interface) and display them. Both keys are public chain state.
 - The dApp may collect optional per-transfer auditor addresses from the user and pass them to `ca_transfer`. The wallet constructs the corresponding encrypted copies.
-- The dApp does not control the global auditor or the per-asset auditor. Those keys are governed by the chain (`set_global_auditor`) or the framework account (`set_auditor`) and are not exposed to dApps or asset-issuer wallets.
+- The dApp does not control the global auditor or the per-asset auditor. The global auditor is governed by the chain's governance authority (`set_global_auditor`); the per-asset auditor is governed by the asset issuer — the root owner of the asset's FA metadata object — via `set_auditor`. Neither key is exposed to dApps for modification.
 
 ### `ca_transfer` request shape
 
