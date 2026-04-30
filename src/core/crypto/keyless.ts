@@ -30,6 +30,17 @@ import {
   PatchedJWKsResponse,
 } from "../../types/keyless";
 import { base64UrlToBytes, getErrorMessage, nowInSeconds } from "../../utils";
+import { memoizeAsync } from "../../utils/memoize";
+import { AccountAddress, AccountAddressInput } from "../accountAddress";
+import { AuthenticationKey } from "../authenticationKey";
+import { Hex, hexToAsciiString } from "../hex";
+import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
+import { EphemeralPublicKey, EphemeralSignature } from "./ephemeral";
+import { FederatedKeylessPublicKey } from "./federatedKeyless";
+import { bigIntToBytesLE, bytesToBigIntLE, hashStrToField, padAndPackBytesWithLen, poseidonHash } from "./poseidon";
+import { Proof } from "./proof";
+import { AccountPublicKey, PublicKey } from "./publicKey";
+import { Signature } from "./signature";
 
 /**
  * Convert a u64 (bigint or string) to a JS `number`, throwing if the value would lose
@@ -46,17 +57,6 @@ function u64ToSafeNumber(value: bigint | string | number, fieldName: string): nu
   }
   return Number(big);
 }
-import { memoizeAsync } from "../../utils/memoize";
-import { AccountAddress, AccountAddressInput } from "../accountAddress";
-import { AuthenticationKey } from "../authenticationKey";
-import { Hex, hexToAsciiString } from "../hex";
-import { Ed25519PublicKey, Ed25519Signature } from "./ed25519";
-import { EphemeralPublicKey, EphemeralSignature } from "./ephemeral";
-import { FederatedKeylessPublicKey } from "./federatedKeyless";
-import { bigIntToBytesLE, bytesToBigIntLE, hashStrToField, padAndPackBytesWithLen, poseidonHash } from "./poseidon";
-import { Proof } from "./proof";
-import { AccountPublicKey, PublicKey } from "./publicKey";
-import { Signature } from "./signature";
 
 /**
  * @group Implementation
