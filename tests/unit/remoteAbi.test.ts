@@ -296,5 +296,25 @@ describe("Remote ABI", () => {
 
       // TODO: Verify string behavior on u64 and above
     });
+
+    // Regression: u64 / u128 / u256 entry-function arguments must reject a JS `number` that
+    // exceeds Number.MAX_SAFE_INTEGER. Otherwise the rounded value silently round-trips through
+    // BigInt() into BCS and the user signs a transaction for a different amount than intended.
+    it("rejects unsafe-integer JS number for u64 / u128 / u256", () => {
+      const unsafe = 9_007_199_254_740_993; // 2^53 + 1, rounds to 2^53 in IEEE 754
+
+      expect(() => checkOrConvertArgument(unsafe, parseTypeTag("u64"), 0, [])).toThrowError(/safe integer range/);
+      expect(() => checkOrConvertArgument(unsafe, parseTypeTag("u128"), 0, [])).toThrowError(/safe integer range/);
+      expect(() => checkOrConvertArgument(unsafe, parseTypeTag("u256"), 0, [])).toThrowError(/safe integer range/);
+
+      // Safe values via number, bigint, and string still work.
+      const safe = Number.MAX_SAFE_INTEGER;
+      expect(checkOrConvertArgument(safe, parseTypeTag("u64"), 0, [])).toEqual(new U64(BigInt(safe)));
+      expect(checkOrConvertArgument(BigInt(unsafe), parseTypeTag("u64"), 0, [])).toEqual(new U64(BigInt(unsafe)));
+      expect(checkOrConvertArgument("9007199254740993", parseTypeTag("u128"), 0, [])).toEqual(
+        new U128(9_007_199_254_740_993n),
+      );
+      expect(checkOrConvertArgument(MAX_U256, parseTypeTag("u256"), 0, [])).toEqual(new U256(MAX_U256));
+    });
   });
 });

@@ -613,7 +613,7 @@ export async function getAccountCoinAmount(args: {
   accountAddress: AccountAddressInput;
   coinType?: MoveStructId;
   faMetadataAddress?: AccountAddressInput;
-}): Promise<number> {
+}): Promise<bigint> {
   const { movementConfig, accountAddress, coinType, faMetadataAddress } = args;
 
   let coinAssetType: string | undefined = coinType;
@@ -657,7 +657,7 @@ export async function getAccountCoinAmount(args: {
 
   // commonjs (aka cjs) doesn't handle Nullish Coalescing for some reason
   // might be because of how ts infer the graphql generated scheme type
-  return data[0] ? data[0].amount : 0;
+  return data[0] ? BigInt(data[0].amount) : 0n;
 }
 
 /**
@@ -749,17 +749,19 @@ export async function getAccountCoinsCount(args: {
  * @param args.movementConfig - The Movement configuration object.
  * @param args.accountAddress - The account address to query.
  * @param args.asset - The asset identifier (coin type or FA metadata address).
- * @returns The balance as a number.
+ * @returns The balance as a bigint. On-chain balances are u64/u128 and can
+ *          exceed `Number.MAX_SAFE_INTEGER` (e.g. > ~90M MOVE in octas), so a
+ *          `number` would silently lose precision for large holders.
  * @group Implementation
  */
 export async function getBalance(args: {
   movementConfig: MovementConfig;
   accountAddress: AccountAddressInput;
   asset: MoveStructId | AccountAddressInput;
-}): Promise<number> {
+}): Promise<bigint> {
   const { movementConfig, accountAddress, asset } = args;
 
-  const response = await getAptosFullNode<{}, number>({
+  const response = await getAptosFullNode<{}, number | string>({
     movementConfig,
     originMethod: "getBalance",
     path: `accounts/${accountAddress}/balance/${asset}`,
@@ -769,7 +771,7 @@ export async function getBalance(args: {
     },
   });
 
-  return parseInt(response.data.toString(), 10);
+  return BigInt(response.data.toString());
 }
 
 /**

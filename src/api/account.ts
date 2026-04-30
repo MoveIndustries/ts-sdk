@@ -773,7 +773,7 @@ export class Account {
   async getAccountMOVEAmount(args: {
     accountAddress: AccountAddressInput;
     minimumLedgerVersion?: AnyNumber;
-  }): Promise<number> {
+  }): Promise<bigint> {
     return this.getAccountCoinAmount({ coinType: MOVEMENT_COIN, faMetadataAddress: MOVEMENT_FA, ...args });
   }
 
@@ -811,7 +811,7 @@ export class Account {
     accountAddress: AccountAddressInput;
     coinType?: MoveStructId;
     faMetadataAddress?: AccountAddressInput;
-  }): Promise<number> {
+  }): Promise<bigint> {
     const { accountAddress, coinType, faMetadataAddress } = args;
 
     // Attempt to populate the CoinType field if the FA address is provided.
@@ -865,8 +865,9 @@ export class Account {
       throw new Error("Either coinType, faMetadataAddress, or both must be provided");
     }
 
-    // When there is a coin mapping, use that first, otherwise use the fungible asset address
-    // TODO: This function's signature at the top, returns number, but it could be greater than can be represented
+    // When there is a coin mapping, use that first, otherwise use the fungible asset address.
+    // Balances are returned as bigint because on-chain values are u64/u128 and can exceed
+    // Number.MAX_SAFE_INTEGER for large holders.
     if (coinAssetType !== undefined) {
       const [balanceStr] = await view<[string]>({
         movementConfig: this.config,
@@ -876,7 +877,7 @@ export class Account {
           functionArguments: [accountAddress],
         },
       });
-      return parseInt(balanceStr, 10);
+      return BigInt(balanceStr);
     }
     const [balanceStr] = await view<[string]>({
       movementConfig: this.config,
@@ -886,7 +887,7 @@ export class Account {
         functionArguments: [accountAddress, faAddress],
       },
     });
-    return parseInt(balanceStr, 10);
+    return BigInt(balanceStr);
   }
 
   /**
@@ -895,7 +896,7 @@ export class Account {
    * @param args The parameters for the balance query.
    * @param args.accountAddress The account address to query.
    * @param args.asset The asset to query: Move struct ID (e.g., `0x1::aptos_coin::AptosCoin`) or FA metadata address.
-   * @returns The balance as a number.
+   * @returns The balance as a bigint.
    *
    * @example
    * ```ts
@@ -910,7 +911,7 @@ export class Account {
   async getBalance(args: {
     accountAddress: AccountAddressInput;
     asset: MoveStructId | AccountAddressInput;
-  }): Promise<number> {
+  }): Promise<bigint> {
     return getBalance({ movementConfig: this.config, ...args });
   }
 

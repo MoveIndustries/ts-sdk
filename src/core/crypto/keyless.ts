@@ -43,6 +43,22 @@ import { AccountPublicKey, PublicKey } from "./publicKey";
 import { Signature } from "./signature";
 
 /**
+ * Convert a u64 (bigint or string) to a JS `number`, throwing if the value would lose
+ * precision above `Number.MAX_SAFE_INTEGER`. Used for fields that are typed as `number`
+ * elsewhere in the keyless API but originate as on-chain u64 values.
+ */
+function u64ToSafeNumber(value: bigint | string | number, fieldName: string): number {
+  const big = typeof value === "bigint" ? value : BigInt(value);
+  if (big > BigInt(Number.MAX_SAFE_INTEGER) || big < 0n) {
+    throw new Error(
+      `Keyless field ${fieldName} value ${big.toString()} is outside the JS safe integer range; ` +
+        `cannot be represented as a number without precision loss.`,
+    );
+  }
+  return Number(big);
+}
+
+/**
  * @group Implementation
  * @category Serialization
  */
@@ -1117,7 +1133,7 @@ export class ZeroKnowledgeSig extends Signature {
 
   static deserialize(deserializer: Deserializer): ZeroKnowledgeSig {
     const proof = ZkProof.deserialize(deserializer);
-    const expHorizonSecs = Number(deserializer.deserializeU64());
+    const expHorizonSecs = u64ToSafeNumber(deserializer.deserializeU64(), "expHorizonSecs");
     const extraField = deserializer.deserializeOption("string");
     const overrideAudVal = deserializer.deserializeOption("string");
     const trainingWheelsSignature = deserializer.deserializeOption(EphemeralSignature);
@@ -1229,7 +1245,7 @@ export class KeylessConfiguration {
         gammaAbcG1: res.gamma_abc_g1,
         gammaG2: res.gamma_g2,
       }),
-      maxExpHorizonSecs: Number(config.max_exp_horizon_secs),
+      maxExpHorizonSecs: u64ToSafeNumber(config.max_exp_horizon_secs, "max_exp_horizon_secs"),
       trainingWheelsPubkey: config.training_wheels_pubkey.vec[0],
       maxExtraFieldBytes: config.max_extra_field_bytes,
       maxJwtHeaderB64Bytes: config.max_jwt_header_b64_bytes,

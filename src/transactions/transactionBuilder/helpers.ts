@@ -82,6 +82,27 @@ export function isLargeNumber(arg: SimpleEntryFunctionArgumentTypes): arg is num
 }
 
 /**
+ * For u64 / u128 / u256 entry-function arguments, a JS `number` silently loses
+ * precision above `Number.MAX_SAFE_INTEGER` (2^53 − 1). Calling `BigInt(n)` on
+ * an already-rounded number then BCS-encodes the rounded value, so the user
+ * signs a transaction for a different amount than they intended. Pass `bigint`
+ * or `string` for amounts in that range. This helper throws on an unsafe
+ * `number` so the caller fails loud instead of silently mis-encoding.
+ */
+export function assertSafeBigIntArg(
+  arg: number | bigint | string,
+  typeName: "u64" | "u128" | "u256",
+  position: number,
+): void {
+  if (typeof arg === "number" && !Number.isSafeInteger(arg)) {
+    throw new Error(
+      `Argument ${position} of type ${typeName} was passed as a JS number (${arg}) outside the safe integer range. ` +
+        `JS numbers above 2^53 - 1 lose precision; pass a bigint or string instead.`,
+    );
+  }
+}
+
+/**
  * Checks if the provided argument is empty, meaning it is either null or undefined.
  *
  * @param arg - The argument to check for emptiness.
