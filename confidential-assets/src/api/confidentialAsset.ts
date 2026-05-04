@@ -27,7 +27,8 @@ import {
   getBalance,
   getChainIdByteForProofs,
   getEncryptionKey,
-  getGlobalAuditorEncryptionKey,
+  getAssetAuditorEncryptionKey,
+  getChainAuditorEncryptionKey,
   isBalanceNormalized,
   isPendingBalanceFrozen,
 } from "../internal";
@@ -226,53 +227,76 @@ export class ConfidentialAsset {
    */
   async rolloverPendingBalance(args: RolloverParams): Promise<CommittedTransactionResponse[]> {
     const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
-    const results: CommittedTransactionResponse[] = [];
     const isNormalized = await this.isBalanceNormalized({
       accountAddress: signer.accountAddress,
       tokenAddress: args.tokenAddress,
     });
-    if (!isNormalized) {
+
+    let transaction;
+    if (isNormalized) {
+      transaction = await this.transaction.rolloverPendingBalance({
+        ...rest,
+        sender: signer.accountAddress,
+        withFeePayer,
+      });
+    } else {
       if (!args.senderDecryptionKey) {
         throw new Error(
           "Rollover failed. Available balance is not normalized and no sender decryption key was provided.",
         );
       }
-      const commitedNormalizeTx = await this.normalizeBalance({
+      // Single-tx path: on-chain `normalize_and_rollover_pending_balance` does both steps,
+      // so the user only sees one wallet approval.
+      transaction = await this.transaction.normalizeAndRolloverPendingBalance({
+        sender: signer.accountAddress,
         senderDecryptionKey: args.senderDecryptionKey,
-        ...args,
+        tokenAddress: args.tokenAddress,
+        withFeePayer,
+        options: args.options,
       });
-      results.push(commitedNormalizeTx);
     }
-    const transaction = await this.transaction.rolloverPendingBalance({
-      ...rest,
-      sender: signer.accountAddress,
-      withFeePayer,
-    });
-    const committedRolloverTx = await this.submitTxn({
-      signer,
-      transaction,
-    });
+
+    const committed = await this.submitTxn({ signer, transaction });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    results.push(committedRolloverTx);
-    return results;
+    return [committed];
   }
 
   /**
-   * Get the encryption key for the asset auditor for a given token address.
+   * Get the per-asset auditor encryption key for a given token address (slot [1] of `auditor_eks`).
+   * Inclusion in transfers is handled automatically by the transaction builder; this method exists
+   * for callers that want to display the configured auditor independently of any pending transfer.
    *
    * @param args.tokenAddress - The token address of the asset to get the auditor for
    * @param args.options.ledgerVersion - The ledger version to use for the view call
-   * @returns The encryption key for the asset auditor or undefined if no auditor is set
+   * @returns The encryption key for the per-asset auditor, or `undefined` if no auditor is set
    */
   async getAssetAuditorEncryptionKey(args: {
     tokenAddress: AccountAddressInput;
     options?: LedgerVersionArg;
   }): Promise<TwistedEd25519PublicKey | undefined> {
-    return getGlobalAuditorEncryptionKey({
+    return getAssetAuditorEncryptionKey({
       client: this.client(),
       moduleAddress: this.moduleAddress(),
       tokenAddress: args.tokenAddress,
       options: args.options,
+    });
+  }
+
+  /**
+   * Get the chain-level auditor encryption key (slot [0] of every transfer's `auditor_eks`).
+   * Inclusion in transfers is handled automatically by the transaction builder; this method exists
+   * so callers can display the active chain auditor independently of any pending transfer.
+   *
+   * @param args.options.ledgerVersion - The ledger version to use for the view call
+   * @returns The chain auditor's encryption key, or `undefined` when no chain auditor is configured
+   */
+  async getChainAuditorEncryptionKey(args?: {
+    options?: LedgerVersionArg;
+  }): Promise<TwistedEd25519PublicKey | undefined> {
+    return getChainAuditorEncryptionKey({
+      client: this.client(),
+      moduleAddress: this.moduleAddress(),
+      options: args?.options,
     });
   }
 

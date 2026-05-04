@@ -315,10 +315,14 @@ function compressedPubkeyToTwistedPublicKey(inner: unknown): TwistedEd25519Publi
 }
 
 /**
- * Returns the token's configured asset auditor encryption key, if any.
- * Matches on-chain `get_auditor` / `Option<CompressedPubkey>` decoding.
+ * Returns the token's configured per-asset auditor encryption key, if any.
+ * Matches on-chain `get_asset_auditor` / `Option<CompressedPubkey>` decoding (movementlabsxyz/aptos-core#328).
+ *
+ * The per-asset auditor occupies slot [1] of `auditor_eks` in `confidential_transfer`. The wallet should not
+ * pass this through `additionalAuditorEncryptionKeys`; the transaction builder reads it and prepends it
+ * automatically (see `ConfidentialAssetTransactionBuilder.transfer`).
  */
-export async function getGlobalAuditorEncryptionKey(args: {
+export async function getAssetAuditorEncryptionKey(args: {
   client: Movement;
   tokenAddress: AccountAddressInput;
   options?: LedgerVersionArg;
@@ -328,13 +332,47 @@ export async function getGlobalAuditorEncryptionKey(args: {
   const [raw] = await args.client.view<[unknown]>({
     options: args.options,
     payload: {
-      function: `${moduleAddress}::${MODULE_NAME}::get_auditor`,
+      function: `${moduleAddress}::${MODULE_NAME}::get_asset_auditor`,
       functionArguments: [args.tokenAddress],
     },
   });
   const inner = unwrapMoveOptionInner(raw);
   return compressedPubkeyToTwistedPublicKey(inner);
 }
+
+/**
+ * Returns the chain-level auditor encryption key, or `undefined` when no chain auditor is configured.
+ * Matches on-chain `get_chain_auditor` / `Option<CompressedPubkey>` decoding (movementlabsxyz/aptos-core#328).
+ *
+ * The chain auditor occupies slot [0] of `auditor_eks` in every `confidential_transfer` and is
+ * required: `validate_auditors` aborts with `ECHAIN_AUDITOR_NOT_SET` if no chain auditor is set, or
+ * if `auditor_eks[0]` does not match the active chain auditor. The transaction builder reads this
+ * automatically and prepends it; the wallet should not pass it through
+ * `additionalAuditorEncryptionKeys`.
+ */
+export async function getChainAuditorEncryptionKey(args: {
+  client: Movement;
+  options?: LedgerVersionArg;
+  moduleAddress?: string;
+}): Promise<TwistedEd25519PublicKey | undefined> {
+  const moduleAddress = args.moduleAddress ?? DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS;
+  const [raw] = await args.client.view<[unknown]>({
+    options: args.options,
+    payload: {
+      function: `${moduleAddress}::${MODULE_NAME}::get_chain_auditor`,
+      functionArguments: [],
+    },
+  });
+  const inner = unwrapMoveOptionInner(raw);
+  return compressedPubkeyToTwistedPublicKey(inner);
+}
+
+/**
+ * @deprecated Renamed to `getAssetAuditorEncryptionKey` to match the on-chain `get_asset_auditor` view
+ * (movementlabsxyz/aptos-core#328). The previous name was misleading — this has always returned the
+ * per-asset auditor, not a chain-level one.
+ */
+export const getGlobalAuditorEncryptionKey = getAssetAuditorEncryptionKey;
 
 export async function getEncryptionKey(
   args: ViewFunctionParams & {

@@ -364,12 +364,41 @@ export class ConfidentialNormalization {
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
+    return this.buildEntry({ ...args, entryFunction: "normalize" });
+  }
+
+  /**
+   * Build a single tx that targets `normalize_and_rollover_pending_balance` — the on-chain
+   * wrapper that does normalize + rollover atomically. Used by the rollover flow when the
+   * available balance isn't already normalized, so the user only sees one wallet approval.
+   * The proof is identical to plain `normalize`'s proof.
+   */
+  async createNormalizeAndRolloverTransaction(args: {
+    client: Movement;
+    sender: AccountAddressInput;
+    confidentialAssetModuleAddress: string;
+    tokenAddress: AccountAddressInput;
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
+    return this.buildEntry({ ...args, entryFunction: "normalize_and_rollover_pending_balance" });
+  }
+
+  private async buildEntry(args: {
+    client: Movement;
+    sender: AccountAddressInput;
+    confidentialAssetModuleAddress: string;
+    tokenAddress: AccountAddressInput;
+    entryFunction: "normalize" | "normalize_and_rollover_pending_balance";
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
     const [{ sigmaProof, rangeProof }, normalizedCB] = await this.authorizeNormalization();
 
     return args.client.transaction.build.simple({
       ...args,
       data: {
-        function: `${args.confidentialAssetModuleAddress}::${MODULE_NAME}::normalize`,
+        function: `${args.confidentialAssetModuleAddress}::${MODULE_NAME}::${args.entryFunction}`,
         functionArguments: [
           args.tokenAddress,
           normalizedCB.getCipherTextBytes(),

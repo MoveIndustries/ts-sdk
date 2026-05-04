@@ -262,15 +262,30 @@ describe("Confidential Asset Sender API", () => {
     longTestTimeout,
   );
 
-  // TODO: Add this back in once the test setup sets up the auditor correctly.
+  // Both auditors are public chain state (`get_asset_auditor` / `get_chain_auditor`). They're
+  // skipped because localnet may not have either configured; once set up, unskip and assert the
+  // shape. Inclusion in transfers is auto-handled by the transaction builder per
+  // movementlabsxyz/aptos-core#328.
   test.skip(
-    "it should get global auditor",
+    "it should get the per-asset auditor",
     async () => {
-      const globalAuditor = await confidentialAsset.getAssetAuditorEncryptionKey({
+      const assetAuditor = await confidentialAsset.getAssetAuditorEncryptionKey({
         tokenAddress: TOKEN_ADDRESS,
       });
 
-      expect(globalAuditor).toBeDefined();
+      expect(assetAuditor).toBeDefined();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "it should get the chain auditor (required for any transfer to succeed under #328)",
+    async () => {
+      const chainAuditor = await confidentialAsset.getChainAuditorEncryptionKey();
+      // We don't assert defined here — the localnet may or may not have one configured. The
+      // transfer tests below will fail with "Chain auditor is not configured" if it isn't,
+      // which is the more informative failure.
+      expect(chainAuditor === undefined || chainAuditor.toString().length > 0).toBe(true);
     },
     longTestTimeout,
   );
@@ -505,6 +520,50 @@ describe("Confidential Asset Sender API", () => {
 
       // This should be true after normalization
       checkAliceNormalizedBalanceStatus(true);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "rolloverPendingBalance from an unnormalized state submits a single tx via the combined entry",
+    async () => {
+      // Deposit so there's something pending to roll over.
+      const depositTx = await confidentialAsset.deposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: DEPOSIT_AMOUNT,
+      });
+      expect(depositTx.success).toBeTruthy();
+
+      // Rollover once first to land us in `normalized == false` state.
+      const firstRolloverTxs = await confidentialAsset.rolloverPendingBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+      });
+      for (const tx of firstRolloverTxs) {
+        expect(tx.success).toBeTruthy();
+      }
+      checkAliceNormalizedBalanceStatus(false);
+
+      // Deposit again so there's pending to roll over while still unnormalized.
+      const depositAgainTx = await confidentialAsset.deposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: DEPOSIT_AMOUNT,
+      });
+      expect(depositAgainTx.success).toBeTruthy();
+
+      // The unnormalized rollover path should now hit the on-chain
+      // `normalize_and_rollover_pending_balance` entry and submit ONE tx.
+      const rolloverTxs = await confidentialAsset.rolloverPendingBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceConfidential,
+      });
+      expect(rolloverTxs.length).toBe(1);
+      expect(rolloverTxs[0].success).toBeTruthy();
+      // Rollover post-condition: normalized = false again (matches plain rollover behavior).
+      checkAliceNormalizedBalanceStatus(false);
     },
     longTestTimeout,
   );

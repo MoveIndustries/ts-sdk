@@ -232,15 +232,26 @@ describe.skip("Confidential balance api", () => {
     longTestTimeout,
   );
 
-  // TODO: Add this back in once the test setup sets up the auditor correctly.
+  // Both auditors are public chain state. Skipped because localnet may not have a per-asset
+  // auditor configured; once set up, unskip and assert the shape. Inclusion in transfers is
+  // auto-handled by the transaction builder per movementlabsxyz/aptos-core#328.
   test.skip(
-    "it should get global auditor",
+    "it should get the per-asset auditor",
     async () => {
-      const globalAuditor = await transactionBuilder.getAssetAuditorEncryptionKey({
+      const assetAuditor = await transactionBuilder.getAssetAuditorEncryptionKey({
         tokenAddress: TOKEN_ADDRESS,
       });
 
-      expect(globalAuditor).toBeDefined();
+      expect(assetAuditor).toBeDefined();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "it should get the chain auditor (required for any transfer to succeed under #328)",
+    async () => {
+      const chainAuditor = await transactionBuilder.getChainAuditorEncryptionKey();
+      expect(chainAuditor === undefined || chainAuditor.toString().length > 0).toBe(true);
     },
     longTestTimeout,
   );

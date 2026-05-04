@@ -27,10 +27,30 @@ import {
   getBalance,
   getChainIdByteForProofs,
   getEncryptionKey,
-  getGlobalAuditorEncryptionKey,
+  getAssetAuditorEncryptionKey,
+  getChainAuditorEncryptionKey,
   isBalanceNormalized,
   isPendingBalanceFrozen,
 } from "./viewFunctions";
+
+/**
+ * Assemble `auditor_eks` for a `confidential_transfer` per the fixed-prefix layout in
+ * movementlabsxyz/aptos-core#328:
+ *   [0]   chain auditor (mandatory; protocol aborts with ECHAIN_AUDITOR_NOT_SET if missing)
+ *   [1]   per-asset auditor (mandatory iff configured for the token)
+ *   [2..] voluntary per-transfer auditors (sender's choice; ordered as supplied)
+ *
+ * Slot identity is bound into the transfer's Fiat–Shamir transcript via the order of this list,
+ * so callers must not reorder. Exported separately so the slot contract can be unit-tested
+ * without standing up a chain.
+ */
+export function assembleAuditorEks(args: {
+  chain: TwistedEd25519PublicKey;
+  asset?: TwistedEd25519PublicKey;
+  voluntary?: TwistedEd25519PublicKey[];
+}): TwistedEd25519PublicKey[] {
+  return [args.chain, ...(args.asset ? [args.asset] : []), ...(args.voluntary ?? [])];
+}
 
 /**
  * A class to handle creating transactions for confidential asset operations
@@ -242,11 +262,27 @@ export class ConfidentialAssetTransactionBuilder {
     tokenAddress: AccountAddressInput;
     options?: LedgerVersionArg;
   }): Promise<TwistedEd25519PublicKey | undefined> {
-    return getGlobalAuditorEncryptionKey({
+    return getAssetAuditorEncryptionKey({
       client: this.client,
       moduleAddress: this.confidentialAssetModuleAddress,
       tokenAddress: args.tokenAddress,
       options: args.options,
+    });
+  }
+
+  /**
+   * Returns the chain-level auditor encryption key (slot [0] of every transfer's `auditor_eks`),
+   * or `undefined` when no chain auditor is configured. See `getChainAuditorEncryptionKey` in
+   * `viewFunctions` for the on-chain mapping (`get_chain_auditor`,
+   * movementlabsxyz/aptos-core#328).
+   */
+  async getChainAuditorEncryptionKey(args?: {
+    options?: LedgerVersionArg;
+  }): Promise<TwistedEd25519PublicKey | undefined> {
+    return getChainAuditorEncryptionKey({
+      client: this.client,
+      moduleAddress: this.confidentialAssetModuleAddress,
+      options: args?.options,
     });
   }
 
@@ -304,10 +340,21 @@ export class ConfidentialAssetTransactionBuilder {
 
     const chainId = await getChainIdByteForProofs({ client: this.client });
 
-    // Get the auditor public key for the token
-    const globalAuditorPubKey = await this.getAssetAuditorEncryptionKey({
-      tokenAddress,
-    });
+    // Fetch chain (slot [0]) and per-asset (slot [1]) auditors per movementlabsxyz/aptos-core#328's
+    // fixed-prefix layout. The chain auditor is mandatory: `validate_auditors` aborts with
+    // ECHAIN_AUDITOR_NOT_SET if no chain auditor is configured, or if `auditor_eks[0]` does not
+    // match the active chain auditor. The per-asset auditor is mandatory only when configured;
+    // when set, it must occupy slot [1]. Voluntary per-transfer auditors land at slot [2..].
+    const [chainAuditorPubKey, assetAuditorPubKey] = await Promise.all([
+      this.getChainAuditorEncryptionKey(),
+      this.getAssetAuditorEncryptionKey({ tokenAddress }),
+    ]);
+    if (!chainAuditorPubKey) {
+      throw new Error(
+        "Chain auditor is not configured (get_chain_auditor returned None). " +
+          "confidential_transfer aborts with ECHAIN_AUDITOR_NOT_SET in this state.",
+      );
+    }
 
     // For self-transfers, use the sender's derived encryption key. The on-chain verifier uses `encryption_key(to,
     // token)` which must match the exact bytes we bind into the transfer sigma Fiat–Shamir hash; re-fetching the
@@ -354,10 +401,11 @@ export class ConfidentialAssetTransactionBuilder {
       senderAvailableBalanceCipherText: senderEncryptedAvailableBalance.getCipherText(),
       amount,
       recipientEncryptionKey,
-      auditorEncryptionKeys: [
-        ...(globalAuditorPubKey ? [globalAuditorPubKey] : []),
-        ...additionalAuditorEncryptionKeys,
-      ],
+      auditorEncryptionKeys: assembleAuditorEks({
+        chain: chainAuditorPubKey,
+        asset: assetAuditorPubKey,
+        voluntary: additionalAuditorEncryptionKeys,
+      }),
       chainId,
       senderAddress: senderAddressBytes,
       contractAddress: contractAddressBytes,
@@ -513,7 +561,47 @@ export class ConfidentialAssetTransactionBuilder {
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
-    const { sender, senderDecryptionKey, tokenAddress, withFeePayer, options } = args;
+    const confidentialNormalization = await this.prepareNormalization(args);
+    return confidentialNormalization.createTransaction({
+      client: this.client,
+      sender: args.sender,
+      confidentialAssetModuleAddress: this.confidentialAssetModuleAddress,
+      tokenAddress: args.tokenAddress,
+      withFeePayer: args.withFeePayer,
+      options: args.options,
+    });
+  }
+
+  /**
+   * Build a single tx targeting the on-chain `normalize_and_rollover_pending_balance` entry.
+   * Combines the normalize proof with an immediate rollover so callers can settle pending
+   * balance from an unnormalized state in one wallet approval. Reuses the same proof inputs
+   * as plain `normalize`.
+   */
+  async normalizeAndRolloverPendingBalance(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
+    const confidentialNormalization = await this.prepareNormalization(args);
+    return confidentialNormalization.createNormalizeAndRolloverTransaction({
+      client: this.client,
+      sender: args.sender,
+      confidentialAssetModuleAddress: this.confidentialAssetModuleAddress,
+      tokenAddress: args.tokenAddress,
+      withFeePayer: args.withFeePayer,
+      options: args.options,
+    });
+  }
+
+  private async prepareNormalization(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+  }): Promise<ConfidentialNormalization> {
+    const { sender, senderDecryptionKey, tokenAddress } = args;
     const chainId = await getChainIdByteForProofs({ client: this.client });
 
     const { available } = await getBalance({
@@ -527,22 +615,13 @@ export class ConfidentialAssetTransactionBuilder {
     const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
-    const confidentialNormalization = await ConfidentialNormalization.create({
+    return ConfidentialNormalization.create({
       decryptionKey: senderDecryptionKey,
       unnormalizedAvailableBalance: available,
       chainId,
       senderAddress: senderAddressBytes,
       contractAddress: contractAddressBytes,
       tokenAddress: tokenAddressBytes,
-    });
-
-    return confidentialNormalization.createTransaction({
-      client: this.client,
-      sender,
-      confidentialAssetModuleAddress: this.confidentialAssetModuleAddress,
-      tokenAddress,
-      withFeePayer,
-      options,
     });
   }
 }
