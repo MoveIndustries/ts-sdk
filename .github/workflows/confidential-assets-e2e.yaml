@@ -15,10 +15,7 @@ env:
   # branch so CI is reproducible and won't drift if the branch advances.
   # Bump when intentional changes to the localnet/module setup are needed.
   #
-  # f496b6c1: bind token_address into the FS transcript for transfer/withdraw/
-  # rotation/normalization sigma proofs. Wire-format-breaking change; ships
-  # together with the corresponding TS SDK updates in this repo.
-  APTOS_CORE_COMMIT: f496b6c1679e5b1da5983569c909d9c9fccd5e9e
+  APTOS_CORE_COMMIT: 76c178cab1ad0aac4125cdb54cbf01cf68681ee5
 
 jobs:
   ca-e2e:
