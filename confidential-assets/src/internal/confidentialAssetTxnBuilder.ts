@@ -596,8 +596,9 @@ export class ConfidentialAssetTransactionBuilder {
     // `new_compressed_actual_balance_no_randomness()`). RistrettoPoint identity encodes as
     // 32 zero bytes in compressed form.
     const zero = new Uint8Array(32);
-    const emptyAvailable = Array.from({ length: AVAILABLE_BALANCE_CHUNK_COUNT }, () =>
-      new TwistedElGamalCiphertext(zero, zero),
+    const emptyAvailable = Array.from(
+      { length: AVAILABLE_BALANCE_CHUNK_COUNT },
+      () => new TwistedElGamalCiphertext(zero, zero),
     );
 
     const confidentialTransfer = await ConfidentialTransfer.create({
