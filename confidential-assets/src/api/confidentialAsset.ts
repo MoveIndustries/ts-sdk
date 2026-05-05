@@ -53,6 +53,11 @@ type DepositParams = ConfidentialAssetSubmissionParams & {
   recipient?: AccountAddressInput;
 };
 
+type RegisterAndDepositParams = ConfidentialAssetSubmissionParams & {
+  amount: AnyNumber;
+  decryptionKey: TwistedEd25519PrivateKey;
+};
+
 type WithdrawParams = ConfidentialAssetSubmissionParams & {
   senderDecryptionKey: TwistedEd25519PrivateKey;
   amount: AnyNumber;
@@ -149,6 +154,31 @@ export class ConfidentialAsset {
   async deposit(args: DepositParams): Promise<CommittedTransactionResponse> {
     const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
     const tx = await this.transaction.deposit({ ...rest, sender: signer.accountAddress, withFeePayer });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Atomically register a confidential balance for the signer and deposit into the signer's own
+   * pending balance in a single on-chain transaction. Maps to
+   * `confidential_asset::register_and_deposit`. Use this for first-time "shield to confidential"
+   * UX so wallets can present one approval that performs one on-chain entry function.
+   *
+   * There is intentionally no recipient ≠ sender variant; see the doc on
+   * {@link ConfidentialAssetTransactionBuilder.registerAndDeposit} for why.
+   *
+   * Aborts identically to a separate `register` (registration-proof failure or token-allow-list
+   * violations) and to `deposit_to` (token-allow-list violations); also aborts when the signer is
+   * already registered.
+   */
+  async registerAndDeposit(args: RegisterAndDepositParams): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.registerAndDeposit({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
     const result = await this.submitTxn({ signer, transaction: tx });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
@@ -335,6 +365,36 @@ export class ConfidentialAsset {
       signer,
       transaction,
     });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Atomically register a confidential balance for the signer and submit a confidential transfer
+   * to `recipient` in the same on-chain transaction. Maps to
+   * `confidential_asset::register_and_confidential_transfer`.
+   *
+   * The signer's `actual_balance` is the canonical empty ciphertext pre-registration, so this
+   * method only succeeds for `amount = 0`. For genuine first-use deposits prefer
+   * {@link registerAndDeposit}.
+   */
+  async registerAndConfidentialTransfer(
+    args: ConfidentialAssetSubmissionParams & {
+      recipient: AccountAddressInput;
+      amount: AnyNumber;
+      senderDecryptionKey: TwistedEd25519PrivateKey;
+      additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+      senderAuditorHint?: Uint8Array;
+    },
+  ): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+
+    const transaction = await this.transaction.registerAndConfidentialTransfer({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
+    const result = await this.submitTxn({ signer, transaction });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
   }

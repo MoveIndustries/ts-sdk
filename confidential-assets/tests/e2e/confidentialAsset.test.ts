@@ -16,7 +16,6 @@ import {
   TOKEN_ADDRESS,
   longTestTimeout,
   confidentialAsset,
-  feePayerAccount,
   migrateCoinsToFungibleStore,
 } from "../helpers";
 import { ConfidentialBalance } from "../../src/internal/viewFunctions";
@@ -84,17 +83,12 @@ describe("Confidential Asset Sender API", () => {
       accountAddress: bob.accountAddress,
       amount: 100000000,
     });
-    await movement.fundAccount({
-      accountAddress: feePayerAccount.accountAddress,
-      amount: 100000000,
-    });
 
     console.log("Funded accounts");
 
     // Migrate native coins to fungible asset store for confidential asset operations
     await migrateCoinsToFungibleStore(alice);
     await migrateCoinsToFungibleStore(bob);
-    await migrateCoinsToFungibleStore(feePayerAccount);
 
     console.log("Migrated coins to fungible store");
 
@@ -198,7 +192,12 @@ describe("Confidential Asset Sender API", () => {
         faMetadataAddress: TOKEN_ADDRESS,
       });
 
-      expect(aliceNewTokenBalance).toBe(aliceTokenBalance + WITHDRAW_AMOUNT);
+      // Alice pays gas in MOVE (same as TOKEN_ADDRESS), so the public balance grows by
+      // WITHDRAW_AMOUNT minus the gas she paid for the withdraw tx itself. `gas_unit_price` is
+      // only on user transactions (not the genesis variant of the union), so narrow first.
+      if (!("gas_unit_price" in withdrawTx)) throw new Error("expected user transaction response");
+      const gasPaid = BigInt(withdrawTx.gas_used) * BigInt(withdrawTx.gas_unit_price);
+      expect(BigInt(aliceNewTokenBalance) + gasPaid).toBe(BigInt(aliceTokenBalance) + BigInt(WITHDRAW_AMOUNT));
 
       // Verify the balance is normalized after the withdrawal
       checkAliceNormalizedBalanceStatus(true);
@@ -689,6 +688,144 @@ describe("Confidential Asset Sender API", () => {
         0,
         ALICE_NEW_CONFIDENTIAL_PRIVATE_KEY,
       );
+    },
+    longTestTimeout,
+  );
+});
+
+/**
+ * Coverage for the atomic `register + X` entrypoints introduced for one-click first-time UX
+ * (movementlabsxyz/aptos-core PR adding `register_and_deposit_to` and
+ * `register_and_confidential_transfer`). Uses fresh accounts per test so each can exercise the
+ * pre-registration state without colliding with the main suite's shared Alice.
+ */
+describe("Confidential Asset – register_and_* atomic entrypoints", () => {
+  test(
+    "registerAndDeposit registers and deposits into the signer's own pending balance in one tx",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      // Alice is not yet registered; the combined entry point both registers and deposits.
+      expect(
+        await confidentialAsset.hasUserRegistered({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBeFalsy();
+
+      const tx = await confidentialAsset.registerAndDeposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 50,
+      });
+      expect(tx.success).toBeTruthy();
+
+      expect(
+        await confidentialAsset.hasUserRegistered({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.pendingBalance()).toBe(50n);
+      expect(bal.availableBalance()).toBe(0n);
+
+      // A subsequent plain `deposit` must succeed because the registration is genuinely
+      // persisted, not just consumed for proof verification.
+      const followup = await confidentialAsset.deposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: 5,
+      });
+      expect(followup.success).toBeTruthy();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "registerAndDeposit aborts when sender is already registered",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      const reg = await confidentialAsset.registerBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(reg.success).toBeTruthy();
+
+      await expect(
+        confidentialAsset.registerAndDeposit({
+          signer: alice,
+          tokenAddress: TOKEN_ADDRESS,
+          decryptionKey: aliceDk,
+          amount: 1,
+        }),
+      ).rejects.toThrow();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "registerAndConfidentialTransfer atomically registers + transfers (amount=0 to a registered recipient)",
+    async () => {
+      const alice = Account.generate();
+      const bob = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      const bobDk = TwistedEd25519PrivateKey.generate();
+
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+      await migrateCoinsToFungibleStore(bob);
+
+      // Bob registers normally; the transfer needs an `ek` for the recipient ciphertext.
+      const bobReg = await confidentialAsset.registerBalance({
+        signer: bob,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: bobDk,
+      });
+      expect(bobReg.success).toBeTruthy();
+
+      // Alice is fresh; combined entrypoint registers her and submits a 0-amount transfer in
+      // a single tx. amount > 0 cannot succeed pre-registration because actual_balance is the
+      // canonical empty ciphertext; this test pins the success path for the atomic call.
+      const tx = await confidentialAsset.registerAndConfidentialTransfer({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        recipient: bob.accountAddress,
+        amount: 0,
+      });
+      expect(tx.success).toBeTruthy();
+
+      // Alice is now registered.
+      expect(
+        await confidentialAsset.hasUserRegistered({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBeTruthy();
+
+      // Bob's pending balance got the 0-amount ciphertext appended; decrypt confirms 0.
+      const bobBal = await confidentialAsset.getBalance({
+        accountAddress: bob.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: bobDk,
+      });
+      expect(bobBal.pendingBalance()).toBe(0n);
     },
     longTestTimeout,
   );
