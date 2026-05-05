@@ -218,6 +218,132 @@ Each per-asset `dk` (natively derived or imported) is stored, exported, and impo
 - The derivation policy is stable across releases. For software-backed accounts this includes the BIP-32 path layout `m/44'/637'/{accountIndex}'/1'/{tokenIndex}'` and the `tokenIndex` derivation `u32_le(SHA-256(tokenMetadataAddress)[0..4]) & 0x7FFFFFFF`. For hardware-backed accounts it includes the SDK's fixed `decryptionKeyDerivationMessage` prefix and the convention that the 32-byte token metadata address is appended as its lowercase hex representation, separated by a single ASCII colon. Any change to either yields a different `dk[token]` / `ek[token]` and breaks existing registrations; release notes must call out such changes.
 - The derivation message used with `fromSignature` is hard-coded in the wallet and is never supplied by a dApp. The dApp's only influence on derivation is the 32-byte FA metadata address it passes through `ca_*` methods; the wallet always inserts that address into the same fixed path layout (software backing) or appends it to the same fixed prefix message (hardware backing). See [Wallet adapter integration](#wallet-adapter-integration).
 
+### Motion Wallet keystore schema
+
+This section specifies how Motion Wallet implements the storage requirements above. The invariants in [Storage and export](#storage-and-export) and [Security invariants](#security-invariants) are normative for any wallet; the concrete schema below is normative for Motion Wallet specifically. Other implementations may choose a different schema as long as they preserve the invariants.
+
+#### Wallet entries
+
+Motion Wallet represents a multisig account as a first-class wallet entry alongside Ed25519-backed entries:
+
+```ts
+type WalletEntry =
+  | { kind: 'mnemonic';    id: string; /* … existing fields … */ }
+  | { kind: 'private-key'; id: string; /* … existing fields … */ }
+  | {
+      kind: 'multisig';
+      id: string;                  // local entry id; unrelated to on-chain address
+      address: string;             // multisig account address (32 bytes, 0x-prefixed lowercase)
+      threshold: number;           // k in k-of-n
+      owners: string[];            // all on-chain owner addresses
+      ownedByWalletIds: string[];  // ids of local Ed25519 wallets that are also on-chain owners;
+                                   // can be empty (view-only) or contain multiple ids
+                                   // (e.g. two device-local wallets that are both owners)
+    };
+```
+
+`ownedByWalletIds` is an array, not a single id, so a user with two device-local Ed25519 wallets that are both on-chain owners of the same multisig has one multisig entry, not two — and the imported `dk` set is not duplicated across owner blobs. When a multisig proposal needs an owner signature for approval, the popup picks among the listed local wallets; if `ownedByWalletIds` is empty, the entry is a read-only view (balances visible if `dk` entries are present, but no approvals possible from this device).
+
+Removing the last local Ed25519 wallet referenced by `ownedByWalletIds` does not delete the multisig entry — its imported `dk`s remain available for balance decryption — but the entry is marked view-only in the UI.
+
+#### Storage location
+
+There is one `dk` store per wallet entry, keyed by entry id:
+
+```
+mv_dk_store:${walletEntryId}
+```
+
+For mnemonic and private-key entries this stores any imported `dk`s for that account (rare but supported — e.g. a cross-device shared `dk` for a single-owner account). For multisig entries it stores the imported `dk[multisig, token]` set that gives the local user the ability to decrypt balances and propose transfers for that multisig.
+
+This per-entry keying contains corruption blast radius, lets a wallet-delete remove one storage key, and — critically for the multisig case — keeps each `dk` material in a single canonical location regardless of how many device-local Ed25519 wallets co-own the multisig.
+
+#### Persisted shape
+
+```ts
+type DkStoreV1 = {
+  version: 1;
+  walletEntryId: string;
+  entries: Record<DkEntryKey, EncryptedDkEntry>;
+};
+
+// The lookup key inside a store is just the token's metadata address; the
+// account address is implicit in the parent store (it's the wallet entry's address).
+// 0x-prefixed, lowercase, 32-byte hex.
+type DkEntryKey = string;
+
+type EncryptedDkEntry = {
+  source: 'imported';     // see "What is persisted" below
+  tokenMetaAddr: string;
+  ciphertext: string;     // base64 AES-GCM ciphertext + tag
+  iv: string;             // base64, 12 bytes, fresh per entry
+  label?: string;         // token symbol/name at import; UI only
+  importedAt: number;     // unix ms
+};
+```
+
+The outer `DkStoreV1` envelope is a plain JSON blob in `chrome.storage.local`. Per-entry AES-GCM provides the per-entry isolation; the envelope is not double-encrypted. The account address is not stored on individual entries because it is implied by the parent store's `walletEntryId` — see the AAD binding below for how this is enforced cryptographically.
+
+#### What is persisted
+
+Only **imported** entries are persisted at rest. Natively derived `dk[token]` values are recomputed on demand from root key material the wallet already holds (mnemonic for software, fresh device signature for hardware) and live only in an in-memory cache for the unlocked session.
+
+The cache shares its lifecycle with the Ed25519 signing-key cache: a derived `dk[token]` is computed lazily on first use during an unlocked session, retained for the remainder of that session, and zeroed on the same events that zero `cachedSigners` — wallet lock, idle auto-lock, and any future invalidation event that already clears the signing-key cache. Concretely the cache is a `Map<DkEntryKey, Uint8Array>` alongside `cachedSigners` in `services/wallet/account.ts`, governed by the existing `walletMutex`, and tied to the same lock/idle hooks rather than carrying its own eviction policy.
+
+Tying `dk` lifetime to the signing-key lifetime keeps the privacy blast radius equal to the fund-movement blast radius: any window in which an attacker with wallet-process access could read `dk[token]` is the same window in which they could already produce signatures with the Ed25519 key, so a stricter `dk`-only eviction policy would close no real gap and would make hardware-wallet UX unusable (a fresh device signature per CA operation).
+
+This split enforces the doc's two-form storage rule structurally: there is no on-disk state to enumerate for natively derived keys.
+
+#### Encryption key
+
+Each entry's `ciphertext` is sealed under Motion Wallet's existing runtime second-layer key from `core/storage/encrypted-storage.ts` — the PBKDF2-from-password key parameterised by `mv_storage_salt`. Reasons:
+
+- It is already lifecycle-bound to the unlocked session and zeroed on lock — the same lifecycle a `dk` ciphertext key requires.
+- It avoids a third PBKDF2 run on unlock (already 600k iterations for the mnemonic vault).
+- The "tentative read before key init" timing issue for `mv_active_wallet` (see project notes) does not apply to `dk` operations, which only run after unlock has fully completed.
+
+The mnemonic-vault key is *not* reused: that key conceptually unlocks the seed, and binding `dk` storage to it would propagate seed-vault format changes into `dk` storage.
+
+#### AAD binding
+
+Per-entry isolation is enforced cryptographically through AES-GCM additional authenticated data. The AAD is reconstructed at decrypt time from the loader's arguments, never read back from storage:
+
+```
+AAD = utf8("mv-dk-v1") || 0x00 || accountAddress || tokenMetaAddr
+```
+
+Where `accountAddress` is the parent wallet entry's address (the multisig address, or the Ed25519 account address) and `tokenMetaAddr` is the FA metadata address — each the raw 32 bytes (not hex). Binding the address into the AAD makes a ciphertext physically unmovable between stores: even though the entry doesn't carry the address as a plaintext field, AES-GCM tag verification fails on any cross-store substitution. The version tag in AAD also makes future schema changes (e.g. `mv-dk-v2`) unforgeable from v1 ciphertexts.
+
+#### Loader contract
+
+A single function in the wallet implements the doc's loader signature:
+
+```ts
+loadDk(accountAddress: AccountAddress, tokenMetaAddr: AccountAddress): Promise<TwistedEd25519PrivateKey>
+```
+
+The wallet first resolves `accountAddress` to a `WalletEntry` (Ed25519 or multisig). Resolution order within that entry:
+
+1. In-memory cache for natively derived entries (mnemonic- or device-backed entries only), keyed by `${accountAddress}:${tokenMetaAddr}`.
+2. For mnemonic-backed entries whose `accountAddress` matches a known mnemonic-derived account: derive via `fromDerivationPath("m/44'/637'/{accountIndex}'/1'/{tokenIndex}'", mnemonic)`, populate cache, return.
+3. For hardware-backed entries whose `accountAddress` matches a known device account: derive via `fromSignature(device.sign(decryptionKeyDerivationMessage ‖ ":" ‖ hex(tokenMetaAddr)))`, populate cache, return.
+4. Imported entry in `mv_dk_store:${walletEntry.id}.entries[tokenMetaAddr]`: AES-GCM-decrypt with AAD as defined above (using the parent entry's `accountAddress`); return.
+5. Otherwise, throw — the loader does not fall back to "any `dk` for this account."
+
+Multisig entries skip steps 2 and 3: there is no mnemonic or device that can derive a multisig's `dk` (a multisig has no private key), so step 4 is the only path that can succeed for them. If no imported entry exists for `(multisigAddress, tokenMetaAddr)`, the loader throws — the user has not yet imported the shared `dk` for that asset, and the UI should prompt for import or surface the asset as view-only-without-key.
+
+Proof-construction routines accept exactly one `dk` and one `tokenMetaAddr` and reject mismatches before any cryptographic work begins, as required by [Security invariants](#security-invariants).
+
+#### Migration
+
+Schema v1 is additive: on unlock, if `mv_dk_store:${walletEntryId}` is absent, the wallet treats it as `{ version: 1, walletEntryId, entries: {} }` and lazy-creates on first import. There is no v0 to migrate. A `dkSchemaVersion` field will be introduced only when a v2 forces it.
+
+When a multisig wallet entry is created (whether by importing an existing on-chain multisig or by completing a creation flow), the wallet creates an empty `mv_dk_store:${entryId}` and prompts the user to import each registered token's `dk` separately, per [DK sharing among co-owners](#dk-sharing-among-co-owners).
+
+#### Whole-wallet export
+
+When the wallet exposes a "back up wallet" flow that already includes the encrypted mnemonic vault, it includes every `mv_dk_store:${walletEntryId}` blob alongside it — both for Ed25519 entries and for multisig entries. The blobs are already sealed under the runtime second-layer key and are useless without the password; excluding them would silently lose imported multisig material that mnemonic recovery cannot reproduce. The export-flow copy must state that the backup includes imported decryption keys.
+
 ---
 
 ## Operation-by-operation design
@@ -249,12 +375,13 @@ A public fungible-asset balance is moved into the confidential pending balance. 
 |---|---|
 | User enters the amount to deposit | App |
 | App calls `ca_deposit({ token, amount })` | App → Wallet |
-| Check whether the account is registered for `token` | Wallet |
-| If not registered: present a confirmation for the `register` transaction; submit only after the user confirms | Wallet ↔ User |
-| Present a confirmation for the `deposit` transaction (enumerated alongside `register` in the same flow if applicable); build and sign `deposit(sender, token, amount)` | Wallet ↔ User |
-| After user confirmation, submit each transaction; return the transaction hash | Wallet → App |
+| Check `has_confidential_asset_store(account, token)` and (if registered) `is_normalized(account, token)` | Wallet |
+| Route to the appropriate single on-chain entrypoint: <ul><li>**Not registered** → `register_and_deposit_and_rollover_pending_balance` (SDK: `registerAndDepositAndRollover`).</li><li>**Registered, normalized** → `deposit_and_rollover_pending_balance` (SDK: `depositAndRollover`).</li><li>**Registered, not normalized** → `deposit_and_normalize_and_rollover_pending_balance` (SDK: `depositNormalizeAndRollover`).</li></ul> | Wallet |
+| For the not-registered route, derive `dk[token]` and persist a new keystore entry as in [Register](#register); the on-chain entrypoint atomically registers, deposits, and rolls over | Wallet |
+| Present a single confirmation for one transaction; the confirmation states which entrypoint will be invoked | Wallet ↔ User |
+| After the user confirms, submit the transaction; return the transaction hash | Wallet → App |
 
-Deposit itself does not require `dk[token]`. When the account is not yet registered for the token, the wallet presents the user with a single review-and-confirm step that enumerates both the `register` and `deposit` transactions; neither transaction is submitted before user confirmation.
+Deposit itself does not require `dk[token]` for the deposit step, but the not-registered route does require `dk[token]` to derive `ek[token]` for the embedded register call. Every route results in **one** on-chain transaction; the wallet does not sequence a separate `register` followed by a separate `deposit`. The user sees one approval regardless of which route applies.
 
 ### Withdraw
 
@@ -265,13 +392,12 @@ Confidential balance is moved back to a public fungible-asset balance. The withd
 | User enters the amount to withdraw | App |
 | App calls `ca_withdraw({ token, amount })` | App → Wallet |
 | Fetch the on-chain actual balance ciphertext; decrypt with `dk[token]` | Wallet |
-| If `actual < amount` but `actual + pending ≥ amount`: enumerate the prerequisite `normalize` (where required) and `rollover` transactions for inclusion in the user-confirmation step | Wallet |
+| If `actual < amount`: return `INSUFFICIENT_BALANCE`. The wallet does **not** auto-rollover pending funds to cover the shortfall; the user must explicitly accept incoming funds first via [`ca_rolloverPending`](#rollover-and-normalization) | Wallet → App |
 | Build the sigma proof and the range proof for the new balance | Wallet |
-| Present a single confirmation enumerating every transaction in the sequence (any prerequisite `normalize` and `rollover`, followed by `withdraw`); each transaction lists its parameters and gas estimate | Wallet ↔ User |
-| After the user confirms, sign and submit each transaction in order | Wallet |
-| Return the transaction hash for the final `withdraw` (and intermediate hashes where the wallet API exposes them) | Wallet → App |
+| Present a single confirmation for one `withdraw` transaction; the confirmation lists parameters and gas estimate | Wallet ↔ User |
+| After the user confirms, sign and submit the transaction; return its hash | Wallet → App |
 
-The `withdrawWithTotalBalance` flow constructs the full sequence above, including any prerequisite rollover or normalization, but does not submit it without explicit user confirmation. See [Rollover and normalization](#rollover-and-normalization).
+`ca_withdraw` operates on the user's actual (spendable) balance only. Pending balance is a queue of unaccepted incoming transfers, not part of total balance, and no SDK or wallet code path silently accepts pending funds on the user's behalf in order to make a spend succeed. This preserves the property in [Guiding principles, item 4](#guiding-principles): rollover requires explicit user authorization. The current SDK helpers `withdrawWithTotalBalance` / `transferWithTotalBalance` violate this property and are required to change — see [SDK changes required by this design](#sdk-changes-required-by-this-design).
 
 ### Confidential transfer
 
@@ -282,17 +408,16 @@ Encrypted value moves from sender to recipient. The transfer amount is hidden on
 | User enters recipient, amount, and optional auditor addresses | App |
 | App calls `ca_transfer({ token, recipient, amount, auditorAddresses? })` | App → Wallet |
 | Fetch the sender's actual balance ciphertext; decrypt with `dk[token]` | Wallet |
-| If `actual < amount`: enumerate the prerequisite `normalize` (where required) and `rollover` transactions for inclusion in the user-confirmation step | Wallet |
+| If `actual < amount`: return `INSUFFICIENT_BALANCE`. The wallet does **not** auto-rollover pending funds to cover the shortfall; the user must explicitly accept incoming funds first via [`ca_rolloverPending`](#rollover-and-normalization) | Wallet → App |
 | Fetch the recipient's `ek[token]` from chain | Wallet |
-| Fetch the global auditor `ek` from the chain-wide view (mandatory inclusion) | Wallet |
-| Fetch the per-asset auditor `ek` for the token, if configured (`get_auditor`) | Wallet |
-| Combine the global auditor, the per-asset auditor (when configured), and any per-transfer auditor keys supplied in the request | Wallet |
+| Fetch the chain-level auditor `ek` via `get_chain_auditor()` (mandatory inclusion) | Wallet |
+| Fetch the per-asset auditor `ek` for the token, if configured, via `get_asset_auditor(token)` | Wallet |
+| Combine the chain-level auditor, the per-asset auditor (when configured), and any per-transfer auditor keys supplied in the request | Wallet |
 | Build the `ConfidentialTransfer` payload with proofs (sigma plus two range proofs) | Wallet |
-| Present a single confirmation enumerating every transaction in the sequence (any prerequisite `normalize` and `rollover`, followed by `confidential_transfer`); the confirmation lists recipient, amount, included auditors, and per-transaction gas estimates | Wallet ↔ User |
-| After the user confirms, sign and submit each transaction in order | Wallet |
-| Return the transaction hash for the final `confidential_transfer` | Wallet → App |
+| Present a single confirmation for one `confidential_transfer` transaction; the confirmation lists recipient, amount, included auditors, and gas estimate | Wallet ↔ User |
+| After the user confirms, sign and submit the transaction; return its hash | Wallet → App |
 
-The wallet performs the cryptographic and balance-state work. The dApp supplies only the recipient, amount, and any optional auditors. The user authorizes the resulting transaction sequence in a single review step before any transaction is submitted.
+`ca_transfer` operates on the user's actual (spendable) balance only, on the same principle as `ca_withdraw` above. The wallet performs the cryptographic and balance-state work; the dApp supplies only the recipient, amount, and any optional auditors.
 
 ### Rollover and normalization
 
@@ -304,7 +429,7 @@ Rollover and normalization are on-chain transactions. They incur gas and alter t
 
 - The wallet displays the pending balance as a distinct, user-visible state when `pending > 0` for any registered `(account, token)` pair, with an explicit action labeled "Accept incoming funds" (or an equivalent unambiguous phrasing).
 - Activating that action prompts the user to review and confirm a rollover transaction. The wallet computes whether `normalize` is required first, and if so chains it: the user is presented with a single confirmation that authorizes the full sequence (`normalize` followed by `rollover`, where applicable), with both transactions clearly enumerated.
-- The same explicit-authorization requirement applies to `transferWithTotalBalance` and `withdrawWithTotalBalance` flows: when the actual balance is insufficient and rollover (with optional normalization) must precede the spend, the wallet presents the user with a single confirmation that enumerates and authorizes every transaction in the sequence.
+- The wallet does not bundle rollover into spend flows. `ca_withdraw` and `ca_transfer` operate on the user's actual (spendable) balance only and return `INSUFFICIENT_BALANCE` when `amount > actual`, regardless of how much pending balance the user has. Accepting pending funds is a separate, explicit user action via `ca_rolloverPending` (or its in-wallet equivalent "Accept incoming funds"). This avoids silently combining "spend funds" with "accept incoming transfers" — they are conceptually distinct decisions and authorized independently.
 - The wallet does not initiate rollover, normalization, or any other on-chain transaction in the background, on a timer, on balance fetch, on receipt of an inbound transfer, or in response to any dApp signal. Each on-chain transaction is preceded by user confirmation in the wallet UI.
 
 #### Behavior by scenario
@@ -314,15 +439,14 @@ Rollover and normalization are on-chain transactions. They incur gas and alter t
 | The wallet observes `pending > 0` for a registered `(account, token)` pair | The wallet surfaces a "pending — accept incoming funds" indicator on the balance row. No transaction is submitted until the user activates it. |
 | User activates the rollover action with normalization not required | The wallet presents a single confirmation for one `rollover` transaction. The transaction is submitted only after the user confirms. |
 | User activates the rollover action with normalization required | The wallet presents a single confirmation that enumerates `normalize` and `rollover`. After the user confirms, the wallet submits `normalize`, awaits confirmation, then submits `rollover`. The user authorizes the sequence once. |
-| User initiates a confidential transfer with `actual < amount` and `actual + pending ≥ amount` | The wallet presents a single confirmation enumerating the required `normalize` (if applicable), `rollover`, and `confidential_transfer` transactions. The wallet submits the sequence only after the user confirms. |
-| User initiates a withdraw with `actual < amount` and `actual + pending ≥ amount` | As above, with `withdraw` in place of `confidential_transfer`. |
+| User initiates a confidential transfer or withdraw with `actual < amount` | The wallet returns `INSUFFICIENT_BALANCE`. If `pending > 0` could cover the shortfall, the dApp surface (and the wallet's own UI on its built-in send/withdraw screens) prompts the user to first activate "Accept incoming funds," after which they can retry the spend. The wallet does not bundle rollover with the spend. |
 | Receive-only account (the user only receives confidential transfers) | The pending balance accumulates and remains visible in the UI. The wallet does not roll it over until the user activates the explicit action. |
 
 An account that only receives transfers and does not send accumulates funds in the pending balance, which are not spendable until the user authorizes a rollover. The wallet's role is to make this state evident and to make the action available; the wallet does not perform rollover on the user's behalf without authorization.
 
 #### dApp interaction
 
-The dApp does not need to model normalization. The wallet presents a single combined balance (actual plus pending, where pending is clearly labeled as awaiting acceptance). The dApp may invoke `ca_rolloverPending` to express the user's intent to roll over; the wallet still routes that invocation through an explicit user-confirmation step before submitting any transaction. While `normalize` and `rollover` transactions are confirming on chain, the wallet may display a "processing" indicator; that indicator does not represent any wallet-initiated activity beyond what the user authorized.
+The dApp does not need to model normalization. The wallet exposes `actual` (spendable) and `pending` (awaiting acceptance) as separate fields on `ca_getBalances`; the dApp displays them as the user's spendable balance and a clearly labeled "incoming, pending acceptance" line, never summed into a single "total balance" number. The dApp may invoke `ca_rolloverPending` to express the user's intent to accept pending funds; the wallet routes that invocation through an explicit user-confirmation step before submitting any transaction, and chains `normalize` first if required (silent within the single approval, since `normalize` is a protocol implementation detail of "accept incoming funds"). While `normalize` and `rollover` transactions are confirming on chain, the wallet may display a "processing" indicator; that indicator does not represent any wallet-initiated activity beyond what the user authorized.
 
 ### Key rotation (not wallet-supported)
 
@@ -362,7 +486,7 @@ Confidential balances are shown by default as a separate line item beneath the r
 
 Rollover is a user-visible action. When `pending > 0` for a registered `(account, token)` pair, the wallet displays the pending portion as a distinct state alongside the spendable balance, with an explicit "Accept incoming funds" action. No `rollover` transaction is submitted without the user activating that action and confirming the resulting transaction in the wallet UI.
 
-Normalization is an internal protocol detail. When a `normalize` transaction is required as a prerequisite for rollover (or for a spend that requires rollover), the wallet enumerates it within the same user-confirmation step that authorizes the rollover or the spend. The user authorizes the full sequence in a single review; they do not need to understand normalization as an independent concept. While submitted transactions are confirming on chain, the wallet may display a subtle "processing" indicator; the indicator does not represent any wallet activity beyond the transactions the user has already authorized.
+Normalization is an internal protocol detail. When a `normalize` transaction is required as a prerequisite for rollover, the wallet chains it within the same user-confirmation step that authorizes "Accept incoming funds" — the user authorizes one logical action and does not need to understand normalization as an independent concept. Spends (`ca_withdraw`, `ca_transfer`) never trigger normalization or rollover, by design: they operate on the user's actual balance only, and the user authorizes "accept incoming funds" separately when they want to make pending funds spendable. While submitted transactions are confirming on chain, the wallet may display a subtle "processing" indicator; the indicator does not represent any wallet activity beyond the transactions the user has already authorized.
 
 ### Spam-token handling
 
@@ -391,6 +515,8 @@ The device's chain application must expose deterministic message signing over ar
 ## Multisig accounts
 
 A multisig account is a resource account: it holds funds but has no private key, so a multisig account cannot run `fromDerivationPath` itself. Proofs for multisig confidential-asset operations must bind to the multisig account's address — the SDK's Fiat–Shamir transcript includes `senderAddress` (see `src/crypto/fiatShamir.ts`), and proofs built against any other address abort on chain.
+
+Motion Wallet represents a multisig as a first-class wallet entry (`WalletEntry.kind = 'multisig'`, see [Motion Wallet keystore schema / Wallet entries](#wallet-entries)). The popup's wallet switcher lists multisig entries alongside Ed25519 entries, the Home page shows the multisig's confidential balances when the corresponding `dk` entries have been imported, and pending multisig proposals surface in the wallet's approval flow the same way dApp-originated approvals do. The dApp (`gmove-multisig`) remains the place where users *manage* a multisig (create it, change owners, etc.); the wallet is where they *use* it. Surfacing the multisig as a wallet entry — rather than only as a dApp concept — is what lets a user open the wallet popup and immediately see the assets and pending actions that affect them, without first navigating to a specific dApp.
 
 ### Data ownership
 
@@ -510,8 +636,8 @@ The shared-`dk` design (per asset) is the chosen construction for this integrati
 
 The on-chain protocol supports auditors: parties that receive encrypted copies of transfer amounts under their own encryption keys. A confidential transfer carries one encrypted copy per included auditor. Three distinct sources contribute auditor encryption keys to a transfer:
 
-1. **Global (chain-level) auditor.** A single encryption key configured at the chain level applies to every confidential transfer of every fungible asset on the chain, with no exceptions. The wallet must include this auditor's encryption key in every confidential transfer it constructs. The key is read from a chain-wide view (denoted `get_global_auditor` in this document; the exact Move name is fixed by the protocol). It is installed or updated only by the chain's governance authority.
-2. **Per-asset auditor.** An optional encryption key is stored on chain per fungible asset and applies to every confidential transfer of that asset. It is installed or updated only by the asset issuer — the root owner of the asset's FA metadata object — via `set_auditor` in Move. The SDK reads it via `get_auditor(token)`. When set, the wallet must include this auditor in transfers of the affected asset.
+1. **Global (chain-level) auditor.** A single encryption key configured at the chain level applies to every confidential transfer of every fungible asset on the chain, with no exceptions. The wallet must include this auditor's encryption key in every confidential transfer it constructs. The key is read from the on-chain `#[view] get_chain_auditor()` (see `confidential_asset.move`), which returns `Option<CompressedPubkey>`. The accompanying `get_chain_auditor_epoch()` view returns the current epoch. It is installed or updated only by the chain's governance authority via `set_chain_auditor`.
+2. **Per-asset auditor.** An optional encryption key is stored on chain per fungible asset and applies to every confidential transfer of that asset. It is installed or updated only by the asset issuer — the root owner of the asset's FA metadata object — via `set_asset_auditor` in Move. The SDK reads it via `get_asset_auditor(token)` (returns `Option<CompressedPubkey>`); the matching epoch is `get_asset_auditor_epoch(token)`. When set, the wallet must include this auditor in transfers of the affected asset.
 3. **Per-transfer (voluntary) auditors.** The sender may include additional auditor encryption keys at transfer time. These are not stored on chain; they appear only in the transaction data and the emitted `Transferred` event.
 
 The three sources compose: a single confidential transfer always carries an encrypted copy for the global auditor, also carries one for the per-asset auditor when one is configured, and may additionally carry one for each per-transfer auditor supplied with the request.
@@ -539,11 +665,14 @@ The three sources compose: a single confidential transfer always carries an encr
   recipient: string;            // recipient account address
   amount: string;               // transfer amount (decimal string or bigint-compatible)
   auditorAddresses?: string[];  // optional per-transfer auditor encryption keys (hex)
-  senderAuditorHint?: string;   // optional opaque metadata (max 256 bytes, bound into proof)
+  senderAuditorHint?: string;   // optional opaque metadata, hex-encoded; max length set by the on-chain
+                                // `max_sender_auditor_hint_bytes()` view (decoded byte length, not hex length)
 }
 ```
 
 The global auditor and the per-asset auditor are not parameters of this request. The wallet always reads them from chain and includes them in the constructed transfer; the dApp neither supplies nor overrides them.
+
+`senderAuditorHint`, when supplied, is bound into the transfer sigma Fiat–Shamir transcript by appending its **BCS `vector<u8>`** encoding (ULEB128 length prefix followed by the bytes), exactly as the on-chain verifier does — see `bcs::to_bytes(sender_auditor_hint)` in `confidential_proof.move` and `bcsSerializeMoveVectorU8` in `crypto/confidentialTransfer.ts`. The wallet must use the same bytes that will be passed as the `sender_auditor_hint` entry-function argument; any divergence causes the on-chain verifier to reject the proof. The wallet enforces the on-chain length cap before proof construction by reading `max_sender_auditor_hint_bytes()`.
 
 ### Auditor epoch
 
@@ -566,7 +695,7 @@ If the on-chain module exposes an `auditor_epoch` field on the chain-level and p
 
 | Scenario | Impact | Mitigation |
 |---|---|---|
-| Rollover not performed | Pending funds are not spendable. The user observes a pending balance but cannot transfer or withdraw it until rollover is performed. | The wallet displays the pending balance with an explicit "Accept incoming funds" action whenever `pending > 0` (see [Rollover and normalization](#rollover-and-normalization)). When the user initiates a spend with `actual < amount`, the wallet enumerates the prerequisite `rollover` (and `normalize` where required) within the same confirmation step, so the user authorizes the full sequence in a single review. |
+| Rollover not performed | Pending funds are not spendable. The user observes a pending balance but cannot transfer or withdraw it until rollover is performed. | The wallet displays the pending balance with an explicit "Accept incoming funds" action whenever `pending > 0` (see [Rollover and normalization](#rollover-and-normalization)). When the user initiates a spend with `actual < amount`, the wallet returns `INSUFFICIENT_BALANCE` and the UI prompts the user to accept incoming funds first if `pending` could cover the shortfall. Spend and rollover are authorized as separate user actions — the wallet never bundles them. |
 | Normalization skipped before rollover | Rollover aborts with `ENORMALIZATION_REQUIRED`. Gas spent, no state change. | The wallet checks `is_normalized` before rollover and chains `normalize` first when required. |
 | Wrong recipient address | Confidential transfer is irreversible. The amount is hidden on chain, but it is sent to the wrong party. | Standard address-validation UX. No confidential-asset-specific mitigation beyond what applies to non-confidential transfers. |
 | Wrong token metadata address | Transaction fails, or the wrong asset is moved. | The wallet resolves token identifiers to FA metadata addresses and displays the asset name for user confirmation. |
@@ -597,7 +726,7 @@ The read and write method tables in this section are the definitive list of `ca_
 
 #### Mapping to the chain and SDK
 
-Implementations of these entry points call the confidential-asset module's Move `view` and `entry` functions as required. The chain-level global auditor is read via the chain-wide global-auditor view; the per-asset auditor is read via the on-chain `get_auditor` view. The package `@moveindustries/confidential-assets` provides the corresponding APIs for trusted (non-browser) code.
+Implementations of these entry points call the confidential-asset module's Move `view` and `entry` functions as required. The chain-level auditor is read via `get_chain_auditor()` (with `get_chain_auditor_epoch()` for staleness checks); the per-asset auditor is read via `get_asset_auditor(token)` (with `get_asset_auditor_epoch(token)`). The package `@moveindustries/confidential-assets` provides the corresponding APIs for trusted (non-browser) code.
 
 ### Read methods
 
@@ -606,18 +735,18 @@ Implementations of these entry points call the confidential-asset module's Move 
 | `ca_getBalances` | `{ tokens: string[] }` | `{ balances: { token, registered, available, pending }[] }` | Wallet decrypts; dApp sees plaintext numbers only |
 | `ca_isRegistered` | `{ token }` | `{ registered: boolean }` | No `dk` needed |
 | `ca_getEncryptionKey` | `{ token }` | `{ encryptionKey: string }` | Public key — safe to return |
-| `ca_getGlobalAuditor` | `{}` | `{ auditorEncryptionKey: string }` | Chain-level (global) auditor; included in every confidential transfer. Corresponds to the on-chain global auditor view |
-| `ca_getAuditor` | `{ token }` | `{ auditorEncryptionKey?: string }` | Optional per-asset auditor; corresponds to on-chain `get_auditor` / SDK `getAssetAuditorEncryptionKey`. Omit or empty if no per-asset auditor is configured for the token |
+| `ca_getGlobalAuditor` | `{}` | `{ auditorEncryptionKey?: string, epoch: number }` | Chain-level (global) auditor; included in every confidential transfer. Reads `get_chain_auditor()` and `get_chain_auditor_epoch()`. `auditorEncryptionKey` is omitted when no chain auditor has been configured (in which case the wallet refuses to construct a transfer per [Wallet responsibilities](#wallet-responsibilities)). |
+| `ca_getAuditor` | `{ token }` | `{ auditorEncryptionKey?: string, epoch: number }` | Optional per-asset auditor; reads `get_asset_auditor(token)` and `get_asset_auditor_epoch(token)`. `auditorEncryptionKey` is omitted when no per-asset auditor is configured for the token. |
 
 ### Write methods
 
 | Method | Request | Response | Notes |
 |---|---|---|---|
 | `ca_register` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Wallet derives `dk[token]`, builds the proof, and presents the transaction for user confirmation. Submits after confirmation, or returns BCS bytes if `mode: "buildOnly"`. |
-| `ca_deposit` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | If the account is not registered for `token`, the wallet enumerates `register` and `deposit` in a single user-confirmation step and submits both after confirmation. |
-| `ca_withdraw` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | If `actual < amount` and rollover is required, the wallet enumerates `normalize` (where required), `rollover`, and `withdraw` in a single user-confirmation step and submits the sequence after confirmation. |
-| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint?, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | If `actual < amount` and rollover is required, the wallet enumerates `normalize` (where required), `rollover`, and `confidential_transfer` in a single user-confirmation step and submits the sequence after confirmation. |
-| `ca_rolloverPending` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Explicit rollover. The wallet enumerates `normalize` (where required) and `rollover` in a single user-confirmation step and submits after confirmation. |
+| `ca_deposit` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | The wallet routes to the appropriate single on-chain entrypoint based on registration and normalization state — `register_and_deposit_and_rollover_pending_balance`, `deposit_and_rollover_pending_balance`, or `deposit_and_normalize_and_rollover_pending_balance`. One transaction in every case. See [Deposit](#deposit). |
+| `ca_withdraw` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Operates on actual balance only. Always one on-chain transaction. Returns `INSUFFICIENT_BALANCE` when `amount > actual`, regardless of pending; the dApp prompts the user to accept incoming funds first if needed. |
+| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint?, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Operates on actual balance only. Always one on-chain transaction. Same `INSUFFICIENT_BALANCE` behavior as `ca_withdraw`. |
+| `ca_rolloverPending` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Accept incoming funds. The wallet chains `normalize` (where required) and `rollover` in a single user-confirmation step and submits after confirmation — at most two on-chain transactions, silently chained because `normalize` is a protocol detail of "accept incoming funds." Returns the final `rollover` transaction hash. |
 
 **`sender`** defaults to the wallet's own account address. Pass an explicit value (e.g. a multisig account address) when the executing signer is not the wallet account; the value is bound into the proof's Fiat–Shamir transcript and must match the executor at chain-verification time. A non-default `sender` requires `mode: "buildOnly"` — the wallet cannot sign a transaction on behalf of an account whose key it does not hold.
 
@@ -628,6 +757,80 @@ Implementations of these entry points call the confidential-asset module's Move 
 - Transaction hashes, and optionally structured event data after confirmation.
 - Decrypted balances via `ca_getBalances`.
 - The dApp must not receive `dk`, proof material, raw ciphertext, or any data from which the decryption key could be derived.
+
+### Errors
+
+Failed `ca_*` calls return a structured error with a finite, versioned enum of codes. The goal is to give dApps the information they can act on — surface a user-facing message, retry, fall back, prompt re-unlock — without leaking wallet internals or turning the wallet into an oracle that a malicious dApp can probe through differential error analysis.
+
+#### Error shape
+
+```ts
+type CaError = {
+  code: CaErrorCode;
+  message: string;             // user-facing, no internals
+  details?: CaErrorDetails;    // only fields below; never balance state, ciphertext, vault params,
+                               // KDF details, proof intermediates, stack traces, or storage paths
+};
+
+type CaErrorCode =
+  // User / session
+  | 'USER_REJECTED'              // user rejected the approval popup or closed it
+  | 'WALLET_LOCKED'              // wallet is locked; dApp should prompt unlock
+  | 'NOT_CONNECTED'              // dApp origin is not connected to this wallet
+  // Capability
+  | 'UNSUPPORTED_METHOD'         // wallet doesn't implement this ca_* method
+  | 'UNSUPPORTED_MODE'           // e.g. mode: "buildOnly" not supported for this method or sender
+  | 'CA_FEATURE_UNAVAILABLE'     // chain-level auditor unset; wallet refuses to construct transfer
+  // Request validity
+  | 'INVALID_REQUEST'            // malformed token address, missing required field, value out of range
+  | 'TOKEN_NOT_REGISTERED'       // ca_transfer / ca_withdraw before ca_register / ca_deposit
+  | 'TOKEN_FROZEN'               // confidential store is frozen for this (account, token)
+  | 'TOKEN_DISABLED'             // token is not on the allow list
+  // Economics
+  | 'INSUFFICIENT_BALANCE'       // amount exceeds actual (pending is not counted; rollover is a separate user action)
+  | 'PENDING_COUNTER_LIMIT'      // protocol pending-counter overflow; rollover required
+  // Execution
+  | 'NETWORK_ERROR'              // RPC unreachable, view fetch failed, or chain timed out
+  | 'CHAIN_REJECTED'             // transaction submitted but chain returned an abort
+  | 'PROOF_FAILED'               // local proof construction or pre-flight verification failed
+  | 'INTERNAL_ERROR';            // catch-all; details omitted
+
+type CaErrorDetails = {
+  // Present on CHAIN_REJECTED only. Both fields are public chain state.
+  abortCode?: number;
+  moduleAbort?: string;          // e.g. "ENORMALIZATION_REQUIRED"
+  txHash?: string;               // hash of the rejected transaction, when available
+
+  // Present on UNSUPPORTED_METHOD / UNSUPPORTED_MODE only.
+  requiredCapability?: string;   // e.g. "ca_transfer", "buildOnly"
+};
+```
+
+#### What is and is not exposed
+
+- `details.abortCode` and `details.moduleAbort` are surfaced because Move abort codes are public chain state and are directly actionable for the dApp ("this failed because the store was frozen → show 'asset is currently frozen'").
+- `details.txHash` is surfaced on `CHAIN_REJECTED` because the dApp may need to look the transaction up.
+- `details.requiredCapability` is surfaced on capability errors so the dApp can either degrade gracefully or prompt the user to update their wallet.
+- The wallet does **not** surface: internal storage paths, vault format or KDF parameters, balance ciphertexts or decrypted values outside the legitimate `ca_getBalances` flow, intermediate values from proof construction, hardware-device responses beyond "device error" / "user rejected on device", stack traces, or any field that varies with private state.
+- `INTERNAL_ERROR` is intentionally opaque. Internal failure modes are an implementation detail and must not be pinned in the wire contract; full context lives in the wallet's own telemetry, not in dApp responses. The wallet logs the underlying cause locally with a correlation id and includes only the correlation id (no leaked internals) in `message` if needed for support.
+
+#### Stability
+
+The `CaErrorCode` enum is stable across releases. Adding new codes is a breaking change to dApps that switch on the enum exhaustively, so additions go through the same versioning treatment as adding methods to the `ca_*` surface — see [Wallet-standard feature advertisement](#wallet-standard-feature-advertisement). Renaming or removing codes is not permitted within a single feature version.
+
+### Concurrency
+
+`ca_*` write methods require explicit user authorization in the wallet UI (a confirmation screen for in-wallet flows, an approval window opened by the service worker for dApp-initiated flows). The user is one person interacting with one confirmation surface at a time, so there is no UX state in which two CA writes can be authorized in parallel. The wallet does not need a per-account or per-(account, token) mutex to serialize CA operations: the user-approval requirement already does so.
+
+Concretely:
+
+- **In-wallet flows.** The user navigates linearly through screens (Send → review → submit). Two confirmation screens are never on screen at once.
+- **dApp-initiated flows.** The transaction-manager limits in-flight approval windows per origin (per the existing `canOpenPopup` rate limit), and `chrome.windows.onRemoved` resolves any closed approval as "rejected by user." Dapps cannot stack pending approvals.
+- **Reads** (`ca_getBalances`, `ca_isRegistered`, etc.) require no user approval and may run concurrently with anything; they may return slightly stale data, which the next write will refetch anyway.
+
+The one window of genuine overlap is between "user authorized transaction A" and "transaction A confirmed on chain." During that window a dApp may call another `ca_*` method, opening a new approval. The wallet builds the new operation's proof by **fetching fresh on-chain state at proof-build time** — the SDK does not cache state for proof construction. If A has confirmed by then, the proof binds to the post-A state and submits cleanly. If A has not yet confirmed, the proof binds to the pre-A state; if A subsequently lands first, the chain rejects the second transaction with an abort (proof no longer matches the on-chain ciphertext) and the wallet returns `CHAIN_REJECTED` to the dApp. The dApp retries; the next attempt sees fresh state and succeeds. This is self-correcting and requires no in-wallet locking.
+
+dApps do not need to model concurrency. They issue `ca_*` calls when the user requests an action; if a stale-state race causes a `CHAIN_REJECTED`, retry once with the same parameters.
 
 ### Wallet adapter integration
 
@@ -662,6 +865,69 @@ These are RPC calls to the wallet, not invocations of the `ConfidentialAsset` SD
 
 The adapter must not offer a generic "sign arbitrary bytes for confidential assets" hook. When the wallet derives `dk` via `fromSignature` (the supported path for hardware-backed accounts; see [Decryption key lifecycle](#decryption-key-lifecycle)), the signed payload is fixed by the wallet and is not supplied by the dApp; otherwise phishing or wrong-`ek` registration is possible. Software-backed accounts use `fromDerivationPath` from the mnemonic and do not sign anything for derivation.
 
+### Wallet-standard feature advertisement
+
+Confidential-asset support is advertised through the wallet-standard `features` map under **two keys pointing at the same feature object**, matching the dual-publish convention already used by `@moveindustries/wallet-adapter-react` for every other feature:
+
+```ts
+features: {
+  // ...
+  'aptos:confidentialAssets':    confidentialAssetsFeature,
+  'movement:confidentialAssets': confidentialAssetsFeature,
+  // ...
+}
+```
+
+The two keys share one object reference; nothing is duplicated except the entry in the map. A dApp using the Movement adapter (which probes both prefixes) finds the feature under either name; a dApp built against the Aptos wallet-standard tooling finds it under `aptos:confidentialAssets`.
+
+No version suffix is used in v1, matching the convention for every other feature in the Movement adapter (`aptos:signTransaction`, `movement:signTransaction`, etc., none of which carry suffixes). If a future change to the `ca_*` surface is incompatible with v1 callers, it will be advertised under whatever versioning convention the rest of the wallet-standard has adopted by then (e.g. a `:v2` suffix), with both versions co-published during a deprecation window.
+
+#### Future direction
+
+The dual-publish convention exists because Movement inherited its wallet-standard feature names (`aptos:*`) from AIP-62 and adopted `movement:*` aliases on top. This is a transitional state. The Movement ecosystem should consider deprecating the `aptos:*` aliases in a future, ecosystem-coordinated release — wallet, adapter, and major dApps moving in lockstep — at which point Motion Wallet would drop `aptos:confidentialAssets` (and the inherited AIP-62 `aptos:*` keys) in favor of `movement:*` only. That migration is out of scope for the confidential-assets integration; the CA work just adopts the existing dual-publish convention rather than getting ahead of it.
+
+### SDK changes required by this design
+
+The `@moveindustries/confidential-assets` package supplies the proof construction and transaction builders that the wallet calls in its background service worker. The current package exposes most of what the wallet needs, but three changes are required to make the design above implementable and to remove a footgun that contradicts the design's authorization model.
+
+#### 1. `withdrawWithTotalBalance` / `transferWithTotalBalance` must not auto-rollover
+
+`ConfidentialAsset.withdrawWithTotalBalance` (`api/confidentialAsset.ts:265`) and `ConfidentialAsset.transferWithTotalBalance` (`api/confidentialAsset.ts:417`) currently call `checkSufficientBalanceAndRolloverIfNeeded` (`api/confidentialAsset.ts:677`), which fetches the user's balance, sees that `actual` alone is insufficient, checks whether `actual + pending ≥ amount`, and if so submits a `rollover_pending_balance` transaction automatically before submitting the spend. They return `Promise<CommittedTransactionResponse[]>` — an array — because they can result in 1 or 2 on-chain transactions.
+
+This behavior contradicts [Guiding principles, item 4](#guiding-principles): rollover is an explicit user-authorized action, not a side effect of "I want to spend more than my actual balance." The principle applies to any use of confidential assets, not only wallet-mediated calls — a CLI tool, server-side automation, or any other caller that silently accepts incoming funds in order to make a spend succeed runs the same risk of executing transfers and incurring gas the funds-owner did not consent to.
+
+**Required change:** remove the auto-rollover branch from both helpers. Either:
+
+- **Option A (recommended):** Delete the helpers entirely. They primarily existed as a UX nicety; without auto-rollover their only remaining behavior would be a pre-flight balance check, which any caller can do directly via `getBalance` followed by `withdraw` / `transfer`. Deletion removes a confusing API surface (the names "withTotalBalance" suggest pending is part of total balance, which it isn't) and prevents future re-introduction of the same footgun.
+- **Option B:** Keep the helpers, but make them throw `Insufficient balance` whenever `actual < amount`, regardless of pending. The pending balance plays no role in the helper. The names should be renamed (e.g. `withdrawWithBalanceCheck`) to remove the misleading "TotalBalance" framing.
+
+Either option restores the invariant that no SDK code path silently accepts incoming funds.
+
+#### 2. Build-only API for proof construction
+
+For multisig confidential-asset operations, the wallet must construct proofs and return raw `EntryFunction` BCS bytes rather than submitting a transaction. The dApp wraps those bytes in `MultiSigTransactionPayload` and proposes the transaction through `multisig_account::create_transaction`. See [Multisig accounts](#multisig-accounts) and the `mode: "buildOnly"` parameter on every `ca_*` write method.
+
+Today the high-level `ConfidentialAsset` class always submits via a signer. The lower-level `ConfidentialAssetTransactionBuilder` accepts an arbitrary `sender` and constructs the necessary proofs, but does not expose a serialized `EntryFunction` directly. Each wallet implementer would need to bridge that gap themselves, which invites byte-level divergence.
+
+**Required change:** add a build-only entry point — either as new methods on `ConfidentialAsset` (`buildRegister`, `buildDeposit`, `buildWithdraw`, `buildConfidentialTransfer`, `buildRolloverPending`, `buildNormalize`) or as a sibling class (`ConfidentialAssetBuilder`). Each method takes the same arguments as its submitting counterpart but uses an explicit `sender: AccountAddressInput` (no signer) and a `decryptionKey` for proof construction, and returns `Uint8Array` of BCS-encoded `EntryFunction` bytes. No fee payer, no signer, no submission.
+
+#### 3. Canonical derivation helpers
+
+The doc fixes two derivation policies:
+
+- **Software backings:** `tokenIndex = u32_le(SHA-256(tokenMetadataAddress)[0..4]) & 0x7FFFFFFF`, then `dk[token] = TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/{accountIndex}'/1'/{tokenIndex}'", mnemonic)`.
+- **Hardware backings:** `message[token] = decryptionKeyDerivationMessage ‖ ":" ‖ hex(tokenMetadataAddress)`, then `dk[token] = TwistedEd25519PrivateKey.fromSignature(device.sign(message))`.
+
+These layouts are part of the wallet ↔ chain compatibility contract: a different `tokenIndex` formula or a different signed-message layout produces a different `dk[token]` / `ek[token]` and orphans every existing registration. Re-implementing the byte assembly in each wallet is therefore a divergence risk waiting to happen.
+
+**Required change:** export named helpers from `@moveindustries/confidential-assets`:
+
+- `tokenIndexFromMetadataAddress(tokenMetaAddr: AccountAddressInput): number` — returns the 31-bit hardened-index suffix.
+- `softwareDecryptionKeyDerivationPath(accountIndex: number, tokenMetaAddr: AccountAddressInput): string` — returns `"m/44'/637'/{accountIndex}'/1'/{tokenIndex}'"` ready to feed into `fromDerivationPath`.
+- `hardwareDecryptionKeyDerivationMessage(tokenMetaAddr: AccountAddressInput): Uint8Array` — returns the bytes to be signed by the hardware device.
+
+Wallet implementations call these instead of re-deriving the byte layouts. Tests in this package assert the helpers' outputs against fixed test vectors so a regression is caught upstream rather than after registrations have been written on chain.
+
 ### Token addressing
 
 All `ca_*` methods that take a `token` parameter must use the fungible-asset metadata object address (32 bytes). Legacy coin type strings (the `0x1::module::CoinType` form) must not be used.
@@ -689,10 +955,6 @@ These should be resolved before implementation:
 
 | # | Question | Options | Notes |
 |---|---|---|---|
-| 1 | **Should `ca_deposit` auto-register?** | (a) Yes — seamless. (b) No — require explicit `ca_register` first. | Auto-register is better UX; two transactions (register + deposit) can be sequenced by the wallet. |
-| 2 | **Per-transfer auditor address UX** | (a) Per-transfer entry only. (b) Wallet-managed address book. (c) dApp provides a list, wallet confirms. | The global and per-asset auditors are not in scope here; this question concerns only the optional per-transfer (voluntary) auditors. For v1, (a) or (c) is likely sufficient. |
-| 4 | **Error reporting granularity** | What does the dApp see when rollover fails, normalization fails, proof generation fails, or the chain rejects? | Wallet should map internal failures to meaningful dApp-facing errors without leaking protocol internals. |
-| 5 | **Multi-transaction flows** | When withdraw requires rollover + normalize + withdraw (3 txs), does the wallet handle all three silently, or notify the dApp of intermediate steps? | Recommend silent chaining with a single response for the final operation. |
-| 6 | **Concurrent operations** | Can a dApp fire `ca_transfer` while a `ca_rolloverPending` is in flight? | Wallet should serialize confidential-asset operations per account/token to avoid on-chain race conditions. |
-| 7 | **Spam token rollover** | Should the wallet auto-rollover unknown/low-value tokens, or prompt the user first? | For v1, auto-rollover everything. Spam filtering is an enhancement for later. |
+| 1 | **Per-transfer auditor address UX** | (a) Per-transfer entry only. (b) Wallet-managed address book. (c) dApp provides a list, wallet confirms. | The global and per-asset auditors are not in scope here; this question concerns only the optional per-transfer (voluntary) auditors. For v1, (a) or (c) is likely sufficient. |
+| 2 | **Spam token rollover and surfacing** | When a token the user has never interacted with appears in `pending` (e.g. unsolicited airdrops, scam-token lookalikes), how does the wallet surface it and how is rollover scoped? | Suggested v1 answer: **per-token rollover only** (the user accepts incoming funds for one token at a time; no "accept all" action), **show unknown tokens with a warning badge** (not hidden, not blocked), **no allowlist dependency in v1** (rely on the badge plus the existing per-token approval to slow phishing patterns). This avoids gas-extraction traps, makes the user's pending-counter exhaustion exposure obvious, and keeps spam filtering out of v1's critical path while leaving room for an allowlist-based enhancement later. |
 
