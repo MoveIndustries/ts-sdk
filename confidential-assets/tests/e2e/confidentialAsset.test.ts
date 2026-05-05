@@ -694,12 +694,12 @@ describe("Confidential Asset Sender API", () => {
 });
 
 /**
- * Coverage for the atomic `register + X` entrypoints introduced for one-click first-time UX
- * (movementlabsxyz/aptos-core PR adding `register_and_deposit_to` and
- * `register_and_confidential_transfer`). Uses fresh accounts per test so each can exercise the
- * pre-registration state without colliding with the main suite's shared Alice.
+ * Coverage for `register_and_deposit`, the atomic combined entrypoint that closes the
+ * first-time "make private" UX (one click → one tx → one entry function call). Uses fresh
+ * accounts per test so each can exercise the pre-registration state without colliding with
+ * the main suite's shared Alice.
  */
-describe("Confidential Asset – register_and_* atomic entrypoints", () => {
+describe("Confidential Asset – register_and_deposit", () => {
   test(
     "registerAndDeposit registers and deposits into the signer's own pending balance in one tx",
     async () => {
@@ -778,55 +778,4 @@ describe("Confidential Asset – register_and_* atomic entrypoints", () => {
     longTestTimeout,
   );
 
-  test(
-    "registerAndConfidentialTransfer atomically registers + transfers (amount=0 to a registered recipient)",
-    async () => {
-      const alice = Account.generate();
-      const bob = Account.generate();
-      const aliceDk = TwistedEd25519PrivateKey.generate();
-      const bobDk = TwistedEd25519PrivateKey.generate();
-
-      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
-      await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 100_000_000 });
-      await migrateCoinsToFungibleStore(alice);
-      await migrateCoinsToFungibleStore(bob);
-
-      // Bob registers normally; the transfer needs an `ek` for the recipient ciphertext.
-      const bobReg = await confidentialAsset.registerBalance({
-        signer: bob,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: bobDk,
-      });
-      expect(bobReg.success).toBeTruthy();
-
-      // Alice is fresh; combined entrypoint registers her and submits a 0-amount transfer in
-      // a single tx. amount > 0 cannot succeed pre-registration because actual_balance is the
-      // canonical empty ciphertext; this test pins the success path for the atomic call.
-      const tx = await confidentialAsset.registerAndConfidentialTransfer({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceDk,
-        recipient: bob.accountAddress,
-        amount: 0,
-      });
-      expect(tx.success).toBeTruthy();
-
-      // Alice is now registered.
-      expect(
-        await confidentialAsset.hasUserRegistered({
-          accountAddress: alice.accountAddress,
-          tokenAddress: TOKEN_ADDRESS,
-        }),
-      ).toBeTruthy();
-
-      // Bob's pending balance got the 0-amount ciphertext appended; decrypt confirms 0.
-      const bobBal = await confidentialAsset.getBalance({
-        accountAddress: bob.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: bobDk,
-      });
-      expect(bobBal.pendingBalance()).toBe(0n);
-    },
-    longTestTimeout,
-  );
 });

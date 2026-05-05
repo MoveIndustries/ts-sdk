@@ -568,12 +568,11 @@ describe.skip("Confidential balance api", () => {
 });
 
 /**
- * Builder-level coverage for `register_and_*` atomic entrypoints. The parent `describe` above is
+ * Builder-level coverage for `register_and_deposit`. The parent `describe` above is
  * `describe.skip`'d so this stands alone (and runs against a localnet) to exercise the new
- * `transaction.registerAndDeposit*` / `transaction.registerAndConfidentialTransfer` paths
- * end-to-end.
+ * `transaction.registerAndDeposit` path end-to-end.
  */
-describe("Confidential balance api – register_and_* (builder)", () => {
+describe("Confidential balance api – register_and_deposit (builder)", () => {
   const transactionBuilder = confidentialAsset.transaction;
 
   test(
@@ -598,50 +597,6 @@ describe("Confidential balance api – register_and_* (builder)", () => {
         decryptionKey: aliceDk,
       });
       expect(bal.pendingBalance()).toBe(50n);
-    },
-    longTestTimeout,
-  );
-
-  test(
-    "registerAndConfidentialTransfer builds an atomic register + 0-amount transfer tx",
-    async () => {
-      const alice = Account.generate();
-      const bob = Account.generate();
-      const aliceDk = TwistedEd25519PrivateKey.generate();
-      const bobDk = TwistedEd25519PrivateKey.generate();
-      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
-      await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 100_000_000 });
-
-      const bobReg = await transactionBuilder.registerBalance({
-        sender: bob.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: bobDk,
-      });
-      expect((await sendAndWaitTx(bobReg, bob)).success).toBeTruthy();
-
-      const tx = await transactionBuilder.registerAndConfidentialTransfer({
-        sender: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceDk,
-        recipient: bob.accountAddress,
-        amount: 0,
-      });
-      const resp = await sendAndWaitTx(tx, alice);
-      expect(resp.success).toBeTruthy();
-
-      expect(
-        await confidentialAsset.hasUserRegistered({
-          accountAddress: alice.accountAddress,
-          tokenAddress: TOKEN_ADDRESS,
-        }),
-      ).toBeTruthy();
-
-      const bobBal = await confidentialAsset.getBalance({
-        accountAddress: bob.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: bobDk,
-      });
-      expect(bobBal.pendingBalance()).toBe(0n);
     },
     longTestTimeout,
   );

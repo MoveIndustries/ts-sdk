@@ -14,7 +14,6 @@ import {
 import { concatBytes } from "@noble/hashes/utils";
 import {
   TwistedElGamal,
-  TwistedElGamalCiphertext,
   ConfidentialNormalization,
   ConfidentialKeyRotation,
   ConfidentialTransfer,
@@ -22,7 +21,6 @@ import {
   TwistedEd25519PublicKey,
   TwistedEd25519PrivateKey,
 } from "../crypto";
-import { AVAILABLE_BALANCE_CHUNK_COUNT } from "../crypto/chunkedAmount";
 import { genRegistrationProof } from "../crypto/confidentialRegistration";
 import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MAX_SENDER_AUDITOR_HINT_BYTES, MODULE_NAME } from "../consts";
 import {
@@ -501,165 +499,6 @@ export class ConfidentialAssetTransactionBuilder {
           rangeProofAmount,
           ConfidentialTransfer.serializeSigmaProof(sigmaProof),
           senderAuditorHint,
-        ],
-      },
-    });
-  }
-
-  /**
-   * Atomically register a confidential balance for the sender and submit a confidential transfer
-   * to `recipient` in the same on-chain transaction. Calls
-   * `confidential_asset::register_and_confidential_transfer`, which composes `register` +
-   * `confidential_transfer` so the wallet UX is "one click → one transaction → one entry function".
-   *
-   * Practical note: a freshly-registered account has the canonical empty `actual_balance`
-   * (the on-chain `new_compressed_actual_balance_no_randomness()`), so this method only
-   * succeeds for `amount = 0`. For any positive `amount` the on-chain range / sigma proofs reject.
-   * Useful primarily for "register and emit a Transferred event", multisig setup flows, or test
-   * scaffolding; for genuine first-use deposits prefer {@link registerAndDeposit}.
-   *
-   * Auditor slots are filled identically to {@link transfer}: chain auditor at slot [0], per-asset
-   * auditor (when configured) at slot [1], voluntary auditors at slot [2..].
-   */
-  async registerAndConfidentialTransfer(args: {
-    sender: AccountAddressInput;
-    recipient: AccountAddressInput;
-    tokenAddress: AccountAddressInput;
-    amount: AnyNumber;
-    senderDecryptionKey: TwistedEd25519PrivateKey;
-    additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
-    senderAuditorHint?: Uint8Array;
-    withFeePayer?: boolean;
-    options?: InputGenerateTransactionOptions;
-  }): Promise<SimpleTransaction> {
-    const {
-      senderDecryptionKey,
-      recipient,
-      tokenAddress,
-      amount,
-      additionalAuditorEncryptionKeys = [],
-      senderAuditorHint = new Uint8Array(),
-    } = args;
-    validateAmount({ amount });
-    if (senderAuditorHint.length > MAX_SENDER_AUDITOR_HINT_BYTES) {
-      throw new Error(`senderAuditorHint exceeds MAX_SENDER_AUDITOR_HINT_BYTES (${MAX_SENDER_AUDITOR_HINT_BYTES})`);
-    }
-
-    const chainId = await getChainIdByteForProofs({ client: this.client });
-
-    // Same auditor-slot policy as transfer(); inputs differ only by the canonical-empty
-    // sender balance (sender has not yet registered, so on-chain `actual_balance` is
-    // `new_compressed_actual_balance_no_randomness()` — all-zero D/C points per chunk).
-    const [chainAuditorPubKey, assetAuditorPubKey] = await Promise.all([
-      this.getChainAuditorEncryptionKey(),
-      this.getAssetAuditorEncryptionKey({ tokenAddress }),
-    ]);
-    if (!chainAuditorPubKey) {
-      throw new Error(
-        "Chain auditor is not configured (get_chain_auditor returned None). " +
-          "register_and_confidential_transfer aborts with ECHAIN_AUDITOR_NOT_SET in this state.",
-      );
-    }
-
-    let recipientEncryptionKey: TwistedEd25519PublicKey;
-    if (AccountAddress.from(args.sender).equals(AccountAddress.from(recipient))) {
-      // Self-send pre-registration: use the sender's about-to-be-registered ek so the
-      // proof's recipient slot matches the registration we're about to install.
-      recipientEncryptionKey = senderDecryptionKey.publicKey();
-    } else {
-      try {
-        recipientEncryptionKey = await getEncryptionKey({
-          client: this.client,
-          moduleAddress: this.confidentialAssetModuleAddress,
-          accountAddress: recipient,
-          tokenAddress,
-        });
-      } catch (e) {
-        throw new Error(`Failed to get encryption key for recipient - ${e}`);
-      }
-    }
-    const isFrozen = await isPendingBalanceFrozen({
-      client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
-      accountAddress: recipient,
-      tokenAddress,
-    });
-    if (isFrozen) {
-      throw new Error("Recipient balance is frozen");
-    }
-
-    const senderAddressBytes = AccountAddress.from(args.sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
-    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
-
-    // Canonical empty actual balance (all-zero D/C per chunk; matches Move's
-    // `new_compressed_actual_balance_no_randomness()`). RistrettoPoint identity encodes as
-    // 32 zero bytes in compressed form.
-    const zero = new Uint8Array(32);
-    const emptyAvailable = Array.from(
-      { length: AVAILABLE_BALANCE_CHUNK_COUNT },
-      () => new TwistedElGamalCiphertext(zero, zero),
-    );
-
-    const confidentialTransfer = await ConfidentialTransfer.create({
-      senderDecryptionKey,
-      senderAvailableBalanceCipherText: emptyAvailable,
-      amount,
-      recipientEncryptionKey,
-      auditorEncryptionKeys: assembleAuditorEks({
-        chain: chainAuditorPubKey,
-        asset: assetAuditorPubKey,
-        voluntary: additionalAuditorEncryptionKeys,
-      }),
-      chainId,
-      senderAddress: senderAddressBytes,
-      contractAddress: contractAddressBytes,
-      tokenAddress: tokenAddressBytes,
-      senderAuditorHint,
-    });
-
-    const [
-      {
-        sigmaProof,
-        rangeProof: { rangeProofAmount, rangeProofNewBalance },
-      },
-      encryptedAmountAfterTransfer,
-      encryptedAmountByRecipient,
-      auditorsCBList,
-    ] = await confidentialTransfer.authorizeTransfer();
-
-    const auditorEncryptionKeys = confidentialTransfer.auditorEncryptionKeys.map((pk) => pk.toUint8Array());
-    const auditorBalances = auditorsCBList.map((el) => el.getCipherTextBytes());
-
-    // Registration proof for the sender's about-to-be-installed ek.
-    const proof = genRegistrationProof(
-      senderDecryptionKey,
-      chainId,
-      senderAddressBytes,
-      contractAddressBytes,
-      tokenAddressBytes,
-    );
-
-    return this.client.transaction.build.simple({
-      sender: args.sender,
-      ...feePayerBuildOpts(args),
-      data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register_and_confidential_transfer`,
-        functionArguments: [
-          tokenAddress,
-          recipient,
-          encryptedAmountAfterTransfer.getCipherTextBytes(),
-          confidentialTransfer.transferAmountEncryptedBySender.getCipherTextBytes(),
-          encryptedAmountByRecipient.getCipherTextBytes(),
-          concatBytes(...auditorEncryptionKeys),
-          concatBytes(...auditorBalances),
-          rangeProofNewBalance,
-          rangeProofAmount,
-          ConfidentialTransfer.serializeSigmaProof(sigmaProof),
-          senderAuditorHint,
-          senderDecryptionKey.publicKey().toUint8Array(),
-          proof.commitment,
-          proof.response,
         ],
       },
     });
