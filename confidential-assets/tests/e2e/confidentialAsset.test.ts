@@ -694,21 +694,23 @@ describe("Confidential Asset Sender API", () => {
 });
 
 /**
- * Coverage for `register_and_deposit`, the atomic combined entrypoint that closes the
- * first-time "make private" UX (one click → one tx → one entry function call). Uses fresh
- * accounts per test so each can exercise the pre-registration state without colliding with
- * the main suite's shared Alice.
+ * Coverage for the three "lands spendable" combined entrypoints used by the wallet's
+ * Make-private UX. Uses fresh accounts per test so the pre-registration state is genuinely
+ * exercised.
+ *
+ *   - registerAndDepositAndRollover    (first-time)
+ *   - depositAndRollover               (subsequent, normalized=true)
+ *   - depositNormalizeAndRollover      (subsequent, normalized=false)
  */
-describe("Confidential Asset – register_and_deposit", () => {
+describe("Confidential Asset – combined deposit + rollover entrypoints", () => {
   test(
-    "registerAndDeposit registers and deposits into the signer's own pending balance in one tx",
+    "registerAndDepositAndRollover lands funds spendable in one tx (first-time)",
     async () => {
       const alice = Account.generate();
       const aliceDk = TwistedEd25519PrivateKey.generate();
       await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
       await migrateCoinsToFungibleStore(alice);
 
-      // Alice is not yet registered; the combined entry point both registers and deposits.
       expect(
         await confidentialAsset.hasUserRegistered({
           accountAddress: alice.accountAddress,
@@ -716,7 +718,7 @@ describe("Confidential Asset – register_and_deposit", () => {
         }),
       ).toBeFalsy();
 
-      const tx = await confidentialAsset.registerAndDeposit({
+      const tx = await confidentialAsset.registerAndDepositAndRollover({
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceDk,
@@ -731,28 +733,28 @@ describe("Confidential Asset – register_and_deposit", () => {
         }),
       ).toBeTruthy();
 
+      // Funds landed spendable, not pending.
       const bal = await confidentialAsset.getBalance({
         accountAddress: alice.accountAddress,
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceDk,
       });
-      expect(bal.pendingBalance()).toBe(50n);
-      expect(bal.availableBalance()).toBe(0n);
+      expect(bal.availableBalance()).toBe(50n);
+      expect(bal.pendingBalance()).toBe(0n);
 
-      // A subsequent plain `deposit` must succeed because the registration is genuinely
-      // persisted, not just consumed for proof verification.
-      const followup = await confidentialAsset.deposit({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        amount: 5,
-      });
-      expect(followup.success).toBeTruthy();
+      // Rollover always sets normalized=false.
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(false);
     },
     longTestTimeout,
   );
 
   test(
-    "registerAndDeposit aborts when sender is already registered",
+    "registerAndDepositAndRollover aborts when sender is already registered",
     async () => {
       const alice = Account.generate();
       const aliceDk = TwistedEd25519PrivateKey.generate();
@@ -767,7 +769,7 @@ describe("Confidential Asset – register_and_deposit", () => {
       expect(reg.success).toBeTruthy();
 
       await expect(
-        confidentialAsset.registerAndDeposit({
+        confidentialAsset.registerAndDepositAndRollover({
           signer: alice,
           tokenAddress: TOKEN_ADDRESS,
           decryptionKey: aliceDk,
@@ -778,4 +780,110 @@ describe("Confidential Asset – register_and_deposit", () => {
     longTestTimeout,
   );
 
+  test(
+    "depositNormalizeAndRollover lands funds spendable when state is not normalized",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      // First-time: registerAndDepositAndRollover puts 100 in actual, normalized=false.
+      const first = await confidentialAsset.registerAndDepositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect(first.success).toBeTruthy();
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(false);
+
+      // Subsequent make-private: state is not normalized, so route through normalize variant.
+      const second = await confidentialAsset.depositNormalizeAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        amount: 30,
+      });
+      expect(second.success).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(130n);
+      expect(bal.pendingBalance()).toBe(0n);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "depositAndRollover succeeds when normalized and aborts otherwise",
+    async () => {
+      const alice = Account.generate();
+      const bob = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      const bobDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+      await migrateCoinsToFungibleStore(bob);
+
+      // Bob registered so Alice can transfer to set normalized=true.
+      const bobReg = await confidentialAsset.registerBalance({
+        signer: bob,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: bobDk,
+      });
+      expect(bobReg.success).toBeTruthy();
+
+      const first = await confidentialAsset.registerAndDepositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect(first.success).toBeTruthy();
+
+      // While normalized=false, depositAndRollover must abort.
+      await expect(
+        confidentialAsset.depositAndRollover({
+          signer: alice,
+          tokenAddress: TOKEN_ADDRESS,
+          amount: 5,
+        }),
+      ).rejects.toThrow();
+
+      // Send a small transfer to set normalized=true.
+      const t = await confidentialAsset.transfer({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        recipient: bob.accountAddress,
+        amount: 1,
+      });
+      expect(t.success).toBeTruthy();
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(true);
+
+      // Now depositAndRollover succeeds.
+      const second = await confidentialAsset.depositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: 25,
+      });
+      expect(second.success).toBeTruthy();
+    },
+    longTestTimeout,
+  );
 });

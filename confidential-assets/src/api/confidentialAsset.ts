@@ -160,21 +160,66 @@ export class ConfidentialAsset {
   }
 
   /**
-   * Atomically register a confidential balance for the signer and deposit into the signer's own
-   * pending balance in a single on-chain transaction. Maps to
-   * `confidential_asset::register_and_deposit`. Use this for first-time "shield to confidential"
-   * UX so wallets can present one approval that performs one on-chain entry function.
+   * First-time atomic register + deposit + rollover. Maps to the on-chain
+   * `register_and_deposit_and_rollover_pending_balance` entrypoint. Use this for the first-time
+   * "Make private" path: one wallet approval, one on-chain entry function call, funds land in
+   * `actual_balance` (spendable), not pending.
    *
-   * There is intentionally no recipient ≠ sender variant; see the doc on
-   * {@link ConfidentialAssetTransactionBuilder.registerAndDeposit} for why.
+   * After this call the store's `normalized` flag is `false`. Subsequent deposit-then-rollover
+   * flows must therefore route through {@link depositNormalizeAndRollover} until something
+   * re-normalizes (`confidential_transfer`, `withdraw`, or a standalone `normalize`).
    *
-   * Aborts identically to a separate `register` (registration-proof failure or token-allow-list
-   * violations) and to `deposit_to` (token-allow-list violations); also aborts when the signer is
-   * already registered.
+   * See {@link ConfidentialAssetTransactionBuilder.registerAndDepositAndRollover} for why no
+   * recipient ≠ sender variant exists, and why no normalize is required on this path.
    */
-  async registerAndDeposit(args: RegisterAndDepositParams): Promise<CommittedTransactionResponse> {
+  async registerAndDepositAndRollover(args: RegisterAndDepositParams): Promise<CommittedTransactionResponse> {
     const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
-    const tx = await this.transaction.registerAndDeposit({
+    const tx = await this.transaction.registerAndDepositAndRollover({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Subsequent atomic deposit + rollover on a *currently-normalized* store. Maps to
+   * `deposit_and_rollover_pending_balance`. Funds land spendable.
+   *
+   * Aborts with `ENORMALIZATION_REQUIRED` (3 << 16 | 10 = 196618) if the store is not normalized.
+   * Callers that want a one-method "always lands spendable" entry should branch on the
+   * `is_normalized` view and route to {@link depositNormalizeAndRollover} when needed.
+   */
+  async depositAndRollover(args: DepositParams): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.depositAndRollover({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Subsequent atomic deposit + normalize + rollover on a *not-currently-normalized* store. Maps
+   * to `deposit_and_normalize_and_rollover_pending_balance`. Funds land spendable.
+   *
+   * The signer's `senderDecryptionKey` is required to construct the normalize proof off-chain.
+   * Aborts with `EALREADY_NORMALIZED` (3 << 16 | 11 = 196619) if the store is already
+   * normalized — callers should route to {@link depositAndRollover} for that case.
+   */
+  async depositNormalizeAndRollover(
+    args: ConfidentialAssetSubmissionParams & {
+      amount: AnyNumber;
+      senderDecryptionKey: TwistedEd25519PrivateKey;
+    },
+  ): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.depositNormalizeAndRollover({
       ...rest,
       sender: signer.accountAddress,
       withFeePayer,

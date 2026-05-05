@@ -138,23 +138,30 @@ export class ConfidentialAssetTransactionBuilder {
   }
 
   /**
-   * Atomically register a confidential balance for the sender and deposit `amount` of `tokenAddress`
-   * into the sender's own pending balance in a single on-chain transaction.
+   * First-time atomic register + deposit + rollover. Targets the on-chain
+   * `register_and_deposit_and_rollover_pending_balance` entrypoint, which composes
+   * `register` + `deposit_to(self)` + `rollover_pending_balance` so the wallet UX is
+   * "one click → one transaction → one on-chain entry function" with funds landing
+   * spendable (in `actual_balance`), not pending.
    *
-   * Calls the on-chain `confidential_asset::register_and_deposit` entrypoint, which composes
-   * `register` + `deposit` so the wallet UX is "one click → one transaction → one entry function"
-   * for first-time confidential deposits. There is no `register_and_depositTo` (recipient ≠ sender)
-   * variant: `deposit_to` is a sponsorship/funding pattern where the sender pays public FA into a
-   * third party's already-registered confidential store, and the sender does not need their own
-   * confidential store to do that. Combining registration with sponsorship would not compose any
-   * real workflow.
+   * Why no normalize step here: `register_internal` creates a fresh store with an empty
+   * (canonical-zero) `actual_balance` flagged `normalized = true`, and a single deposit of any
+   * `u64 amount` produces a pending balance whose chunks each fit in 16 bits; rolling that into
+   * the canonical-zero actual produces an actual whose chunks are still ≤ 16 bits. So the path
+   * never needs a `normalize` step.
    *
-   * Aborts identically to a separate `register` (on registration-proof failure or token-allow-list
-   * violations) and to `deposit_to` (on token-allow-list violations); also aborts if the sender is
-   * already registered. Callers that want a no-op-on-already-registered shape should branch on
-   * `hasUserRegistered` client-side and route to `deposit` instead when already registered.
+   * After this call, `normalized = false` (every `rollover_pending_balance_internal` sets it).
+   * The next deposit-then-rollover flow on the same store must therefore go through
+   * {@link depositNormalizeAndRollover} until something re-normalizes (a `confidential_transfer`,
+   * `withdraw`, or explicit `normalize`).
+   *
+   * Aborts identically to a separate `register` (registration-proof failure / token-allow-list
+   * violations) and to `deposit_to` (allow-list violations); also aborts if the sender is already
+   * registered. Callers that want a no-op-on-already-registered shape should branch on
+   * `hasUserRegistered` client-side and route to {@link depositAndRollover} or
+   * {@link depositNormalizeAndRollover} instead.
    */
-  async registerAndDeposit(args: {
+  async registerAndDepositAndRollover(args: {
     sender: AccountAddressInput;
     tokenAddress: AccountAddressInput;
     decryptionKey: TwistedEd25519PrivateKey;
@@ -181,13 +188,92 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register_and_deposit`,
+        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register_and_deposit_and_rollover_pending_balance`,
         functionArguments: [
           tokenAddress,
           String(amount),
           decryptionKey.publicKey().toUint8Array(),
           proof.commitment,
           proof.response,
+        ],
+      },
+    });
+  }
+
+  /**
+   * Subsequent atomic deposit + rollover on a store whose `actual_balance` is currently
+   * normalized. Targets `deposit_and_rollover_pending_balance`. Funds land in `actual_balance`
+   * (spendable), not pending.
+   *
+   * Aborts with `ENORMALIZATION_REQUIRED` (3 << 16 | 10 = 196618) if the store's
+   * `normalized` flag is `false`. Since every `rollover_pending_balance_internal` (including the
+   * one in this entrypoint) sets `normalized = false`, callers should expect to use
+   * {@link depositNormalizeAndRollover} on subsequent invocations until the store re-normalizes
+   * via `confidential_transfer`, `withdraw`, or a standalone `normalize`.
+   */
+  async depositAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
+    const { tokenAddress, amount } = args;
+    validateAmount({ amount });
+    return this.client.transaction.build.simple({
+      sender: args.sender,
+      ...feePayerBuildOpts(args),
+      data: {
+        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_and_rollover_pending_balance`,
+        functionArguments: [tokenAddress, String(amount)],
+      },
+    });
+  }
+
+  /**
+   * Subsequent atomic deposit + normalize + rollover on a store whose `actual_balance` is NOT
+   * currently normalized. Targets `deposit_and_normalize_and_rollover_pending_balance`. Funds land
+   * in `actual_balance` (spendable), not pending.
+   *
+   * The normalize proof is constructed off-chain against the *current* on-chain
+   * `actual_balance`. `deposit_to_internal` only mutates `pending_balance`, so the on-chain
+   * `actual_balance` at the moment `normalize_internal` runs is the same value the proof was
+   * built against; the rollover then folds (just-deposited) pending into the now-normalized
+   * actual.
+   *
+   * Aborts with `EALREADY_NORMALIZED` (3 << 16 | 11 = 196619) if the store is already
+   * normalized — callers should route to {@link depositAndRollover} for that case. Aborts with
+   * `ECA_STORE_NOT_PUBLISHED` if the sender is unregistered.
+   */
+  async depositNormalizeAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
+    const { sender, tokenAddress, senderDecryptionKey, amount } = args;
+    validateAmount({ amount });
+
+    const confidentialNormalization = await this.prepareNormalization({
+      sender,
+      senderDecryptionKey,
+      tokenAddress,
+    });
+    const [{ sigmaProof, rangeProof }, normalizedCB] = await confidentialNormalization.authorizeNormalization();
+
+    return this.client.transaction.build.simple({
+      sender,
+      ...feePayerBuildOpts(args),
+      data: {
+        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_and_normalize_and_rollover_pending_balance`,
+        functionArguments: [
+          tokenAddress,
+          String(amount),
+          normalizedCB.getCipherTextBytes(),
+          rangeProof,
+          ConfidentialNormalization.serializeSigmaProof(sigmaProof),
         ],
       },
     });

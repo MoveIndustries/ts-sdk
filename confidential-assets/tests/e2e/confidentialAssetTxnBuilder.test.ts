@@ -568,21 +568,21 @@ describe.skip("Confidential balance api", () => {
 });
 
 /**
- * Builder-level coverage for `register_and_deposit`. The parent `describe` above is
- * `describe.skip`'d so this stands alone (and runs against a localnet) to exercise the new
- * `transaction.registerAndDeposit` path end-to-end.
+ * Builder-level coverage for the three combined "lands spendable" entrypoints. The parent
+ * `describe` above is `describe.skip`'d, so this stands alone and runs against a localnet to
+ * exercise the new builder paths end-to-end.
  */
-describe("Confidential balance api – register_and_deposit (builder)", () => {
+describe("Confidential balance api – combined deposit + rollover (builder)", () => {
   const transactionBuilder = confidentialAsset.transaction;
 
   test(
-    "registerAndDeposit builds and submits a single tx that registers + deposits to the sender's own balance",
+    "registerAndDepositAndRollover builds a single tx that lands funds in actual",
     async () => {
       const alice = Account.generate();
       const aliceDk = TwistedEd25519PrivateKey.generate();
       await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
 
-      const tx = await transactionBuilder.registerAndDeposit({
+      const tx = await transactionBuilder.registerAndDepositAndRollover({
         sender: alice.accountAddress,
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceDk,
@@ -596,7 +596,42 @@ describe("Confidential balance api – register_and_deposit (builder)", () => {
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceDk,
       });
-      expect(bal.pendingBalance()).toBe(50n);
+      expect(bal.availableBalance()).toBe(50n);
+      expect(bal.pendingBalance()).toBe(0n);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "depositNormalizeAndRollover builds a single tx that includes the normalize proof",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+
+      // Set up not-normalized state.
+      const first = await transactionBuilder.registerAndDepositAndRollover({
+        sender: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect((await sendAndWaitTx(first, alice)).success).toBeTruthy();
+
+      const second = await transactionBuilder.depositNormalizeAndRollover({
+        sender: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        amount: 30,
+      });
+      expect((await sendAndWaitTx(second, alice)).success).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(130n);
     },
     longTestTimeout,
   );

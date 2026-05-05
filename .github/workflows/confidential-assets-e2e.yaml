@@ -15,7 +15,7 @@ env:
   # branch so CI is reproducible and won't drift if the branch advances.
   # Bump when intentional changes to the localnet/module setup are needed.
   #
-  APTOS_CORE_COMMIT: f091801fa523a7619b836027c29aaee61dd61cad
+  APTOS_CORE_COMMIT: 8b72ca66d100a68bfa744b4931aaeb57fec6b1ba
 
 jobs:
   ca-e2e:
