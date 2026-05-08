@@ -227,40 +227,6 @@ describe("Confidential Asset Sender API", () => {
     longTestTimeout,
   );
 
-  test(
-    "it should withdraw more than the available balance if the total balance is used",
-    async () => {
-      await confidentialAsset.deposit({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        amount: DEPOSIT_AMOUNT,
-      });
-
-      const confidentialBalance = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      // Withdraw the amount from the confidential balance to the public balance
-      await confidentialAsset.withdrawWithTotalBalance({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceConfidential,
-        amount: confidentialBalance.availableBalance() + BigInt(1),
-      });
-
-      const confidentialBalanceAfterWithdraw = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      expect(confidentialBalanceAfterWithdraw.pendingBalance()).toBe(0n);
-    },
-    longTestTimeout,
-  );
-
   // Both auditors are public chain state (`get_asset_auditor` / `get_chain_auditor`). They're
   // skipped because localnet may not have either configured; once set up, unskip and assert the
   // shape. Inclusion in transfers is auto-handled by the transaction builder per
@@ -337,40 +303,6 @@ describe("Confidential Asset Sender API", () => {
           recipient: alice.accountAddress,
         }),
       ).rejects.toThrow("Insufficient balance");
-    },
-    longTestTimeout,
-  );
-
-  test(
-    "it should transfer more than the available balance if the total balance is used",
-    async () => {
-      await confidentialAsset.deposit({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        amount: DEPOSIT_AMOUNT,
-      });
-
-      const confidentialBalance = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      const transferAmount = confidentialBalance.availableBalance() + BigInt(1);
-
-      // Withdraw the amount from the confidential balance to the public balance
-      await confidentialAsset.transferWithTotalBalance({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceConfidential,
-        amount: transferAmount,
-        recipient: alice.accountAddress,
-      });
-
-      await checkAliceDecryptedBalance(
-        confidentialBalance.availableBalance() + confidentialBalance.pendingBalance() - transferAmount,
-        transferAmount,
-      );
     },
     longTestTimeout,
   );

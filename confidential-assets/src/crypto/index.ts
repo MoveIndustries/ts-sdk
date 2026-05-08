@@ -8,3 +8,4 @@ export * from "./confidentialNormalization";
 export * from "./confidentialTransfer";
 export * from "./confidentialWithdraw";
 export * from "./confidentialRegistration";
+export * from "./derivation";

@@ -10,7 +10,9 @@ import {
   CommittedTransactionResponse,
   InputGenerateTransactionOptions,
   LedgerVersionArg,
+  Serializer,
   SimpleTransaction,
+  TransactionPayloadEntryFunction,
 } from "@moveindustries/ts-sdk";
 import { TwistedEd25519PublicKey, TwistedEd25519PrivateKey, ConfidentialNormalization } from "../crypto";
 import {
@@ -83,6 +85,23 @@ type RotateKeyParams = ConfidentialAssetSubmissionParams & {
 type NormalizeBalanceParams = ConfidentialAssetSubmissionParams & {
   senderDecryptionKey: TwistedEd25519PrivateKey;
 };
+
+/**
+ * Extracts the BCS-encoded `EntryFunction` bytes from a `SimpleTransaction`
+ * built by {@link ConfidentialAssetTransactionBuilder}. Used by the
+ * `build*` methods on {@link ConfidentialAsset} to return raw entry-function
+ * bytes that callers can wrap in `MultiSigTransactionPayload` for the
+ * multisig proposal flow.
+ */
+function extractEntryFunctionBcs(tx: SimpleTransaction): Uint8Array {
+  const payload = tx.rawTransaction.payload;
+  if (!(payload instanceof TransactionPayloadEntryFunction)) {
+    throw new Error("Expected an entry-function transaction payload; got a different payload variant.");
+  }
+  const serializer = new Serializer();
+  payload.entryFunction.serialize(serializer);
+  return serializer.toUint8Array();
+}
 
 /**
  * A class to handle confidential balance operations
@@ -262,31 +281,34 @@ export class ConfidentialAsset {
     return result;
   }
 
+  /**
+   * Withdraw from the sender's actual (spendable) confidential balance, with a
+   * pre-flight balance check.
+   *
+   * Despite the legacy "TotalBalance" name, this method does **not** spend any
+   * portion of the sender's pending balance. Pending balance is a queue of
+   * unaccepted incoming transfers; accepting it is a separate, explicit user
+   * action via {@link rolloverPendingBalance} that must run first.
+   *
+   * Throws `Insufficient balance` when `amount > actual`, regardless of how
+   * much pending balance the sender has.
+   *
+   * @throws {Error} If `amount` exceeds the sender's actual (spendable) balance.
+   */
   async withdrawWithTotalBalance(
     args: ConfidentialAssetSubmissionParams & {
       senderDecryptionKey: TwistedEd25519PrivateKey;
       amount: AnyNumber;
       recipient?: AccountAddressInput;
     },
-  ): Promise<CommittedTransactionResponse[]> {
-    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
-
-    const results: CommittedTransactionResponse[] = [];
-
-    const committedRolloverTxs = await this.checkSufficientBalanceAndRolloverIfNeeded({
-      ...args,
+  ): Promise<CommittedTransactionResponse> {
+    await this.assertSufficientActualBalance({
+      accountAddress: args.signer.accountAddress,
+      tokenAddress: args.tokenAddress,
+      decryptionKey: args.senderDecryptionKey,
+      amount: args.amount,
     });
-    results.push(...committedRolloverTxs);
-
-    const tx = await this.transaction.withdraw({ ...rest, sender: signer.accountAddress, withFeePayer });
-    results.push(
-      await this.submitTxn({
-        signer,
-        transaction: tx,
-      }),
-    );
-    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    return results;
+    return this.withdraw(args);
   }
 
   /**
@@ -414,6 +436,20 @@ export class ConfidentialAsset {
     return result;
   }
 
+  /**
+   * Confidential transfer from the sender's actual (spendable) balance, with a
+   * pre-flight balance check.
+   *
+   * Despite the legacy "TotalBalance" name, this method does **not** spend any
+   * portion of the sender's pending balance. Pending balance is a queue of
+   * unaccepted incoming transfers; accepting it is a separate, explicit user
+   * action via {@link rolloverPendingBalance} that must run first.
+   *
+   * Throws `Insufficient balance` when `amount > actual`, regardless of how
+   * much pending balance the sender has.
+   *
+   * @throws {Error} If `amount` exceeds the sender's actual (spendable) balance.
+   */
   async transferWithTotalBalance(
     args: ConfidentialAssetSubmissionParams & {
       recipient: AccountAddressInput;
@@ -422,24 +458,14 @@ export class ConfidentialAsset {
       additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
       senderAuditorHint?: Uint8Array;
     },
-  ): Promise<CommittedTransactionResponse[]> {
-    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
-    const results: CommittedTransactionResponse[] = [];
-
-    const committedRolloverTxs = await this.checkSufficientBalanceAndRolloverIfNeeded({
-      ...args,
+  ): Promise<CommittedTransactionResponse> {
+    await this.assertSufficientActualBalance({
+      accountAddress: args.signer.accountAddress,
+      tokenAddress: args.tokenAddress,
+      decryptionKey: args.senderDecryptionKey,
+      amount: args.amount,
     });
-    results.push(...committedRolloverTxs);
-    const transaction = await this.transaction.transfer({ ...rest, sender: signer.accountAddress, withFeePayer });
-
-    results.push(
-      await this.submitTxn({
-        signer,
-        transaction,
-      }),
-    );
-    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    return results;
+    return this.transfer(args);
   }
 
   /**
@@ -651,6 +677,232 @@ export class ConfidentialAsset {
     return committedTransaction;
   }
 
+  // ────────────────────────────────────────────────────────────────────────
+  // Build-only API
+  //
+  // Each `build*` method below constructs the same proofs and the same
+  // entry-function call that its submitting counterpart constructs, but
+  // returns the BCS-encoded `EntryFunction` bytes instead of submitting a
+  // transaction. The dApp / wallet wraps those bytes in a
+  // `MultiSigTransactionPayload` and proposes the transaction through
+  // `multisig_account::create_transaction`, so the multisig flow approves and
+  // executes the same exact entry-function call the single-signer path would
+  // have run.
+  //
+  // The `sender` is bound into every proof's Fiat–Shamir transcript and must
+  // match the executor at chain-verification time. For multisig CA, callers
+  // pass the multisig account's address as `sender`.
+  // ────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Build a `register` entry-function payload for the given `(sender, token)`
+   * pair without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * The `sender` must be the on-chain account whose `ek` slot is being
+   * registered — typically a multisig account address.
+   */
+  async buildRegister(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    decryptionKey: TwistedEd25519PrivateKey;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.registerBalance(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_to` entry-function payload without submitting it.
+   * Returns BCS-encoded `EntryFunction` bytes. Use {@link buildRegisterAndDeposit}
+   * for the first-time path, or one of {@link buildDepositAndRollover} /
+   * {@link buildDepositNormalizeAndRollover} when the caller wants funds to
+   * land spendable.
+   */
+  async buildDeposit(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    recipient?: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.deposit(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `register_and_deposit_and_rollover_pending_balance` entry-function
+   * payload without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   */
+  async buildRegisterAndDeposit(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    decryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.registerAndDepositAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_and_rollover_pending_balance` entry-function payload
+   * (currently-normalized store) without submitting it. Returns BCS-encoded
+   * `EntryFunction` bytes.
+   */
+  async buildDepositAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.depositAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_and_normalize_and_rollover_pending_balance` entry-function
+   * payload (not-currently-normalized store) without submitting it. Returns
+   * BCS-encoded `EntryFunction` bytes.
+   */
+  async buildDepositNormalizeAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.depositNormalizeAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `withdraw_to` entry-function payload without submitting it.
+   * Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Operates on the sender's actual (spendable) balance only. If the encrypted
+   * actual balance fetched from chain decrypts to less than `amount`,
+   * proof construction throws `Insufficient balance`; the caller must accept
+   * incoming pending funds via a separate `rolloverPendingBalance` proposal
+   * first.
+   */
+  async buildWithdraw(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    recipient?: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.withdraw(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `confidential_transfer` entry-function payload without submitting
+   * it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Operates on the sender's actual (spendable) balance only, on the same
+   * principle as {@link buildWithdraw}.
+   */
+  async buildConfidentialTransfer(args: {
+    sender: AccountAddressInput;
+    recipient: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+    senderAuditorHint?: Uint8Array;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.transfer(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `rollover_pending_balance` (or
+   * `normalize_and_rollover_pending_balance` if needed) entry-function payload
+   * without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Accepting incoming confidential transfers is a discrete user-authorized
+   * action and must not be bundled with spends. Use this when the user has
+   * explicitly chosen to accept pending funds.
+   */
+  async buildRolloverPending(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    senderDecryptionKey?: TwistedEd25519PrivateKey;
+    withFreezeBalance?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const isNormalized = await this.isBalanceNormalized({
+      accountAddress: args.sender,
+      tokenAddress: args.tokenAddress,
+    });
+    let tx: SimpleTransaction;
+    if (isNormalized) {
+      tx = await this.transaction.rolloverPendingBalance(args);
+    } else {
+      if (!args.senderDecryptionKey) {
+        throw new Error(
+          "buildRolloverPending: actual balance is not normalized and no senderDecryptionKey was provided to construct the normalize proof.",
+        );
+      }
+      tx = await this.transaction.normalizeAndRolloverPendingBalance({
+        sender: args.sender,
+        senderDecryptionKey: args.senderDecryptionKey,
+        tokenAddress: args.tokenAddress,
+        options: args.options,
+      });
+    }
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `normalize` entry-function payload without submitting it. Returns
+   * BCS-encoded `EntryFunction` bytes.
+   *
+   * Normalization is a protocol implementation detail of "accept incoming
+   * funds." Most callers should prefer {@link buildRolloverPending}, which
+   * chains normalize automatically when required.
+   */
+  async buildNormalize(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.normalizeBalance(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Reads the sender's confidential balance and throws if `amount` exceeds the
+   * actual (spendable) portion. Used by the pre-flight check in
+   * {@link withdrawWithTotalBalance} / {@link transferWithTotalBalance}; pending
+   * balance is intentionally not consulted, so callers cannot inadvertently
+   * spend funds that have not been explicitly accepted via
+   * {@link rolloverPendingBalance}.
+   */
+  private async assertSufficientActualBalance(args: {
+    accountAddress: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    decryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+  }): Promise<void> {
+    const balance = await this.getBalance({
+      accountAddress: args.accountAddress,
+      tokenAddress: args.tokenAddress,
+      decryptionKey: args.decryptionKey,
+    });
+    const actual = balance.availableBalance();
+    if (actual < BigInt(args.amount)) {
+      throw new Error(
+        `Insufficient balance. Available (actual): ${actual.toString()}, requested: ${args.amount.toString()}. ` +
+          `Pending balance is not included; call rolloverPendingBalance to accept incoming funds first.`,
+      );
+    }
+  }
+
   private async submitTxn(args: { signer: Account; transaction: SimpleTransaction }) {
     const { signer, transaction } = args;
     if (this.withFeePayer && !transaction.feePayerAddress) {
@@ -672,31 +924,5 @@ export class ConfidentialAsset {
       },
     });
     return committedTx;
-  }
-
-  private async checkSufficientBalanceAndRolloverIfNeeded(
-    args: ConfidentialAssetSubmissionParams & {
-      amount: AnyNumber;
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-    },
-  ): Promise<CommittedTransactionResponse[]> {
-    const results: CommittedTransactionResponse[] = [];
-    const balance = await this.getBalance({
-      accountAddress: args.signer.accountAddress,
-      tokenAddress: args.tokenAddress,
-      decryptionKey: args.senderDecryptionKey,
-    });
-    if (balance.availableBalance() < BigInt(args.amount)) {
-      if (balance.availableBalance() + balance.pendingBalance() < BigInt(args.amount)) {
-        throw new Error(
-          `Insufficient balance. Pending balance - ${balance.pendingBalance().toString()}, Available balance - ${balance.availableBalance().toString()}`,
-        );
-      }
-      const committedRolloverTx = await this.rolloverPendingBalance({
-        ...args,
-      });
-      results.push(...committedRolloverTx);
-    }
-    return results;
   }
 }
