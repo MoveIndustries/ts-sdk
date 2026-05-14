@@ -299,47 +299,39 @@ type WalletEntry =
     };
 ```
 
-`ownedByWalletIds` is an array, not a single id, so a user with two device-local Ed25519 wallets that are both on-chain owners of the same multisig has one multisig entry, not two — and the imported `dk` set is not duplicated across owner blobs. When a multisig proposal needs an owner signature for approval, the popup picks among the listed local wallets; if `ownedByWalletIds` is empty, the entry is a read-only view (balances visible if `dk` entries are present, but no approvals possible from this device).
+`ownedByWalletIds` is an array, not a single id, so a user with two device-local Ed25519 wallets that are both on-chain owners of the same multisig has one multisig entry, not two — and the imported `dk` set is not duplicated across owner blobs. Approval of multisig proposals is signed by one of the local Ed25519 wallets referenced here (the user picks at sign time, or the wallet picks the first if there's only one). If `ownedByWalletIds` is empty, the entry is a read-only view: balances are visible when the corresponding `dk` entries are present, but no approvals can originate from this device.
+
+A multisig entry is **not switchable as a signing account**. Multisig has no private key, so the wallet refuses `switchWallet(multisigId)`; selecting a multisig entry in the switcher instead opens its dk-management surface (derive / import / export per token). The dApp-visible connected account remains the user's Ed25519 wallet throughout, because every fund-moving operation — `multisig_account::create_transaction`, `approve_transaction`, `execute_transaction` — is signed by the owner's Ed25519 key with the multisig address passed as a function argument. The wallet identifies the target multisig for `ca_*` `buildOnly` calls by matching the dApp-supplied `sender` parameter against `address` on a multisig entry; the entry does not need to be "active" in any sense.
 
 Removing the last local Ed25519 wallet referenced by `ownedByWalletIds` does not delete the multisig entry — its imported `dk`s remain available for balance decryption — but the entry is marked view-only in the UI.
 
+The wallet populates `owners` and `threshold` automatically by reading `0x1::multisig_account::MultisigAccount` from chain when the user adds a multisig (the user pastes only the address). The wallet also matches the on-chain owners list against the active Ed25519 wallet's primary address to seed `ownedByWalletIds`; inactive wallets are not auto-matched (their addresses can't be derived without unlocking them), so the user must edit the entry later if additional local Ed25519 wallets also co-own the multisig.
+
 #### Storage location
 
-There is one `dk` store per wallet entry, keyed by entry id:
+`dk` material is persisted as **one `chrome.storage.local` entry per `(wallet entry, token)` pair**, keyed by the parent entry id and the token's lowercase 32-byte metadata address (no `0x` prefix):
 
 ```
-mv_dk_store:${walletEntryId}
+mv_dk_store:${walletEntryId}:${tokenAddrLowerHex}
 ```
 
 For mnemonic and private-key entries this stores any imported `dk`s for that account (rare but supported — e.g. a cross-device shared `dk` for a single-owner account). For multisig entries it stores the imported `dk[multisig, token]` set that gives the local user the ability to decrypt balances and propose transfers for that multisig.
 
-This per-entry keying contains corruption blast radius, lets a wallet-delete remove one storage key, and — critically for the multisig case — keeps each `dk` material in a single canonical location regardless of how many device-local Ed25519 wallets co-own the multisig.
+Per-(entry, token) keying gives each `dk` its own AAD-bound ciphertext at rest, makes a single-token import or revocation a single-key operation, and means the AAD binding below is enforced on the storage key itself (not on a sub-field of a larger JSON envelope). Multiple device-local Ed25519 wallets that co-own the same multisig still share *one* multisig entry, so the dk set isn't duplicated.
 
 #### Persisted shape
 
+Each `mv_dk_store:${entryId}:${tokenHex}` value is the AES-GCM ciphertext of the raw 32-byte `dk` scalar (no JSON envelope, no version field in the plaintext — the version tag lives in AAD). The wire format reuses Motion Wallet's standard `EncryptedValue` shape from `core/storage/encrypted-storage.ts`:
+
 ```ts
-type DkStoreV1 = {
-  version: 1;
-  walletEntryId: string;
-  entries: Record<DkEntryKey, EncryptedDkEntry>;
-};
-
-// The lookup key inside a store is just the token's metadata address; the
-// account address is implicit in the parent store (it's the wallet entry's address).
-// 0x-prefixed, lowercase, 32-byte hex.
-type DkEntryKey = string;
-
-type EncryptedDkEntry = {
-  source: 'imported';     // see "What is persisted" below
-  tokenMetaAddr: string;
-  ciphertext: string;     // base64 AES-GCM ciphertext + tag
+type EncryptedValue = {
+  ciphertext: string;     // base64 AES-GCM ciphertext + tag, sealing 32 raw dk bytes
   iv: string;             // base64, 12 bytes, fresh per entry
-  label?: string;         // token symbol/name at import; UI only
-  importedAt: number;     // unix ms
+  v: 2;                   // storage-encoding version (v=2 indicates raw-bytes payload with caller-supplied AAD)
 };
 ```
 
-The outer `DkStoreV1` envelope is a plain JSON blob in `chrome.storage.local`. Per-entry AES-GCM provides the per-entry isolation; the envelope is not double-encrypted. The account address is not stored on individual entries because it is implied by the parent store's `walletEntryId` — see the AAD binding below for how this is enforced cryptographically.
+No `entries` map, no label, no `source` — listing tokens for an entry is done by enumerating `chrome.storage.local` keys with the `mv_dk_store:${entryId}:` prefix. UI-only labels (token symbol etc.) are looked up at render time from the on-chain token registry, not stored alongside the `dk`.
 
 #### What is persisted
 
@@ -366,7 +358,7 @@ The mnemonic-vault key is *not* reused: that key conceptually unlocks the seed, 
 Per-entry isolation is enforced cryptographically through AES-GCM additional authenticated data. The AAD is reconstructed at decrypt time from the loader's arguments, never read back from storage:
 
 ```
-AAD = utf8("mv-dk-v1") || 0x00 || accountAddress || tokenMetaAddr
+AAD = utf8("mv-dk-v1") || accountAddress || tokenMetaAddr
 ```
 
 Where `accountAddress` is the parent wallet entry's address (the multisig address, or the Ed25519 account address) and `tokenMetaAddr` is the FA metadata address — each the raw 32 bytes (not hex). Binding the address into the AAD makes a ciphertext physically unmovable between stores: even though the entry doesn't carry the address as a plaintext field, AES-GCM tag verification fails on any cross-store substitution. The version tag in AAD also makes future schema changes (e.g. `mv-dk-v2`) unforgeable from v1 ciphertexts.
@@ -385,7 +377,7 @@ The wallet first resolves `accountAddress` to a `WalletEntry` (Ed25519 or multis
 2. For mnemonic-backed entries whose `accountAddress` matches a known mnemonic-derived account: derive via `fromDerivationPath("m/44'/637'/{accountIndex}'/1'/{tokenIndex}'", mnemonic)`, populate cache, return.
 3. For hardware-backed entries whose `accountAddress` matches a known device account: derive via `fromSignature(device.sign(decryptionKeyDerivationMessage ‖ ":" ‖ hex(tokenMetaAddr)))`, populate cache, return.
 4. For keyless-backed entries whose `accountAddress` matches a known keyless account: derive via `fromUniformBytes(HKDF-SHA512(pepper, salt = utf8("movement-ca/v1"), info = utf8("dk:") || accountAddress || tokenMetaAddr, L = 64))`, populate cache, return.
-5. Imported entry in `mv_dk_store:${walletEntry.id}.entries[tokenMetaAddr]`: AES-GCM-decrypt with AAD as defined above (using the parent entry's `accountAddress`); return.
+5. Imported entry at `mv_dk_store:${walletEntry.id}:${tokenAddrLowerHex}`: AES-GCM-decrypt with AAD as defined above (using the parent entry's `accountAddress`); return.
 6. Otherwise, throw — the loader does not fall back to "any `dk` for this account."
 
 Multisig entries skip steps 2, 3, and 4: there is no mnemonic, device, or pepper that can derive a multisig's `dk` (a multisig has no private key), so step 5 is the only path that can succeed for them. If no imported entry exists for `(multisigAddress, tokenMetaAddr)`, the loader throws — the user has not yet imported the shared `dk` for that asset, and the UI should prompt for import or surface the asset as view-only-without-key.
@@ -394,13 +386,26 @@ Proof-construction routines accept exactly one `dk` and one `tokenMetaAddr` and 
 
 #### Migration
 
-Schema v1 is additive: on unlock, if `mv_dk_store:${walletEntryId}` is absent, the wallet treats it as `{ version: 1, walletEntryId, entries: {} }` and lazy-creates on first import. There is no v0 to migrate. A `dkSchemaVersion` field will be introduced only when a v2 forces it.
+Schema v1 is additive: on unlock, the absence of `mv_dk_store:${entryId}:${tokenHex}` for a given token is treated as "no imported `dk` for that pair yet"; the loader proceeds to derive natively or throws (for multisig entries). There is no v0 to migrate. A future v2 would be signaled by changing the AAD version tag (`utf8("mv-dk-v2")`); existing v1 ciphertexts would fail tag verification under v2 AAD by construction.
 
-When a multisig wallet entry is created (whether by importing an existing on-chain multisig or by completing a creation flow), the wallet creates an empty `mv_dk_store:${entryId}` and prompts the user to import each registered token's `dk` separately, per [DK sharing among co-owners](#dk-sharing-among-co-owners).
+When a multisig wallet entry is created (whether by importing an existing on-chain multisig or by completing a creation flow), no `mv_dk_store:` keys are written until the user imports or derives the first per-token `dk`, per [DK sharing among co-owners](#dk-sharing-among-co-owners).
 
 #### Whole-wallet export
 
-When the wallet exposes a "back up wallet" flow that already includes the encrypted mnemonic vault, it includes every `mv_dk_store:${walletEntryId}` blob alongside it — both for Ed25519 entries and for multisig entries. The blobs are already sealed under the runtime second-layer key and are useless without the password; excluding them would silently lose imported multisig material that mnemonic recovery cannot reproduce. The export-flow copy must state that the backup includes imported decryption keys.
+When the wallet exposes a "back up wallet" flow that already includes the encrypted mnemonic vault, it includes every `mv_dk_store:*` ciphertext alongside it — both for Ed25519 entries and for multisig entries — plus `mv_storage_salt` so the receiving device can re-derive the runtime second-layer key from the same password. The blobs are sealed under that key and are useless without it; excluding them would silently lose imported multisig material that mnemonic recovery cannot reproduce. Motion Wallet's `EXPORT_BACKUP` handler emits a JSON blob with this shape:
+
+```json
+{
+  "version": 1,
+  "exportedAt": 1715000000000,
+  "wallets": [ /* WalletEntry[] (each vault is already AES-GCM-sealed) */ ],
+  "activeWalletId": "…",
+  "dkBlobs": { "mv_dk_store:<entryId>:<tokenHex>": { /* EncryptedValue */ } },
+  "storageSalt": "<base64>"
+}
+```
+
+The export-flow copy must state that the backup includes imported decryption keys.
 
 ---
 
@@ -616,7 +621,11 @@ The same raw pepper drives both the keyless account's on-chain address derivatio
 
 A multisig account is a resource account: it holds funds but has no private key, so a multisig account cannot run `fromDerivationPath` itself. Proofs for multisig confidential-asset operations must bind to the multisig account's address — the SDK's Fiat–Shamir transcript includes `senderAddress` (see `src/crypto/fiatShamir.ts`), and proofs built against any other address abort on chain.
 
-Motion Wallet represents a multisig as a first-class wallet entry (`WalletEntry.kind = 'multisig'`, see [Motion Wallet keystore schema / Wallet entries](#wallet-entries)). The popup's wallet switcher lists multisig entries alongside Ed25519 entries, the Home page shows the multisig's confidential balances when the corresponding `dk` entries have been imported, and pending multisig proposals surface in the wallet's approval flow the same way dApp-originated approvals do. The dApp (`gmove-multisig`) remains the place where users *manage* a multisig (create it, change owners, etc.); the wallet is where they *use* it. Surfacing the multisig as a wallet entry — rather than only as a dApp concept — is what lets a user open the wallet popup and immediately see the assets and pending actions that affect them, without first navigating to a specific dApp.
+Motion Wallet represents a multisig as a first-class wallet entry (`WalletEntry.kind = 'multisig'`, see [Motion Wallet keystore schema / Wallet entries](#wallet-entries)). A multisig entry is a **bookmark**, not a switchable signing account: it has no private key, and the dApp-visible connected account always remains the user's Ed25519 wallet. Selecting a multisig entry in the popup's wallet switcher opens its decryption-key management surface (derive / import / export per token, view confidential balances); it does **not** change `getAccount()` for dApps, because every fund-moving call — proposing, approving, executing — is signed by the owner's Ed25519 key against `0x1::multisig_account::*` with the multisig address as a function argument, not as the transaction sender. The wallet still receives multisig CA build requests through `ca_*` with `sender: <multisigAddress>, mode: "buildOnly"`; it looks up the multisig entry by `sender` address and is not gated on the multisig being the active wallet.
+
+The dApp (`gmove-multisig`) remains the place where users *manage* a multisig (create it, change owners, etc.); the wallet is where they *use* it. Surfacing the multisig as a wallet entry — rather than only as a dApp concept — is what lets a user open the wallet popup and immediately see the assets and pending actions that affect them, without first navigating to a specific dApp.
+
+When a multisig is added in the popup, the wallet reads `0x1::multisig_account::MultisigAccount` from chain to populate the entry's `owners` and `threshold` automatically; the user pastes only the multisig address. The wallet also matches the owners list against the user's *active* Ed25519 wallet to set `ownedByWalletIds`. Inactive Ed25519 wallets are not auto-matched, since deriving their addresses would require prompting for a password; the user can associate them later by editing the entry.
 
 ### Data ownership
 
@@ -674,35 +683,197 @@ With these parameters in place, the dApp constructs no proofs and holds no `dk`.
 
 ### DK sharing among co-owners
 
-A `dk` is a 32-byte Ristretto scalar with no address embedded in it. The cryptographic linkage between a `dk` and a multisig vault is established at registration: the wallet computes `ek = dk.publicKey()` and a multisig proposal writes `ek` into the on-chain `(multisigAddress, tokenMetaAddr)` slot. From that point forward, proofs verify against `ek` and the Fiat–Shamir transcript binds them to `senderAddress = multisigAddress` (see [Multisig accounts](#multisig-accounts)). The chain does not know how `dk` was produced, only that the registered `ek` is the public counterpart it accepts.
+A `dk` is a 32-byte Ristretto scalar with no address embedded in it. The cryptographic linkage between a `dk` and a multisig vault is established at registration: the wallet computes `ek = dk.publicKey()` and a multisig proposal writes `ek` into the on-chain `(multisigAddress, tokenMetaAddr)` slot. From that point forward, proofs verify against `ek` and the Fiat–Shamir transcript binds them to `senderAddress = multisigAddress`. The chain does not know how `dk` was produced, only that the registered `ek` is the public counterpart it accepts.
 
-Off-chain *derivation* exists so the originating owner can reproduce those 32 bytes deterministically from their root key material after a wallet restore, and so a single owner who is a designated proposer for multiple multisigs derives a distinct `dk` per vault rather than colliding. The per-backing rules for multisig-proposer derivation are:
+Off-chain *derivation* exists so the originating owner can reproduce those 32 bytes deterministically from their root key material after a wallet restore, and so a single owner who is a designated proposer for multiple multisigs derives a distinct `dk` per vault rather than colliding. The remainder of this section specifies (a) the per-backing derivation rules for the proposer, (b) the on-chain delivery channel by which the proposer transmits `dk[multisig, token]` to co-owners, (c) the envelope format used on that channel, (d) the share, owner-change, and discovery flows, and (e) the threat model and leak-recovery procedure.
+
+#### Derivation: per-backing rules for the proposer
 
 - **Software backings (mnemonic):** `dk[multisig, token] = TwistedEd25519PrivateKey.fromDerivationPath("m/44'/637'/{multisigAccountIndex}'/1'/{tokenIndex}'", mnemonic)`, where `multisigAccountIndex = u32_le(SHA-256(multisigAddress)[0..4]) & 0x7FFFFFFF`. The reduction mirrors the `tokenIndex` formula in [Path layout for software backings](#path-layout-for-software-backings). Collision probability with the proposer's own personal account indices is ~1/2³¹ per multisig registration; on collision the proposer must rotate via `rotate_encryption_key`. The reduction is fixed: a different formula yields a different `dk` and orphans the registration.
 - **Hardware backings (device signature):** `message[multisig, token] = decryptionKeyDerivationMessage ‖ ":" ‖ hex(multisigAddress) ‖ ":" ‖ hex(tokenMetadataAddress)`, then `dk[multisig, token] = TwistedEd25519PrivateKey.fromSignature(device.sign(message))`. This is a multisig-proposer-specific layout that prepends `hex(multisigAddress)` to the single-owner hardware layout in [Signed-message layout for hardware backings](#signed-message-layout-for-hardware-backings); the single-owner layout is unchanged, so existing non-multisig hardware-backed registrations are not affected.
 - **Keyless backings (pepper):** `dk[multisig, token] = keylessDecryptionKey(pepper, multisigAddress, tokenMetadataAddress)`, with `multisigAddress` substituted into the `accountAddress` slot of the HKDF `info` field defined in [HKDF layout for keyless backings](#hkdf-layout-for-keyless-backings). No layout change needed — the keyless layout already binds `accountAddress`.
 
-In all three cases the derivation is parameterised by the multisig account's address and the specific token's metadata address, and no other co-owner can reproduce it from their own wallet alone (every backing's root material is per-owner private). Multi-owner confidential-asset custody therefore requires sharing each registered asset's `dk` separately:
+In all three cases the derivation is parameterised by the multisig account's address and the specific token's metadata address, and no other co-owner can reproduce it from their own wallet alone (every backing's root material is per-owner private). Multi-owner confidential-asset custody therefore requires sharing each registered asset's `dk` separately, through the on-chain channel specified below.
 
-1. For a given token `T`, one designated owner derives `dk[multisig, T]` normally in their wallet, with the multisig account's address as the binding identity.
-2. The same owner registers the corresponding `ek[multisig, T]` against the multisig account's address on chain, by submitting a multisig proposal that invokes `register` for token `T`.
-3. The same owner exports the 32-byte `dk[multisig, T]` hex from their wallet UI — using the per-asset export flow described in [Storage and export](#storage-and-export) — and transmits it to co-owners over a secure out-of-band channel (for example, a shared password manager). The exported entry must be labeled with the token.
-4. Each co-owner imports the hex into their wallet, scoped to `(multisig, T)`.
+#### On-chain delivery via the `dk_inbox` Move module
 
-This procedure is repeated once per token the multisig registers. Co-owners hold one imported keystore entry per shared asset, not a single shared per-account secret. After import, every co-owner's wallet can construct proofs for multisig confidential-asset operations on that asset. A co-owner who has not imported a given token's `dk` cannot propose transfers of that token; they may still approve such transfers, because approval requires only their Ed25519 signing key.
+Sharing happens through a dedicated Move module — `dk_inbox`, living alongside the other confidential-asset modules at `aptos-experimental/sources/confidential_asset/dk_inbox.move`. The module's only job is authenticated, recipient-addressed event emission: the proposer's wallet encrypts `dk[multisig, token]` to each co-owner's public key, packs the envelopes into one transaction, and submits a single `share_dk` call that emits one event per recipient. The chain provides durable, ordered delivery; the wallet does all the cryptography.
 
-The export and import procedure uses the same user-initiated export flow described in [Storage and export](#storage-and-export), applied per token. It places a copy of `dk[multisig, T]` outside the originating wallet, with the security implications stated below. Sharing is constrained as follows:
+The module exposes one entry function and one event:
 
-- Each export and each import is gated by an explicit, user-initiated wallet UI action with a clear warning and a typed confirmation.
-- No dApp-callable export or import method is exposed. There is no `ca_exportDk` and no `ca_importDk`. A dApp cannot request `dk` bytes; only the user can.
+```move
+module aptos_experimental::dk_inbox {
+    use std::vector;
+    use std::signer;
+    use aptos_framework::event;
+    use aptos_framework::timestamp;
+    use aptos_framework::multisig_account;
+
+    const E_NOT_OWNER: u64 = 1;
+    const E_RECIPIENT_NOT_OWNER: u64 = 2;
+    const E_LENGTH_MISMATCH: u64 = 3;
+    const E_EMPTY: u64 = 4;
+    const E_ENVELOPE_TOO_LARGE: u64 = 5;
+
+    const MAX_ENVELOPE_BYTES: u64 = 1024;
+
+    #[event]
+    struct DkShared has drop, store {
+        sender: address,        // owner who posted (signer of this tx)
+        multisig: address,
+        token: address,         // FA metadata address
+        recipient: address,     // owner this envelope is for
+        envelope: vector<u8>,   // opaque ciphertext; format defined by the SDK
+        timestamp_us: u64,
+    }
+
+    public entry fun share_dk(
+        sender: &signer,
+        multisig: address,
+        token: address,
+        recipients: vector<address>,
+        envelopes: vector<vector<u8>>,
+    ) {
+        let sender_addr = signer::address_of(sender);
+        assert!(multisig_account::is_owner(multisig, sender_addr), E_NOT_OWNER);
+
+        let n = vector::length(&recipients);
+        assert!(n > 0, E_EMPTY);
+        assert!(n == vector::length(&envelopes), E_LENGTH_MISMATCH);
+
+        let now = timestamp::now_microseconds();
+        let i = 0;
+        while (i < n) {
+            let recipient = *vector::borrow(&recipients, i);
+            let envelope = *vector::borrow(&envelopes, i);
+            assert!(multisig_account::is_owner(multisig, recipient), E_RECIPIENT_NOT_OWNER);
+            assert!(vector::length(&envelope) <= MAX_ENVELOPE_BYTES, E_ENVELOPE_TOO_LARGE);
+            event::emit(DkShared {
+                sender: sender_addr,
+                multisig,
+                token,
+                recipient,
+                envelope,
+                timestamp_us: now,
+            });
+            i = i + 1;
+        };
+    }
+}
+```
+
+The module is deliberately minimal: no curve operations, no proof verification, no resource state. It validates that the sender is a current owner of the referenced multisig, that every recipient is also a current owner, that the recipient and envelope vectors are parallel and non-empty, and that each envelope is below a small byte ceiling — then emits one event per recipient. The format of the envelope bytes is an SDK concern; the chain treats it as opaque. A matching `dk_inbox.spec.move` follows the same pattern as the other modules in the directory.
+
+#### Envelope format
+
+Each `envelope` is an authenticated X25519 + AES-GCM ciphertext bound to a single `(multisig, token, sender, recipient)` tuple. The format is version-tagged so a future migration can run alongside without breaking existing imports.
+
+```
+envelope_v1 :=
+    "mv-dk-enc-v1"        // 12-byte ASCII version tag, also included in AAD
+  ‖ ephemeralX25519Pub    // 32 bytes — proposer's per-share ephemeral X25519 public key
+  ‖ nonce                 // 12 bytes — AES-GCM nonce, all-zero (safe: the ephemeral key is unique per envelope)
+  ‖ ciphertextWithTag     // 48 bytes = 32-byte dk + 16-byte GCM tag
+
+AAD := utf8("mv-dk-enc-v1")
+     ‖ multisigAddress         (32 raw bytes)
+     ‖ tokenMetaAddress        (32 raw bytes)
+     ‖ senderOwnerAddress      (32 raw bytes)
+     ‖ recipientOwnerAddress   (32 raw bytes)
+```
+
+Key derivation:
+
+- The recipient's long-term X25519 public key is computed from their Ed25519 owner public key via the standard birational map; the Ed25519 pubkey is read from the recipient's on-chain account resource. An owner whose pubkey is not yet on chain (account never transacted) cannot receive shares until they transact at least once — see [Initial share flow](#initial-share-flow) for the partial-share fallback.
+- The proposer generates a fresh X25519 keypair per envelope. `sharedSecret = X25519(ephemeralPriv, recipientX25519Pub)`.
+- `aesKey = HKDF-SHA256(sharedSecret, salt = empty, info = utf8("mv-dk-share-v1") ‖ multisigAddress ‖ tokenMetaAddress ‖ senderOwnerAddress ‖ recipientOwnerAddress, L = 32)`.
+- AES-GCM-256 seals the 32-byte `dk` under `aesKey` with the AAD shown above and the all-zero nonce.
+
+The AAD binds the envelope to the exact `(multisig, token, sender, recipient)` tuple announced on chain. The recipient's wallet must verify that the on-chain `DkShared` event's `multisig`, `token`, `sender`, and `recipient` fields exactly match the AAD it uses to decrypt; a mismatch is a hard refuse.
+
+#### Initial share flow
+
+For each token the multisig registers:
+
+1. One designated owner derives `dk[multisig, token]` normally in their wallet (per the per-backing rules above).
+2. The same owner registers `ek[multisig, token]` against the multisig address on chain, by submitting a multisig proposal that invokes `register` for the token.
+3. After the registration proposal executes, the same owner's wallet builds the share transaction:
+    - Reads the current owner list from `0x1::multisig_account::MultisigAccount`.
+    - For each co-owner (excluding the proposer), reads their Ed25519 public key from their account resource; converts it to X25519; constructs an envelope as specified above.
+    - Submits one `dk_inbox::share_dk` call carrying the full `recipients` and `envelopes` vectors.
+
+This is a single user-confirmation popup, a single Ed25519 signature, and a single gas payment. The N recipients are hidden in the vector. The Move module emits N per-recipient events in the same transaction.
+
+If any co-owner has never transacted on chain — and therefore has no recoverable Ed25519 public key — the proposer's wallet omits them from the share and surfaces a pending state: "Owner 0xefgh has not transacted yet; re-share when ready." After that owner first transacts, the proposer (or any current `dk` holder) re-runs the share for the missing recipient with a length-1 `recipients` vector.
+
+A co-owner who has not received a `dk` cannot propose transfers of that token; they may still approve such transfers, because approval requires only their Ed25519 signing key.
+
+#### Owner additions and removals
+
+When the multisig's owner set changes on chain, the wallet keeps the share state consistent without protocol changes:
+
+- **Owner added.** The dk-management screen for the multisig diffs the on-chain owner set against the set of addresses for which `DkShared` events exist (per token). Missing recipients appear as a "Share USDC dk with new owner 0xefgh…" action per token. Each action is one-click and runs `share_dk` with the new owner's address as a length-1 `recipients` vector; the new owner ends up with the same `dk` bytes as everyone else. The action is gated by an explicit confirmation surfacing the new owner's address — the wallet never auto-shares without user approval, since a maliciously added owner is a real threat.
+- **Owner removed.** A removed owner retains the `dk` bytes locally (the chain cannot reach into their wallet), so they retain decryption capability for every token whose `dk` they held — both past balance state and any future state encrypted under the same `ek`. Funds remain safe because moving funds requires k-of-n owner approvals on the multisig, and a `dk` alone cannot produce them. To restore privacy for affected tokens, the remaining owners rotate the encryption key per affected token using the recovery procedure in [Recovery from a shared `dk` leak](#recovery-from-a-shared-dk-leak). The wallet detects the owner change on chain and surfaces an automatic banner listing the tokens that need rotation.
+
+The wallet must also warn the user when proposing to remove the last current holder of a token's `dk`: rotation itself requires the current `dk` to construct its proofs, so removing the only holder before re-sharing would render the affected token unrecoverable.
+
+#### Discovery: user-initiated check
+
+The wallet does not poll the chain for new shares on a background timer. Instead, each multisig entry's dk-management surface exposes an explicit **"Check for shared dks"** action. Clicking it runs a single indexer query scoped to the multisig address and the user's owner address(es):
+
+```graphql
+query InboxForOwner($multisig: jsonb!, $recipient: jsonb!) {
+  events(
+    where: {
+      indexed_type: { _eq: "0x...::dk_inbox::DkShared" }
+      _and: [
+        { data: { _contains: $multisig } }   # { "multisig": "0x1234..." }
+        { data: { _contains: $recipient } }  # { "recipient": "0xowner..." }
+      ]
+    }
+    order_by: { transaction_version: desc }
+    limit: 100
+  ) {
+    transaction_version
+    event_index
+    data
+  }
+}
+```
+
+The wallet filters out events whose `(multisig, token)` already has an imported `dk` in `mv_dk_store`, decrypts the remaining envelopes, and presents an import confirmation per result. The user accepts or skips each. Accepted imports write to `mv_dk_store:${multisigEntryId}:${tokenHex}` exactly as the existing import path does. The dedupe key for "already seen" is `(transaction_version, event_index)`.
+
+When a multisig is first added as a wallet entry and the chain shows registered confidential assets for which the user has no local `dk`, the dk-management surface displays a hint badge on the "Check for shared dks" button. This is a visual nudge only; the wallet does not auto-run the query.
+
+If the indexer is unavailable, the wallet falls back to the fullnode REST `GET /v1/events/by_type/...` endpoint and filters client-side. This is degraded mode; checks scale with global share volume rather than this user's inbox.
+
+#### Import dialog
+
+The import confirmation dialog is rendered in the wallet-popup chrome — the same trust surface as the transaction signing dialog — and never as web content. It states the source owner address, the multisig address, the token, and a typed-confirmation gate matching the asset name. Accepting writes the imported `dk` to the encrypted keystore under the AAD-bound storage key (see [AAD binding](#aad-binding)); the envelope's chain copy is unaffected.
+
+The dialog accepts two formats:
+
+- `mv-dk-enc-v1:` envelopes fetched from the inbox (the path described above) — the primary flow.
+- `mv-dk-v1:` raw hex strings that may already exist in users' password managers from earlier flows or out-of-band transmission — a legacy fallback, retained so users mid-migration can still import. Raw hex import remains gated by master-password re-prompt and typed asset-name confirmation. New shares should not use raw hex.
 
 #### Threat model
 
-If a shared `dk[multisig, T]` hex is disclosed (for example, through a compromised password manager or a screenshot), the multisig account's privacy for token `T` is lost: the attacker can decrypt the multisig's confidential balance for `T` and observe transfer amounts denominated in `T`. Privacy of every other registered asset is preserved, because each `dk[multisig, T']` is an independent scalar derived along a different BIP-32 path (software backing), from a different signed message (hardware backing), or under a different HKDF `info` field (keyless backing). The multisig account's funds remain safe in all cases: moving funds requires k-of-n owner approvals on the multisig proposal, which a `dk` alone cannot produce. Each shared 32-byte hex is a token-specific derivation of the originating owner's root key material — a hardened BIP-32 child of the mnemonic, a `fromSignature` reduction of a token-specific device signature, or an HKDF expansion under a token-specific `info` field of the keyless pepper. Disclosure of any single hex does not reveal the originating root secret, any parent key, or any other asset's `dk`.
+The on-chain `dk_inbox` design accepts one durable cost that an out-of-band-only design does not have:
 
-### Recovery from a shared `dk` leak
+**Retroactive disclosure via chain history.** Every envelope ever shared sits on a public, permanent chain. If a recipient's owner key is later compromised — at any future point — the attacker recovers the long-term X25519 private key (derived from the Ed25519 owner key) and decrypts every envelope ever addressed to that owner from the chain's transaction history alone. Likewise, if X25519 or AES-GCM is meaningfully weakened by future cryptanalysis, the same retroactive recovery follows without any key compromise. `rotate_encryption_key` re-encrypts only future balance state, so a retroactively recovered pre-rotation `dk` still decrypts every pre-rotation balance ciphertext stored on chain. This property is inherent to using public chain calldata as the delivery channel; it cannot be mitigated after-the-fact by deleting state, since the envelope bytes live in finalized transaction history that every full node and indexer retains. Owner key rotation hygiene is the only ongoing user-side mitigation; a post-quantum KEM for the envelope is the credible long-term mitigation, and the version tag on the envelope is the migration affordance.
 
-If a shared `dk[multisig, token]` hex is disclosed (for example, through a compromised password manager or a screenshot of an import dialog), the recovery path is to rotate to a fresh `dk'` / `ek'` pair against the same multisig address, scoped to that single asset. Funds do not move; only the encryption key registered against the multisig for that asset changes.
+Other concerns are handled by the construction and have no residual cost:
+
+- *Per-token blast radius.* If a shared `dk[multisig, T]` is disclosed by any path, the multisig's privacy for token `T` is lost: the attacker can decrypt the multisig's confidential balance for `T` and observe transfer amounts denominated in `T`. Privacy of every other registered asset is preserved, because each `dk[multisig, T']` is an independent scalar derived along a different derivation path. The multisig's funds remain safe in all cases: moving funds requires k-of-n owner approvals on the multisig proposal, which a `dk` alone cannot produce.
+- *Cross-context misuse.* Domain separation in HKDF `info` and AAD binding pin each envelope to its exact `(multisig, token, sender, recipient)` tuple. A recipient wallet rejects any envelope whose AAD does not match the announced on-chain event fields.
+- *Replay across rotations.* After `rotate_encryption_key`, old `DkShared` events for the previous `dk` remain on chain and decrypt to the old (now invalid) 32 bytes. The wallet picks the newest envelope per `(multisig, token, recipient)` for display, and the `confidential_balance` load path validates the imported `dk` against the on-chain `ek` on first use; a stale import fails closed.
+- *Sender impersonation.* The recipient wallet trusts only the on-chain `DkShared.sender` field (the actual signer of the transaction). Envelope contents are 32 bytes of `dk` with no metadata that the wallet authenticates against.
+- *Inbox spam.* `share_dk` requires the sender to be a current owner of the referenced multisig; non-owners cannot post envelopes addressed to anyone. The per-envelope `MAX_ENVELOPE_BYTES` ceiling and standard gas pricing bound the cost a malicious owner could impose on co-owners.
+- *Metadata visible on chain.* `DkShared`'s public fields are `sender`, `recipient`, `multisig`, `token`, and `timestamp_us`. Each of these is already essentially derivable from existing chain state — multisig membership is public, `register` events name the token, and CA proposal authorship reveals which owners hold which `dk`s in practice. The inbox therefore does not meaningfully expand the multisig's metadata footprint beyond what is already observable.
+
+#### Recovery from a shared `dk` leak
+
+If a shared `dk[multisig, token]` is suspected to have leaked — through a recipient key compromise, an envelope retroactively decrypted from chain history, an exported hex in a password manager, or any other path — the recovery path is to rotate to a fresh `dk'` / `ek'` pair against the same multisig address, scoped to that single asset. Funds do not move; only the encryption key registered against the multisig for that asset changes.
 
 Two distinct layers govern this procedure:
 
@@ -714,9 +885,9 @@ Rotation procedure (executed outside the wallet UI):
 1. One owner generates a fresh `dk'` and computes `ek' = dk'.publicKey()`.
 2. The same owner uses `@moveindustries/confidential-assets` (`ConfidentialAsset` / `ConfidentialAssetTransactionBuilder.rotateEncryptionKey`) to build a `rotate_encryption_key` entry function bound to the multisig account's address for the affected token. The builder requires the current `dk[multisig, token]` (still held by the proposer) and the new `dk'`; it emits the sigma and range proofs that re-encrypt the on-chain balance from `ek[multisig, token]` to `ek'`.
 3. The entry-function bytes are wrapped in a `MultiSigTransactionPayload` and proposed via `multisig_account::create_transaction`. Co-owners approve with their Ed25519 keys; once k-of-n approvals are reached, any owner may execute.
-4. After execution, `ek'` is the registered key for `(multisig, token)` and the previous `dk[multisig, token]` no longer matches. The proposer exports `dk'` and redistributes it to co-owners over the same out-of-band channel used at initial setup.
+4. After execution, `ek'` is the registered key for `(multisig, token)` and the previous `dk[multisig, token]` no longer matches. The proposer runs `dk_inbox::share_dk` once more, sealing `dk'` to the current owner set (the same flow as initial sharing).
 
-After rotation, the previous `dk[multisig, token]` no longer matches the registered `ek` for that asset; ciphertexts the attacker observed and decrypted prior to rotation remain decryptable to them. If the disclosure includes the originating owner's mnemonic rather than only an exported `dk` hex, in-place rotation is insufficient and the recovery path is to move funds to a fresh multisig with fresh owner keys (see the threat-model note in [Key rotation](#key-rotation-not-wallet-supported)). Motion Wallet exposes no `ca_rotateEncryptionKey` method and no rotation UI; the procedure runs through the SDK in a trusted environment and then through the standard multisig proposal UI.
+After rotation, the previous `dk[multisig, token]` no longer matches the registered `ek` for that asset; ciphertexts the attacker observed and decrypted prior to rotation remain decryptable to them, and any old `DkShared` envelopes on chain are also still decryptable but yield the now-invalid `dk`. If the disclosure includes the originating owner's mnemonic rather than only a `dk` hex, in-place rotation is insufficient and the recovery path is to move funds to a fresh multisig with fresh owner keys (see the threat-model note in [Key rotation](#key-rotation-not-wallet-supported)). Motion Wallet exposes no `ca_rotateEncryptionKey` method and no rotation UI; the procedure runs through the SDK in a trusted environment and then through the standard multisig proposal UI.
 
 ### Treasury-scale balances
 
@@ -728,12 +899,12 @@ Multi-owner confidential-asset custody admits several constructions, which are n
 
 | Approach | Material per owner | Proof construction | Privacy under one-owner wallet compromise | Funds under one-owner wallet compromise | Viable against the current protocol |
 |---|---|---|---|---|---|
-| Shared-`dk` (per-asset; this design) | Identical 32-byte `dk[multisig, token]` per shared asset, plus the owner's own Ed25519 key | One proposer constructs the full proof set using `dk[multisig, token]`; approvers contribute only Ed25519 signatures | Lost for the assets whose `dk` the attacker holds; preserved for all other registered assets | Safe — fund movement requires k-of-n Ed25519 signatures | Yes — works against the deployed Move modules without protocol change |
+| Shared-`dk` with on-chain inbox delivery (per-asset; this design) | Identical 32-byte `dk[multisig, token]` per shared asset, plus the owner's own Ed25519 key | One proposer constructs the full proof set using `dk[multisig, token]`; approvers contribute only Ed25519 signatures | Lost for the assets whose `dk` the attacker holds; preserved for all other registered assets | Safe — fund movement requires k-of-n Ed25519 signatures | Yes — adds a small `dk_inbox` Move module for envelope-addressed event delivery (no verifier change). Out-of-band delivery (e.g. password manager) remains a legacy fallback |
 | Per-owner separate `dk` (re-encrypt to all owners) | The owner's own `dk`; transfers carry one ciphertext per owner | Proposer constructs proofs against multiple `ek` values; on-chain verifier checks all | Privacy lost only against the compromised owner's view; other owners retain it | Safe | No — current Move modules store one `ek` per `(account, token)` registration; this approach would require protocol changes and break per-asset auditor accounting |
 | Threshold ElGamal with threshold zero-knowledge (true MPC) | A share of `dk`; no single owner can decrypt | k owners run an interactive multi-party computation to jointly decrypt and construct a single proof | Preserved — the attacker holds one share, below threshold | Safe | No — requires a threshold-ElGamal-aware Move verifier, threshold-friendly Bulletproofs and Sigma protocols, and a multi-round MPC channel between wallets. Substantial protocol and wallet work |
 | Trusted-coordinator service (server holds `dk`; owners authenticate to it) | The owner's own Ed25519 key; an authentication token to the coordinator | Coordinator constructs proofs on owners' behalf | Lost on coordinator compromise — a single point of failure outside the wallet trust boundary | Safe — k-of-n approvals are still required on chain | Possible to build, but rejected. It violates [Principle 1](#guiding-principles): `dk` is wallet-custodied, and only the user — not a third-party service — may authorize disclosure of `dk` bytes. Disclosure to a shared service outside the user's control is excluded by design |
 
-The shared-`dk` design (per asset) is the chosen construction for this integration. Each shared `dk` is transmitted and stored through a secure out-of-band channel (for example, a shared password manager).
+The shared-`dk` design (per asset) is the chosen construction for this integration. Each shared `dk` is transmitted to co-owners via the on-chain `dk_inbox` module specified in [DK sharing among co-owners](#dk-sharing-among-co-owners) — encrypted per-recipient under each owner's public key — with raw-hex out-of-band transmission (for example, a shared password manager) retained only as a legacy import fallback. The on-chain delivery channel introduces one inherent tradeoff — retroactive disclosure via permanent chain history if a recipient's key is later compromised — documented in [Threat model](#threat-model).
 
 
 ---
@@ -850,11 +1021,11 @@ Implementations of these entry points call the confidential-asset module's Move 
 
 | Method | Request | Response | Notes |
 |---|---|---|---|
-| `ca_register` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Wallet derives `dk[token]`, builds the proof, and presents the transaction for user confirmation. Submits after confirmation, or returns BCS bytes if `mode: "buildOnly"`. |
-| `ca_deposit` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | The wallet routes to the appropriate single on-chain entrypoint based on registration and normalization state — `register_and_deposit_and_rollover_pending_balance`, `deposit_and_rollover_pending_balance`, or `deposit_and_normalize_and_rollover_pending_balance`. One transaction in every case. See [Deposit](#deposit). |
-| `ca_withdraw` | `{ token, amount, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Operates on actual balance only. Always one on-chain transaction. Returns `INSUFFICIENT_BALANCE` when `amount > actual`, regardless of pending; the dApp prompts the user to accept incoming funds first if needed. |
-| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint?, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Operates on actual balance only. Always one on-chain transaction. Same `INSUFFICIENT_BALANCE` behavior as `ca_withdraw`. |
-| `ca_rolloverPending` | `{ token, sender?, mode? }` | `{ txHash }` or `{ entryFunctionBcs }` | Accept incoming funds. The wallet chains `normalize` (where required) and `rollover` in a single user-confirmation step and submits after confirmation — at most two on-chain transactions, silently chained because `normalize` is a protocol detail of "accept incoming funds." Returns the final `rollover` transaction hash. |
+| `ca_register` | `{ token, sender?, mode? }` | `{ hash }` or `{ entryFunctionBytes }` | Wallet derives `dk[token]`, builds the proof, and presents the transaction for user confirmation. Submits after confirmation, or returns BCS bytes if `mode: "buildOnly"`. |
+| `ca_deposit` | `{ token, amount, sender?, mode? }` | `{ hash }` or `{ entryFunctionBytes }` | The wallet routes to the appropriate single on-chain entrypoint based on registration and normalization state — `register_and_deposit_and_rollover_pending_balance`, `deposit_and_rollover_pending_balance`, or `deposit_and_normalize_and_rollover_pending_balance`. One transaction in every case. See [Deposit](#deposit). |
+| `ca_withdraw` | `{ token, amount, sender?, mode? }` | `{ hash }` or `{ entryFunctionBytes }` | Operates on actual balance only. Always one on-chain transaction. Returns `INSUFFICIENT_BALANCE` when `amount > actual`, regardless of pending; the dApp prompts the user to accept incoming funds first if needed. |
+| `ca_transfer` | `{ token, recipient, amount, auditorAddresses?, senderAuditorHint?, sender?, mode? }` | `{ hash }` or `{ entryFunctionBytes }` | Operates on actual balance only. Always one on-chain transaction. Same `INSUFFICIENT_BALANCE` behavior as `ca_withdraw`. |
+| `ca_rolloverPending` | `{ token, sender?, mode? }` | `{ hash }` or `{ entryFunctionBytes }` | Accept incoming funds. The wallet chains `normalize` (where required) and `rollover` in a single user-confirmation step and submits after confirmation — at most two on-chain transactions, silently chained because `normalize` is a protocol detail of "accept incoming funds." Returns the final `rollover` transaction hash. |
 
 **`sender`** defaults to the wallet's own account address. Pass an explicit value (e.g. a multisig account address) when the executing signer is not the wallet account; the value is bound into the proof's Fiat–Shamir transcript and must match the executor at chain-verification time. A non-default `sender` requires `mode: "buildOnly"` — the wallet cannot sign a transaction on behalf of an account whose key it does not hold.
 
@@ -966,7 +1137,7 @@ if (!caSupported) {
 const balances = await caGetBalances({ tokens: [tokenAddress] });
 const { auditorEncryptionKey: globalAuditorEk } = await caGetGlobalAuditor(); // chain-level; included in every transfer
 const { auditorEncryptionKey: assetAuditorEk } = await caGetAuditor({ token: tokenAddress }); // per-asset; optional
-const { txHash } = await caTransfer({ token, recipient, amount: "100" });
+const { hash } = await caTransfer({ token, recipient, amount: "100" });
 ```
 
 These are RPC calls to the wallet, not invocations of the `ConfidentialAsset` SDK in the browser.
