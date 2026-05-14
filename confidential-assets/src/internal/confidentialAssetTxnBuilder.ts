@@ -9,6 +9,7 @@ import {
   MovementConfig,
   InputGenerateTransactionOptions,
   LedgerVersionArg,
+  Network,
   SimpleTransaction,
 } from "@moveindustries/ts-sdk";
 import { concatBytes } from "@noble/hashes/utils";
@@ -483,15 +484,24 @@ export class ConfidentialAssetTransactionBuilder {
     const chainId = await getChainIdByteForProofs({ client: this.client });
 
     // Fetch chain (slot [0]) and per-asset (slot [1]) auditors per movementlabsxyz/aptos-core#328's
-    // fixed-prefix layout. The chain auditor is mandatory: `validate_auditors` aborts with
-    // ECHAIN_AUDITOR_NOT_SET if no chain auditor is configured, or if `auditor_eks[0]` does not
-    // match the active chain auditor. The per-asset auditor is mandatory only when configured;
-    // when set, it must occupy slot [1]. Voluntary per-transfer auditors land at slot [2..].
+    // fixed-prefix layout. Slot [0] is always reserved; the framework's slot-0 key-equality check
+    // only fires when a chain auditor is configured. The per-asset auditor is mandatory only when
+    // configured; when set, it must occupy slot [1]. Voluntary per-transfer auditors land at slot
+    // [2..].
     const [chainAuditorPubKey, assetAuditorPubKey] = await Promise.all([
       this.getChainAuditorEncryptionKey(),
       this.getAssetAuditorEncryptionKey({ tokenAddress }),
     ]);
-    if (!chainAuditorPubKey) {
+    // Testnet bring-up: the chain auditor isn't configured yet, and the framework patch on testnet
+    // skips the slot-0 key-equality check while it's None. Fill slot [0] with the sender's own EK
+    // as a placeholder so the wire format and Fiat–Shamir transcript layout stay stable. On every
+    // other network, a missing chain auditor remains a hard error.
+    let chainSlotPubKey: TwistedEd25519PublicKey;
+    if (chainAuditorPubKey) {
+      chainSlotPubKey = chainAuditorPubKey;
+    } else if (this.client.config.network === Network.TESTNET) {
+      chainSlotPubKey = senderDecryptionKey.publicKey();
+    } else {
       throw new Error(
         "Chain auditor is not configured (get_chain_auditor returned None). " +
           "confidential_transfer aborts with ECHAIN_AUDITOR_NOT_SET in this state.",
@@ -544,7 +554,7 @@ export class ConfidentialAssetTransactionBuilder {
       amount,
       recipientEncryptionKey,
       auditorEncryptionKeys: assembleAuditorEks({
-        chain: chainAuditorPubKey,
+        chain: chainSlotPubKey,
         asset: assetAuditorPubKey,
         voluntary: additionalAuditorEncryptionKeys,
       }),
