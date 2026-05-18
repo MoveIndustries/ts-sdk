@@ -94,7 +94,7 @@ describe("hardwareDecryptionKeyDerivationMessage", () => {
 describe("keylessDecryptionKey (HKDF layout for keyless backings)", () => {
   const PEPPER = new Uint8Array(31).map((_, i) => (i * 7 + 1) & 0xff); // 31 deterministic bytes
 
-  it("matches the canonical HKDF expansion specified in WALLET_INTEGRATION.md", () => {
+  it("matches the canonical HKDF expansion for keyless backings", () => {
     const acct = AccountAddress.from(ACCOUNT_X).toUint8Array();
     const tok = AccountAddress.from(TOKEN_A).toUint8Array();
     const info = new Uint8Array(3 + 32 + 32);

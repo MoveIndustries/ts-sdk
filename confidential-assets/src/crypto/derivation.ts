@@ -8,10 +8,9 @@ import { AccountAddress, AccountAddressInput } from "@moveindustries/ts-sdk";
 import { TwistedEd25519PrivateKey } from "./twistedEd25519";
 
 /**
- * BIP-44 sub-path constants for the wallet ↔ chain compatibility contract
- * specified in `confidential-assets/WALLET_INTEGRATION.md`. The
- * `coinType = 637` slot is the Aptos / Movement coin type; `branch = 1` is
- * the confidential-asset decryption-key branch (`0` is reserved for the
+ * BIP-44 sub-path constants for the wallet ↔ chain compatibility contract.
+ * The `coinType = 637` slot is the Aptos / Movement coin type; `branch = 1`
+ * is the confidential-asset decryption-key branch (`0` is reserved for the
  * Ed25519 signing key).
  */
 const APTOS_COIN_TYPE = 637;
@@ -110,9 +109,7 @@ export function hardwareDecryptionKeyDerivationMessage(tokenMetaAddr: AccountAdd
 
 /**
  * Derive a keyless-backed `dk[account, token]` from the keyless pepper using
- * HKDF-SHA512 with the wallet-fixed salt and info layout specified in
- * `confidential-assets/WALLET_INTEGRATION.md` § "HKDF layout for keyless
- * backings".
+ * HKDF-SHA512 with the wallet-fixed salt and info layout.
  *
  * Concretely:
  *
@@ -181,9 +178,6 @@ export function keylessDecryptionKey(
 // `softwareDecryptionKeyDerivationPath`, `hardwareDecryptionKeyDerivationMessage`,
 // `keylessDecryptionKey`), with the multisig address substituted into the
 // `{accountIndex}` / `accountAddress` slot.
-//
-// See `confidential-assets/WALLET_INTEGRATION.md` § "DK sharing among
-// co-owners" for the full rationale.
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
