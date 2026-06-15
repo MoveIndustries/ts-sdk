@@ -9,7 +9,7 @@ import initWasm, {
 } from "@moveindustries/confidential-asset-wasm-bindings/range-proofs";
 
 const RANGE_PROOF_WASM_URL =
-  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.3/range-proofs/movement_rp_wasm_bg.wasm";
+  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.5/range-proofs/movement_rp_wasm_bg.wasm";
 
 export interface RangeProofInputs {
   v: bigint;

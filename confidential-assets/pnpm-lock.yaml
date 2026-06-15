@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@moveindustries/confidential-asset-wasm-bindings':
-    specifier: ^0.0.3
-    version: 0.0.3
+    specifier: ^0.0.5
+    version: 0.0.5
   '@moveindustries/ts-sdk':
     specifier: ^5.0.0
     version: 5.1.7(got@11.8.6)
@@ -961,8 +961,8 @@ packages:
       '@jridgewell/sourcemap-codec': 1.5.5
     dev: true
 
-  /@moveindustries/confidential-asset-wasm-bindings@0.0.3:
-    resolution: {integrity: sha512-u6rMRBv7xr3UkUVsXOZ24bdzVp0xqyuRgaPZYMYIyfdadV1XF6sQ2zML2xksGF5kun0C90f1vxTk3L16rR4YDg==}
+  /@moveindustries/confidential-asset-wasm-bindings@0.0.5:
+    resolution: {integrity: sha512-biCGDu7FNkt/yadD02ofbwZ0MFGvtc2zcSPMoFn4d15KPLFaU+Y1HBz9+sfY4+tEYinJaHWQCQc+IwUc6NKoEw==}
     dev: false
 
   /@moveindustries/movement-cli@1.1.0:
