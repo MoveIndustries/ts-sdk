@@ -15,7 +15,8 @@ env:
   # branch so CI is reproducible and won't drift if the branch advances.
   # Bump when intentional changes to the localnet/module setup are needed.
   #
-  APTOS_CORE_COMMIT: 8b72ca66d100a68bfa744b4931aaeb57fec6b1ba
+  # Must match the wasm-bindings version's framework + Bulletproof DST (older pins fail with ERANGE_PROOF_VERIFICATION_FAILED).
+  APTOS_CORE_COMMIT: c9cc7d2a47c464296bb40e5d7532907e95ae888f
 
 jobs:
   ca-e2e:
@@ -123,16 +124,11 @@ jobs:
           echo "CA_LOCALNET_LOG=$LOG" >> "$GITHUB_ENV"
           echo "Started script (PID=$SCRIPT_PID), tailing $LOG"
 
-      - name: Wait for module publish + extract address
+      - name: Wait for localnet setup (module + chain auditor)
         run: |
           set -euo pipefail
           LOG="${CA_LOCALNET_LOG}"
-          # The script prints, partway through:
-          #   Funding move publish signer (default profile) 0x<64-hex> via faucet ...
-          # and then later:
-          #   Done — feature flag and (if enabled) publish finished.
-          # We wait for the "Done" line so the module is actually on-chain
-          # before extracting the publish-signer address.
+          # Wait for the script's "Done — feature flag …" marker. Module is at 0x1 (framework), so no address extraction.
           DEADLINE=$((SECONDS + 60 * 60))  # 60 min cap on the localnet script
           NEXT_HEARTBEAT=$((SECONDS + 30))
           while (( SECONDS < DEADLINE )); do
@@ -140,7 +136,7 @@ jobs:
               break
             fi
             if ! kill -0 "$SCRIPT_PID" 2>/dev/null; then
-              echo "Localnet script exited before publish completed:" >&2
+              echo "Localnet script exited before setup completed:" >&2
               cat "$LOG"
               exit 1
             fi
@@ -148,7 +144,7 @@ jobs:
             # CI viewers can see progress (cargo build lines, faucet polling, etc.)
             # instead of staring at a blank step.
             if (( SECONDS >= NEXT_HEARTBEAT )); then
-              echo "--- waiting for module publish (elapsed ${SECONDS}s; tail of $LOG) ---"
+              echo "--- waiting for localnet setup (elapsed ${SECONDS}s; tail of $LOG) ---"
               tail -n 20 "$LOG" 2>/dev/null || echo "(no log yet)"
               echo "--- end tail ---"
               NEXT_HEARTBEAT=$((SECONDS + 30))
@@ -156,19 +152,10 @@ jobs:
             sleep 5
           done
           if ! grep -q "Done — feature flag" "$LOG"; then
-            echo "Timed out waiting for module publish." >&2
+            echo "Timed out waiting for localnet setup." >&2
             cat "$LOG"
             exit 1
           fi
-          ADDR=$(grep -oE 'publish signer \(default profile\) 0x[0-9a-f]{64}' "$LOG" \
-                 | head -n1 | awk '{print $NF}')
-          if [[ -z "$ADDR" ]]; then
-            echo "Could not parse publish-signer address from script output." >&2
-            cat "$LOG"
-            exit 1
-          fi
-          echo "CONFIDENTIAL_MODULE_ADDRESS=$ADDR"
-          echo "CONFIDENTIAL_MODULE_ADDRESS=$ADDR" >> "$GITHUB_ENV"
 
       - name: Verify REST endpoint is up
         run: |
