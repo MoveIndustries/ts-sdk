@@ -14,14 +14,15 @@ describe("staking api", () => {
         options: { orderBy: [{ num_active_delegator: "desc" }] },
       });
       expect(numDelegatorsData.length).toBeGreaterThan(0);
-      // Verify descending order for available data
+      // Verify descending order for available data. The indexer returns
+      // num_active_delegator as a string, so coerce before numeric comparison.
       for (let i = 0; i < numDelegatorsData.length - 1; i += 1) {
-        expect(numDelegatorsData[i].num_active_delegator).toBeGreaterThanOrEqual(
-          numDelegatorsData[i + 1].num_active_delegator,
+        expect(Number(numDelegatorsData[i].num_active_delegator)).toBeGreaterThanOrEqual(
+          Number(numDelegatorsData[i + 1].num_active_delegator),
         );
       }
       const numDelegators = await movement.getNumberOfDelegators({ poolAddress: numDelegatorsData[0].pool_address! });
-      expect(numDelegators).toEqual(numDelegatorsData[0].num_active_delegator);
+      expect(Number(numDelegators)).toEqual(Number(numDelegatorsData[0].num_active_delegator));
     },
     longTestTimeout,
   );
