@@ -17,15 +17,40 @@ const APTOS_COIN_TYPE = 637;
 const CA_BRANCH = 1;
 
 /**
- * HKDF-SHA512 parameters used by {@link keylessDecryptionKey}. Locked here
- * because changing them yields a different `dk` / `ek` and orphans every
- * existing on-chain registration. The `v1` suffix in the salt reserves room
- * to introduce a `v2` layout in a future release without breaking `v1`
- * registrations.
+ * HKDF-SHA512 parameters shared by {@link keylessDecryptionKey} and
+ * {@link vaultDecryptionKey}. Locked here because changing them yields a
+ * different `dk` / `ek` and orphans every existing on-chain registration. Each
+ * derivation supplies its own `salt` (the `v1` suffix reserves room for a `v2`
+ * layout in a future release without breaking `v1` registrations); the `info`
+ * shape (`"dk:" ‖ addr ‖ token`) and the 64-byte output length are common.
  */
 const KEYLESS_HKDF_SALT = new TextEncoder().encode("movement-ca/v1");
-const KEYLESS_HKDF_INFO_PREFIX = new TextEncoder().encode("dk:");
-const KEYLESS_HKDF_OUTPUT_LENGTH = 64;
+const VAULT_HKDF_SALT = new TextEncoder().encode("movement-ca-vault/v1");
+const HKDF_INFO_PREFIX = new TextEncoder().encode("dk:");
+const HKDF_OUTPUT_LENGTH = 64;
+
+/**
+ * Shared HKDF-SHA512 core for the address-bound decryption-key derivations
+ * ({@link keylessDecryptionKey}, {@link vaultDecryptionKey}). Builds
+ * `info = "dk:" ‖ addr ‖ token` from the raw 32-byte addresses (not hex),
+ * expands 64 bytes of OKM, and reduces it into the Ed25519 scalar field via
+ * {@link TwistedEd25519PrivateKey.fromUniformBytes}.
+ */
+function deriveDkFromIkm(
+  ikm: Uint8Array,
+  salt: Uint8Array,
+  addr: AccountAddressInput,
+  tokenMetaAddr: AccountAddressInput,
+): TwistedEd25519PrivateKey {
+  const acctBytes = AccountAddress.from(addr).toUint8Array();
+  const tokBytes = AccountAddress.from(tokenMetaAddr).toUint8Array();
+  const info = new Uint8Array(HKDF_INFO_PREFIX.length + acctBytes.length + tokBytes.length);
+  info.set(HKDF_INFO_PREFIX, 0);
+  info.set(acctBytes, HKDF_INFO_PREFIX.length);
+  info.set(tokBytes, HKDF_INFO_PREFIX.length + acctBytes.length);
+  const okm = hkdf(sha512, ikm, salt, info, HKDF_OUTPUT_LENGTH);
+  return TwistedEd25519PrivateKey.fromUniformBytes(okm);
+}
 
 /**
  * Derive the per-token BIP-32 hardened-index suffix from a fungible-asset
@@ -153,14 +178,53 @@ export function keylessDecryptionKey(
   if (pepper.length === 0) {
     throw new Error("keylessDecryptionKey: pepper must be non-empty");
   }
-  const acctBytes = AccountAddress.from(accountAddress).toUint8Array();
-  const tokBytes = AccountAddress.from(tokenMetaAddr).toUint8Array();
-  const info = new Uint8Array(KEYLESS_HKDF_INFO_PREFIX.length + acctBytes.length + tokBytes.length);
-  info.set(KEYLESS_HKDF_INFO_PREFIX, 0);
-  info.set(acctBytes, KEYLESS_HKDF_INFO_PREFIX.length);
-  info.set(tokBytes, KEYLESS_HKDF_INFO_PREFIX.length + acctBytes.length);
-  const okm = hkdf(sha512, pepper, KEYLESS_HKDF_SALT, info, KEYLESS_HKDF_OUTPUT_LENGTH);
-  return TwistedEd25519PrivateKey.fromUniformBytes(okm);
+  return deriveDkFromIkm(pepper, KEYLESS_HKDF_SALT, accountAddress, tokenMetaAddr);
+}
+
+/**
+ * Derive a multisig-vault `dk[Vault, token]` from the shared 32-byte vault root
+ * `dk[Vault]` using HKDF-SHA512 with the vault-scoped salt and the standard
+ * info layout:
+ *
+ * ```
+ * okm = HKDF-SHA512(
+ *   ikm  = dkVault,                                                 // 32 bytes
+ *   salt = utf8("movement-ca-vault/v1"),                           // 22 bytes
+ *   info = utf8("dk:") || multisigAddress || tokenMetadataAddress, // 3 + 32 + 32 raw bytes
+ *   L    = 64,
+ * )
+ * dk[Vault, token] = TwistedEd25519PrivateKey.fromUniformBytes(okm)
+ * ```
+ *
+ * `dk[Vault]` is a uniformly random per-vault root generated once by the dealer
+ * and bootstrapped to every co-owner through the off-chain envelope (see
+ * {@link sealVaultDk} / {@link openVaultDk}). Every holder of `dk[Vault]` then
+ * derives `dk[Vault, token]` locally for any asset the vault registers — no
+ * further per-token sharing is required. Binding `multisigAddress` into `info`
+ * domain-separates the derivation across vaults even in the unlikely event two
+ * vaults end up with the same random root.
+ *
+ * Mirrors {@link keylessDecryptionKey}; the only differences are the
+ * vault-scoped salt and that the IKM is the vault root rather than a keyless
+ * pepper.
+ *
+ * @param dkVault the 32-byte vault root (`dk[Vault]`)
+ * @param multisigAddress the multisig (vault) account address
+ * @param tokenMetaAddr the FA metadata address whose `dk` is being derived
+ * @returns a `TwistedEd25519PrivateKey` reduced from 64 bytes of HKDF output
+ */
+export function vaultDecryptionKey(
+  dkVault: Uint8Array,
+  multisigAddress: AccountAddressInput,
+  tokenMetaAddr: AccountAddressInput,
+): TwistedEd25519PrivateKey {
+  if (!(dkVault instanceof Uint8Array)) {
+    throw new Error("vaultDecryptionKey: dkVault must be a Uint8Array");
+  }
+  if (dkVault.length !== 32) {
+    throw new Error(`vaultDecryptionKey: dkVault must be 32 bytes, got ${dkVault.length}`);
+  }
+  return deriveDkFromIkm(dkVault, VAULT_HKDF_SALT, multisigAddress, tokenMetaAddr);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -249,21 +313,29 @@ export function hardwareDecryptionKeyDerivationMessageForMultisig(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// DK hex codec (versioned)
+// Per-asset DK hex codec (versioned)
 //
-// `dk[multisig, token]` is shared across co-owners by exporting the raw 32
-// scalar bytes as hex over an out-of-band channel (typically a password
-// manager). A version tag in front of the hex makes future format changes
-// (`mv-dk-v2`) unambiguously distinguishable from `v1` material, and lets
-// importers reject material that was produced with a different protocol.
+// `mv-dk-v1:` is the MIP's *per-asset* decryption-key export format: a single
+// `dk[account, token]` (or `dk[Vault, token]`) leaf scalar rendered as hex for
+// a user-initiated, single-`(account, token)` export (manual backup / recovery).
+// It is NOT the multisig co-owner bootstrap mechanism — co-owners share the
+// 32-byte *vault root* `dk[Vault]`, not per-token leaves, via the off-chain
+// envelope (see `sealVaultDk` / `openVaultDk` in `./vault`), with
+// `mv-dk-vault-raw-v1:` (see `encodeVaultDkRaw`) as the manual-recovery fallback
+// for the root. The two codecs coexist by design (MIP, "Storage and export"):
+// `mv-dk-v1:` carries a per-token leaf, `mv-dk-vault-raw-v1:` carries the root.
+//
+// A version tag in front of the hex makes future format changes (`mv-dk-v2`)
+// unambiguously distinguishable from `v1` material, and lets importers reject
+// material produced with a different protocol.
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Magic prefix for exported `dk` material under the v1 layout. */
+/** Magic prefix for exported per-asset `dk` material under the v1 layout. */
 export const DK_EXPORT_V1_PREFIX = "mv-dk-v1:";
 
 /**
- * Encode a `TwistedEd25519PrivateKey` as a version-tagged hex string suitable
- * for out-of-band sharing among multisig co-owners. The encoded form is:
+ * Encode a `TwistedEd25519PrivateKey` as a version-tagged hex string for a
+ * user-initiated per-asset (`one (account, token)`) export. The encoded form is:
  *
  * ```
  * mv-dk-v1:<64 lowercase hex chars>
@@ -271,8 +343,10 @@ export const DK_EXPORT_V1_PREFIX = "mv-dk-v1:";
  *
  * Note that this is *not* address-bound — the receiving wallet must bind the
  * material to `(accountAddress, tokenMetaAddr)` at storage time via the
- * AAD-bound `mv_dk_store` keystore entry. The version tag exists only to
- * distinguish format generations, not to authenticate the carrier.
+ * AAD-bound keystore entry. The version tag exists only to distinguish format
+ * generations, not to authenticate the carrier. To export/import a multisig
+ * *vault root* instead of a per-token leaf, use `encodeVaultDkRaw` /
+ * `decodeVaultDkRaw` (`mv-dk-vault-raw-v1:`).
  */
 export function encodeDecryptionKeyVersioned(dk: TwistedEd25519PrivateKey): string {
   return `${DK_EXPORT_V1_PREFIX}${dk.toStringWithoutPrefix().toLowerCase()}`;
