@@ -241,7 +241,7 @@ describe("Confidential Asset Sender API", () => {
           senderDecryptionKey: aliceConfidential,
           amount: confidentialBalance.availableBalance() + BigInt(1),
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
@@ -321,7 +321,7 @@ describe("Confidential Asset Sender API", () => {
           amount: confidentialBalance.availableBalance() + BigInt(1), // This is more than the available balance
           recipient: alice.accountAddress,
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );

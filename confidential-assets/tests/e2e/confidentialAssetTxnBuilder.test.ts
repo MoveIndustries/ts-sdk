@@ -227,7 +227,7 @@ describe.skip("Confidential balance api", () => {
           senderDecryptionKey: aliceConfidential,
           amount: confidentialBalance.availableBalance() + BigInt(1),
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
@@ -298,7 +298,7 @@ describe.skip("Confidential balance api", () => {
           amount: confidentialBalance.availableBalance() + BigInt(1),
           recipient: alice.accountAddress,
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
