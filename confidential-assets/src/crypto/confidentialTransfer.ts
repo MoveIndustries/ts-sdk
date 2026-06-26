@@ -18,6 +18,7 @@ import { TwistedElGamalCiphertext } from "./twistedElGamal";
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
 import { EncryptedAmount } from "./encryptedAmount";
 import { bcsSerializeMoveVectorU8 } from "../utils/moveBcs";
+import { InsufficientBalanceError } from "./errors";
 
 export type ConfidentialTransferSigmaProof = {
   alpha1List: Uint8Array[];
@@ -154,9 +155,11 @@ export class ConfidentialTransfer {
     }
     const remainingBalance = senderEncryptedAvailableBalance.getAmount() - amount;
     if (remainingBalance < 0n) {
-      throw new Error(
-        `Insufficient balance. Available balance: ${senderEncryptedAvailableBalance.getAmount().toString()}, Amount to transfer: ${amount.toString()}`,
-      );
+      throw new InsufficientBalanceError({
+        available: senderEncryptedAvailableBalance.getAmount(),
+        requested: amount,
+        operation: "transfer",
+      });
     }
     this.transferAmountEncryptedBySender = transferAmountEncryptedBySender;
     this.transferAmountEncryptedByRecipient = transferAmountEncryptedByRecipient;

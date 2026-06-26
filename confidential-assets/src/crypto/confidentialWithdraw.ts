@@ -4,6 +4,7 @@ import { utf8ToBytes } from "@noble/hashes/utils";
 import { fiatShamirChallenge } from "./fiatShamir";
 import { PROOF_CHUNK_SIZE, SIGMA_PROOF_WITHDRAW_SIZE, PROTOCOL_ID_WITHDRAWAL } from "../consts";
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
+import { InsufficientBalanceError } from "./errors";
 import {
   AVAILABLE_BALANCE_CHUNK_COUNT,
   CHUNK_BITS,
@@ -92,9 +93,11 @@ export class ConfidentialWithdraw {
       );
     }
     if (senderEncryptedAvailableBalanceAfterWithdrawal.getAmount() < 0n) {
-      throw new Error(
-        `Insufficient balance. Available balance: ${senderEncryptedAvailableBalance.getAmount().toString()}, Amount to withdraw: ${amount.toString()}`,
-      );
+      throw new InsufficientBalanceError({
+        available: senderEncryptedAvailableBalance.getAmount(),
+        requested: amount,
+        operation: "withdraw",
+      });
     }
 
     this.amount = ChunkedAmount.createTransferAmount(amount);
