@@ -228,89 +228,14 @@ export function vaultDecryptionKey(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Multisig-proposer-side derivation helpers
+// Multisig key derivation note
 //
-// A multisig account is a resource account with no private key; its `dk` is
-// produced by a designated owner ("proposer") against the multisig's address
-// and then exported to co-owners over an out-of-band channel. The proposer's
-// derivation must be deterministic from their own root material so that a
-// wallet restore re-produces the same 32 bytes — but parameterised by the
-// multisig address so that the proposer's `dk` for multisig M never collides
-// with their `dk` for their own personal account or for any other multisig.
-//
-// Layouts mirror the single-owner ones (see
-// `softwareDecryptionKeyDerivationPath`, `hardwareDecryptionKeyDerivationMessage`,
-// `keylessDecryptionKey`), with the multisig address substituted into the
-// `{accountIndex}` / `accountAddress` slot.
+// There is no per-proposer multisig derivation helper. A multisig vault shares
+// one random 32-byte root `dk[Vault]` across co-owners (bootstrapped via the
+// off-chain envelope — see `sealVaultDk` / `openVaultDk` in `./vault`); every
+// holder derives `dk[Vault, token]` locally with {@link vaultDecryptionKey}.
+// This replaces the earlier proposer-derives-from-own-root model.
 // ───────────────────────────────────────────────────────────────────────────
-
-/**
- * Derive the per-(multisig, ·) BIP-32 hardened-index suffix from a multisig
- * account address, used in the `{accountIndex}` slot of the multisig-proposer
- * software-backing path:
- *
- * ```
- * m/44'/637'/{multisigAccountIndex}'/1'/{tokenIndex}'
- * ```
- *
- * Formula: `u32_le(SHA-256(multisigAddress)[0..4]) & 0x7FFFFFFF`. This mirrors
- * the {@link tokenIndexFromMetadataAddress} reduction. Collision probability
- * with the proposer's own personal account indices is ~1/2^31 per multisig
- * registration; on collision the proposer must rotate the registered `ek` via
- * `rotate_encryption_key`.
- */
-export function multisigAccountIndexFromAddress(multisigAddress: AccountAddressInput): number {
-  const addr = AccountAddress.from(multisigAddress).toUint8Array();
-  const digest = sha256(addr);
-  const u32 = (digest[0]! | (digest[1]! << 8) | (digest[2]! << 16) | (digest[3]! << 24)) >>> 0;
-  return u32 & 0x7fffffff;
-}
-
-/**
- * Software-backed multisig-proposer derivation path:
- *
- * ```
- * m/44'/637'/{multisigAccountIndex}'/1'/{tokenIndex}'
- * ```
- *
- * where `multisigAccountIndex = multisigAccountIndexFromAddress(multisigAddress)`
- * and `tokenIndex = tokenIndexFromMetadataAddress(tokenMetaAddr)`.
- *
- * Wallets call this to derive the proposer-side `dk[multisig, token]` from a
- * mnemonic. The reduction is fixed: a different formula yields a different
- * `dk` and orphans the on-chain `ek[multisig, token]` registration.
- */
-export function softwareDecryptionKeyDerivationPathForMultisig(
-  multisigAddress: AccountAddressInput,
-  tokenMetaAddr: AccountAddressInput,
-): string {
-  const acctIndex = multisigAccountIndexFromAddress(multisigAddress);
-  const tokenIndex = tokenIndexFromMetadataAddress(tokenMetaAddr);
-  return `m/44'/${APTOS_COIN_TYPE}'/${acctIndex}'/${CA_BRANCH}'/${tokenIndex}'`;
-}
-
-/**
- * Hardware-backed multisig-proposer signed-message layout:
- *
- * ```
- * decryptionKeyDerivationMessage ‖ ":" ‖ lowerHex(multisigAddress) ‖ ":" ‖ lowerHex(tokenMetadataAddress)
- * ```
- *
- * Prepends `hex(multisigAddress)` to the single-owner hardware layout in
- * {@link hardwareDecryptionKeyDerivationMessage}. The single-owner layout is
- * unchanged, so existing non-multisig hardware-backed registrations are not
- * affected by the introduction of this variant. The wallet feeds the device's
- * resulting Ed25519 signature into {@link TwistedEd25519PrivateKey.fromSignature}
- * to obtain `dk[multisig, token]`.
- */
-export function hardwareDecryptionKeyDerivationMessageForMultisig(
-  multisigAddress: AccountAddressInput,
-  tokenMetaAddr: AccountAddressInput,
-): Uint8Array {
-  const msigHex = AccountAddress.from(multisigAddress).toStringLongWithoutPrefix().toLowerCase();
-  const tokHex = AccountAddress.from(tokenMetaAddr).toStringLongWithoutPrefix().toLowerCase();
-  return new TextEncoder().encode(`${HARDWARE_DECRYPTION_KEY_DERIVATION_MESSAGE_PREFIX}:${msigHex}:${tokHex}`);
-}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Per-asset DK hex codec (versioned)
