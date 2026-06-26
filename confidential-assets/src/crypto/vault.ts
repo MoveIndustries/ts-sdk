@@ -134,6 +134,11 @@ function readU16LE(buf: Uint8Array, offset: number): number {
   return buf[offset]! | (buf[offset + 1]! << 8);
 }
 
+function writeU16LE(buf: Uint8Array, offset: number, value: number): void {
+  buf[offset] = value & 0xff;
+  buf[offset + 1] = (value >> 8) & 0xff;
+}
+
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i += 1) {
@@ -195,8 +200,7 @@ export function sealVaultDk(params: SealVaultDkParams): Uint8Array {
   o += ADDRESS_LENGTH;
   envelope.set(ephemeralPub, o);
   o += X25519_KEY_LENGTH;
-  envelope[o] = recipients.length & 0xff;
-  envelope[o + 1] = (recipients.length >> 8) & 0xff;
+  writeU16LE(envelope, o, recipients.length);
   o += 2;
 
   recipients.forEach((recipient, i) => {
