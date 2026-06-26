@@ -282,36 +282,6 @@ export class ConfidentialAsset {
   }
 
   /**
-   * Withdraw from the sender's actual (spendable) confidential balance, with a
-   * pre-flight balance check.
-   *
-   * Despite the legacy "TotalBalance" name, this method does **not** spend any
-   * portion of the sender's pending balance. Pending balance is a queue of
-   * unaccepted incoming transfers; accepting it is a separate, explicit user
-   * action via {@link rolloverPendingBalance} that must run first.
-   *
-   * Throws `Insufficient balance` when `amount > actual`, regardless of how
-   * much pending balance the sender has.
-   *
-   * @throws {Error} If `amount` exceeds the sender's actual (spendable) balance.
-   */
-  async withdrawWithTotalBalance(
-    args: ConfidentialAssetSubmissionParams & {
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-      amount: AnyNumber;
-      recipient?: AccountAddressInput;
-    },
-  ): Promise<CommittedTransactionResponse> {
-    await this.assertSufficientActualBalance({
-      accountAddress: args.signer.accountAddress,
-      tokenAddress: args.tokenAddress,
-      decryptionKey: args.senderDecryptionKey,
-      amount: args.amount,
-    });
-    return this.withdraw(args);
-  }
-
-  /**
    * Rollover an account's pending balance for an asset into the available balance.
    *
    * @param args.signer - The address of the sender of the transaction
@@ -434,38 +404,6 @@ export class ConfidentialAsset {
     });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
-  }
-
-  /**
-   * Confidential transfer from the sender's actual (spendable) balance, with a
-   * pre-flight balance check.
-   *
-   * Despite the legacy "TotalBalance" name, this method does **not** spend any
-   * portion of the sender's pending balance. Pending balance is a queue of
-   * unaccepted incoming transfers; accepting it is a separate, explicit user
-   * action via {@link rolloverPendingBalance} that must run first.
-   *
-   * Throws `Insufficient balance` when `amount > actual`, regardless of how
-   * much pending balance the sender has.
-   *
-   * @throws {Error} If `amount` exceeds the sender's actual (spendable) balance.
-   */
-  async transferWithTotalBalance(
-    args: ConfidentialAssetSubmissionParams & {
-      recipient: AccountAddressInput;
-      amount: AnyNumber;
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-      additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
-      senderAuditorHint?: Uint8Array;
-    },
-  ): Promise<CommittedTransactionResponse> {
-    await this.assertSufficientActualBalance({
-      accountAddress: args.signer.accountAddress,
-      tokenAddress: args.tokenAddress,
-      decryptionKey: args.senderDecryptionKey,
-      amount: args.amount,
-    });
-    return this.transfer(args);
   }
 
   /**
@@ -914,34 +852,6 @@ export class ConfidentialAsset {
     }
     const tx = await this.transaction.rotateEncryptionKey(args);
     return extractEntryFunctionBcs(tx);
-  }
-
-  /**
-   * Reads the sender's confidential balance and throws if `amount` exceeds the
-   * actual (spendable) portion. Used by the pre-flight check in
-   * {@link withdrawWithTotalBalance} / {@link transferWithTotalBalance}; pending
-   * balance is intentionally not consulted, so callers cannot inadvertently
-   * spend funds that have not been explicitly accepted via
-   * {@link rolloverPendingBalance}.
-   */
-  private async assertSufficientActualBalance(args: {
-    accountAddress: AccountAddressInput;
-    tokenAddress: AccountAddressInput;
-    decryptionKey: TwistedEd25519PrivateKey;
-    amount: AnyNumber;
-  }): Promise<void> {
-    const balance = await this.getBalance({
-      accountAddress: args.accountAddress,
-      tokenAddress: args.tokenAddress,
-      decryptionKey: args.decryptionKey,
-    });
-    const actual = balance.availableBalance();
-    if (actual < BigInt(args.amount)) {
-      throw new Error(
-        `Insufficient balance. Available (actual): ${actual.toString()}, requested: ${args.amount.toString()}. ` +
-          `Pending balance is not included; call rolloverPendingBalance to accept incoming funds first.`,
-      );
-    }
   }
 
   private async submitTxn(args: { signer: Account; transaction: SimpleTransaction }) {
