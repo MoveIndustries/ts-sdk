@@ -719,9 +719,9 @@ export class ConfidentialAsset {
    *
    * Operates on the sender's actual (spendable) balance only. If the encrypted
    * actual balance fetched from chain decrypts to less than `amount`,
-   * proof construction throws `Insufficient balance`; the caller must accept
-   * incoming pending funds via a separate `rolloverPendingBalance` proposal
-   * first.
+   * proof construction throws {@link InsufficientBalanceError} (code
+   * `INSUFFICIENT_BALANCE`); the caller must accept incoming pending funds via a
+   * separate `rolloverPendingBalance` proposal first.
    */
   async buildWithdraw(args: {
     sender: AccountAddressInput;
