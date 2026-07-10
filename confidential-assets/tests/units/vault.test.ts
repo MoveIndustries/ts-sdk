@@ -1,7 +1,7 @@
 // Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { ed25519, edwardsToMontgomeryPub, edwardsToMontgomeryPriv, x25519 } from "@noble/curves/ed25519";
+import { ed25519 } from "@noble/curves/ed25519";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import {
   vaultDecryptionKey,
@@ -12,6 +12,14 @@ import {
   decodeVaultDkRaw,
   VAULT_DK_EXPORT_V1_PREFIX,
   VAULT_ENVELOPE_VERSION_TAG,
+  vaultEnvelopeKeyFromSeed,
+  vaultEnvelopeKeyFromSignature,
+  vaultEnvelopeKeyFromPepper,
+  vaultEnvelopeKeyDerivationPath,
+  vaultEnvelopeKeyOwnershipMessage,
+  signVaultEnvelopeKeyOwnership,
+  verifyVaultEnvelopeKeyOwnership,
+  VAULT_ENVELOPE_KEY_DERIVATION_MESSAGE,
 } from "../../src";
 
 const MULTISIG = "0x00000000000000000000000000000000000000000000000000000000000000aa";
@@ -25,13 +33,11 @@ const RECIP_ADDR = "0x0000000000000000000000000000000000000000000000000000000000
 const DK_VAULT = new Uint8Array(32);
 for (let i = 0; i < 32; i += 1) DK_VAULT[i] = i;
 
-// Fixed recipient: ed25519 seed = 0xaa repeated.
-const RECIP_SEED = new Uint8Array(32).fill(0xaa);
-const RECIP_PUB = ed25519.getPublicKey(RECIP_SEED);
+// Fixed recipient vault-envelope key from a deterministic seed.
+const RECIP_VEK = vaultEnvelopeKeyFromSeed(new Uint8Array(32).fill(0xaa));
 
-function freshOwner(seedByte: number): { seed: Uint8Array; pub: Uint8Array } {
-  const seed = new Uint8Array(32).fill(seedByte);
-  return { seed, pub: ed25519.getPublicKey(seed) };
+function freshVek(seedByte: number) {
+  return vaultEnvelopeKeyFromSeed(new Uint8Array(32).fill(seedByte));
 }
 
 describe("vaultDecryptionKey (HKDF-SHA512, salt movement-ca-vault/v1)", () => {
@@ -69,20 +75,87 @@ describe("vaultDecryptionKey (HKDF-SHA512, salt movement-ca-vault/v1)", () => {
   });
 });
 
-describe("Ed25519 -> X25519 birational map agreement", () => {
-  it("pub-map equals the pub derived from the priv-map (fixed vector)", () => {
-    const pubMap = edwardsToMontgomeryPub(RECIP_PUB);
-    const pubFromPriv = x25519.getPublicKey(edwardsToMontgomeryPriv(RECIP_SEED));
-    expect(bytesToHex(pubMap)).toBe("552291f02c9317519633021302d0f7ba39b1cf32310e23ee7aa6a4312ae4a027");
-    expect(bytesToHex(pubFromPriv)).toBe(bytesToHex(pubMap));
+describe("vault-envelope key (vek) derivation", () => {
+  it("fromSeed is deterministic and pins a fixed vector (seed 0xaa)", () => {
+    // Independent X25519 keypair from the 32-byte seed (NOT the Ed25519 birational map).
+    expect(bytesToHex(RECIP_VEK.publicKey)).toBe(
+      "14ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e24070",
+    );
+    expect(bytesToHex(vaultEnvelopeKeyFromSeed(new Uint8Array(32).fill(0xaa)).publicKey)).toBe(
+      bytesToHex(RECIP_VEK.publicKey),
+    );
   });
 
-  it("dealer and recipient compute the same shared secret", () => {
-    const eph = x25519.utils.randomPrivateKey();
-    const ephPub = x25519.getPublicKey(eph);
-    const dealerSide = x25519.getSharedSecret(eph, edwardsToMontgomeryPub(RECIP_PUB));
-    const recipSide = x25519.getSharedSecret(edwardsToMontgomeryPriv(RECIP_SEED), ephPub);
-    expect(bytesToHex(dealerSide)).toBe(bytesToHex(recipSide));
+  it("fromSignature = fromSeed(SHA-512(sig)[0..32]) and is deterministic", () => {
+    const sig = new Uint8Array(64).fill(0x5a);
+    const a = vaultEnvelopeKeyFromSignature(sig);
+    const b = vaultEnvelopeKeyFromSignature(sig);
+    expect(bytesToHex(a.publicKey)).toBe(bytesToHex(b.publicKey));
+    expect(a.publicKey.length).toBe(32);
+    // rejects a non-64-byte signature
+    expect(() => vaultEnvelopeKeyFromSignature(new Uint8Array(63))).toThrow(/64 bytes/);
+  });
+
+  it("fromPepper binds accountAddress and is deterministic", () => {
+    const pepper = new Uint8Array(31).fill(0x07);
+    const a = vaultEnvelopeKeyFromPepper(pepper, MULTISIG);
+    expect(bytesToHex(vaultEnvelopeKeyFromPepper(pepper, MULTISIG).publicKey)).toBe(bytesToHex(a.publicKey));
+    // different account -> different key
+    expect(bytesToHex(vaultEnvelopeKeyFromPepper(pepper, MULTISIG_B).publicKey)).not.toBe(bytesToHex(a.publicKey));
+    expect(() => vaultEnvelopeKeyFromPepper(new Uint8Array(0), MULTISIG)).toThrow(/non-empty/);
+  });
+
+  it("derivation path is m/44'/637'/{accountIndex}'/2'/0'", () => {
+    expect(vaultEnvelopeKeyDerivationPath(0)).toBe("m/44'/637'/0'/2'/0'");
+    expect(vaultEnvelopeKeyDerivationPath(5)).toBe("m/44'/637'/5'/2'/0'");
+    expect(() => vaultEnvelopeKeyDerivationPath(-1)).toThrow();
+  });
+
+  it("hardware derivation message is the SDK-fixed constant", () => {
+    expect(VAULT_ENVELOPE_KEY_DERIVATION_MESSAGE).toBe(
+      "Sign this message to derive your confidential-asset vault-envelope key",
+    );
+  });
+});
+
+describe("vault-envelope key ownership signature", () => {
+  const OWNER_SEED = new Uint8Array(32).fill(0x11);
+  const OWNER_PUB = ed25519.getPublicKey(OWNER_SEED);
+
+  it("message is DST ‖ vekPub", () => {
+    const msg = vaultEnvelopeKeyOwnershipMessage(RECIP_VEK.publicKey);
+    const dst = new TextEncoder().encode("MovementConfidentialAsset/VaultEnvelopeKey/v1");
+    expect(bytesToHex(msg.subarray(0, dst.length))).toBe(bytesToHex(dst));
+    expect(bytesToHex(msg.subarray(dst.length))).toBe(bytesToHex(RECIP_VEK.publicKey));
+  });
+
+  it("sign then verify round-trips against the owner's Ed25519 pubkey", () => {
+    const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
+    expect(verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: OWNER_PUB, signature: sig })).toBe(
+      true,
+    );
+  });
+
+  it("rejects a signature over a different vekPub (key substitution)", () => {
+    const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
+    const otherVek = freshVek(0xbb).publicKey;
+    expect(verifyVaultEnvelopeKeyOwnership({ vekPub: otherVek, ownerEd25519PublicKey: OWNER_PUB, signature: sig })).toBe(
+      false,
+    );
+  });
+
+  it("rejects a signature from a different owner key", () => {
+    const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
+    const otherOwnerPub = ed25519.getPublicKey(new Uint8Array(32).fill(0x22));
+    expect(
+      verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: otherOwnerPub, signature: sig }),
+    ).toBe(false);
+  });
+
+  it("returns false (not throw) on malformed inputs", () => {
+    expect(
+      verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: new Uint8Array(31), signature: new Uint8Array(64) }),
+    ).toBe(false);
   });
 });
 
@@ -117,34 +190,34 @@ describe("encodeVaultDkRaw / decodeVaultDkRaw (mv-dk-vault-raw-v1:)", () => {
 });
 
 describe("sealVaultDk / openVaultDk round-trip", () => {
-  const seal = (recipients: { ownerAddress: string; ed25519PublicKey: Uint8Array }[]) =>
+  const seal = (recipients: { ownerAddress: string; vaultEnvelopePublicKey: Uint8Array }[]) =>
     sealVaultDk({ dkVault: DK_VAULT, multisigAddress: MULTISIG, dealerOwnerAddress: DEALER, recipients });
 
   it("a single recipient recovers dk[Vault]", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
     const recovered = openVaultDk({
       envelope,
       multisigAddress: MULTISIG,
       recipientOwnerAddress: RECIP_ADDR,
-      recipientEd25519PrivateKey: RECIP_SEED,
+      recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
     });
     expect(bytesToHex(recovered)).toBe(bytesToHex(DK_VAULT));
   });
 
   it("every recipient in a multi-recipient envelope opens only its own slot", () => {
     const owners = [
-      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c1", kp: freshOwner(0x01) },
-      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c2", kp: freshOwner(0x02) },
-      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c3", kp: freshOwner(0x03) },
+      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c1", vek: freshVek(0x01) },
+      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c2", vek: freshVek(0x02) },
+      { addr: "0x00000000000000000000000000000000000000000000000000000000000000c3", vek: freshVek(0x03) },
     ];
-    const envelope = seal(owners.map((o) => ({ ownerAddress: o.addr, ed25519PublicKey: o.kp.pub })));
+    const envelope = seal(owners.map((o) => ({ ownerAddress: o.addr, vaultEnvelopePublicKey: o.vek.publicKey })));
 
     for (const o of owners) {
       const recovered = openVaultDk({
         envelope,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: o.addr,
-        recipientEd25519PrivateKey: o.kp.seed,
+        recipientVaultEnvelopePrivateKey: o.vek.privateKey,
       });
       expect(bytesToHex(recovered)).toBe(bytesToHex(DK_VAULT));
     }
@@ -155,49 +228,49 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         envelope,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: owners[0].addr,
-        recipientEd25519PrivateKey: owners[1].kp.seed,
+        recipientVaultEnvelopePrivateKey: owners[1].vek.privateKey,
       }),
     ).toThrow();
   });
 
   it("throws when the recipient is not addressed in the envelope", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
     expect(() =>
       openVaultDk({
         envelope,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: "0x00000000000000000000000000000000000000000000000000000000000000ee",
-        recipientEd25519PrivateKey: freshOwner(0x09).seed,
+        recipientVaultEnvelopePrivateKey: freshVek(0x09).privateKey,
       }),
     ).toThrow(/no envelope slot/);
   });
 
   it("throws on a wrong key for the addressed slot", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
     expect(() =>
       openVaultDk({
         envelope,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: new Uint8Array(32).fill(0xbb),
+        recipientVaultEnvelopePrivateKey: new Uint8Array(32).fill(0xbb),
       }),
     ).toThrow();
   });
 
   it("throws when the supplied multisigAddress disagrees with the envelope", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
     expect(() =>
       openVaultDk({
         envelope,
         multisigAddress: MULTISIG_B,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: RECIP_SEED,
+        recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
       }),
     ).toThrow(/multisigAddress does not match/);
   });
 
   it("throws on a tampered ciphertext (GCM tag) and tampered dealer (AAD)", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
 
     const tamperedCt = envelope.slice();
     tamperedCt[tamperedCt.length - 1] ^= 0xff;
@@ -206,7 +279,7 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         envelope: tamperedCt,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: RECIP_SEED,
+        recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
       }),
     ).toThrow();
 
@@ -218,19 +291,19 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         envelope: tamperedDealer,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: RECIP_SEED,
+        recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
       }),
     ).toThrow();
   });
 
   it("throws on a truncated envelope and a bad version tag", () => {
-    const envelope = seal([{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }]);
+    const envelope = seal([{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }]);
     expect(() =>
       openVaultDk({
         envelope: envelope.subarray(0, 50),
         multisigAddress: MULTISIG,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: RECIP_SEED,
+        recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
       }),
     ).toThrow();
 
@@ -241,7 +314,7 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         envelope: badTag,
         multisigAddress: MULTISIG,
         recipientOwnerAddress: RECIP_ADDR,
-        recipientEd25519PrivateKey: RECIP_SEED,
+        recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
       }),
     ).toThrow(/version tag/);
   });
@@ -252,7 +325,7 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         dkVault: new Uint8Array(31),
         multisigAddress: MULTISIG,
         dealerOwnerAddress: DEALER,
-        recipients: [{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }],
+        recipients: [{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }],
       }),
     ).toThrow(/32-byte/);
     expect(() =>
@@ -263,22 +336,23 @@ describe("sealVaultDk / openVaultDk round-trip", () => {
         dkVault: DK_VAULT,
         multisigAddress: MULTISIG,
         dealerOwnerAddress: DEALER,
-        recipients: [{ ownerAddress: RECIP_ADDR, ed25519PublicKey: new Uint8Array(31) }],
+        recipients: [{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: new Uint8Array(31) }],
       }),
-    ).toThrow(/ed25519PublicKey/);
+    ).toThrow(/vaultEnvelopePublicKey/);
   });
 });
 
 describe("envelope wire format (byte-exact)", () => {
+  // Pinned with fixed randomness + the fixed recipient vek (seed 0xaa).
   const EXPECTED_ENVELOPE =
-    "6d762d646b2d7661756c742d763100000000000000000000000000000000000000000000000000000000000000aa00000000000000000000000000000000000000000000000000000000000000d07b4e909bbe7ffe44c465a220037d608ee35897d31ef972f07f74892cb0f73f13010000000000000000000000000000000000000000000000000000000000000000c1222222222222222222222222503072cf496caa05f59e90a8b92b6e4328dd945ca201834052c606671dd0a32117d5dede27789968cc23d3c4748fe5e7";
+    "6d762d646b2d7661756c742d763100000000000000000000000000000000000000000000000000000000000000aa00000000000000000000000000000000000000000000000000000000000000d07b4e909bbe7ffe44c465a220037d608ee35897d31ef972f07f74892cb0f73f13010000000000000000000000000000000000000000000000000000000000000000c1222222222222222222222222e5584e35254ebff8a85a0d4b9b98cc84581804c157b7c21be4c605f91cc47fd295796f2dbeb1a2c6b96a44ac9f588ff5";
 
   it("seal with fixed randomness produces the pinned envelope", () => {
     const envelope = sealVaultDk({
       dkVault: DK_VAULT,
       multisigAddress: MULTISIG,
       dealerOwnerAddress: DEALER,
-      recipients: [{ ownerAddress: RECIP_ADDR, ed25519PublicKey: RECIP_PUB }],
+      recipients: [{ ownerAddress: RECIP_ADDR, vaultEnvelopePublicKey: RECIP_VEK.publicKey }],
       randomness: { ephemeralPrivateKey: new Uint8Array(32).fill(0x11), nonces: [new Uint8Array(12).fill(0x22)] },
     });
     expect(bytesToHex(envelope)).toBe(EXPECTED_ENVELOPE);
@@ -291,7 +365,7 @@ describe("envelope wire format (byte-exact)", () => {
       envelope: hexToBytes(EXPECTED_ENVELOPE),
       multisigAddress: MULTISIG,
       recipientOwnerAddress: RECIP_ADDR,
-      recipientEd25519PrivateKey: RECIP_SEED,
+      recipientVaultEnvelopePrivateKey: RECIP_VEK.privateKey,
     });
     expect(bytesToHex(recovered)).toBe(bytesToHex(DK_VAULT));
   });

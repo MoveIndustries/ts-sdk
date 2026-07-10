@@ -1,9 +1,10 @@
 // Copyright © Move Industries
 // SPDX-License-Identifier: Apache-2.0
 
-import { x25519, edwardsToMontgomeryPub, edwardsToMontgomeryPriv } from "@noble/curves/ed25519";
+import { x25519, ed25519 } from "@noble/curves/ed25519";
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha256";
+import { sha512 } from "@noble/hashes/sha512";
 import { bytesToHex, hexToBytes, randomBytes } from "@noble/hashes/utils";
 import { gcm } from "@noble/ciphers/aes";
 import { AccountAddress, AccountAddressInput } from "@moveindustries/ts-sdk";
@@ -14,11 +15,17 @@ import { AccountAddress, AccountAddressInput } from "@moveindustries/ts-sdk";
 // A multisig vault shares one uniformly-random 32-byte root `dk[Vault]` across
 // all co-owners. The dealer seals `dk[Vault]` to each co-owner under a
 // per-recipient AES-GCM key derived from an X25519 ECDH between a single
-// per-envelope ephemeral key and the recipient's X25519 key — itself the
-// RFC 7748 birational map of the recipient's on-chain Ed25519 owner pubkey. The
-// recipient opens its own slot with the X25519 key mapped from its Ed25519
-// signing seed. Every holder of `dk[Vault]` then derives per-token
-// `dk[Vault, token]` locally via `vaultDecryptionKey` (see `./derivation`).
+// per-envelope ephemeral key and the recipient's **vault-envelope key** (`vek`)
+// — a per-owner X25519 keypair whose private half every backing can reconstruct
+// locally (on hardware, from a device signature) and whose public half the owner
+// publishes. The recipient opens its own slot with `vek_priv`. Every holder of
+// `dk[Vault]` then derives per-token `dk[Vault, token]` locally via
+// `vaultDecryptionKey` (see `./derivation`).
+//
+// The recipient key is NOT the birational map of the Ed25519 owner key: that map
+// opens only with the Ed25519 private scalar, which hardware backings never
+// expose. The `vek` derivations and the ownership-signature publish/verify that
+// authenticates a published `vek_pub` live at the bottom of this file.
 //
 // The off-chain store that transports envelopes sees only ciphertext;
 // confidentiality does not depend on it.
@@ -48,6 +55,7 @@ const VERSION_TAG_BYTES = new TextEncoder().encode(VAULT_ENVELOPE_VERSION_TAG);
 const ADDRESS_LENGTH = 32;
 const ED25519_PUBKEY_LENGTH = 32;
 const ED25519_SEED_LENGTH = 32;
+const ED25519_SIGNATURE_LENGTH = 64;
 const X25519_KEY_LENGTH = 32;
 const NONCE_LENGTH = 12;
 const GCM_TAG_LENGTH = 16;
@@ -69,8 +77,13 @@ const MAX_RECIPIENTS = 0xffff;
 export interface VaultRecipient {
   /** The co-owner's multisig owner address (bound into AAD; identifies the slot). */
   ownerAddress: AccountAddressInput;
-  /** The co-owner's 32-byte on-chain Ed25519 owner public key. */
-  ed25519PublicKey: Uint8Array;
+  /**
+   * The co-owner's 32-byte published **vault-envelope key** (`vek_pub`, X25519).
+   * The dealer must have verified its ownership signature (see
+   * {@link verifyVaultEnvelopeKeyOwnership}) against the owner's on-chain Ed25519
+   * key before sealing to it.
+   */
+  vaultEnvelopePublicKey: Uint8Array;
 }
 
 export interface SealVaultDkParams {
@@ -97,8 +110,12 @@ export interface OpenVaultDkParams {
   multisigAddress: AccountAddressInput;
   /** This recipient's owner address; selects the slot and is bound into AAD. */
   recipientOwnerAddress: AccountAddressInput;
-  /** This recipient's 32-byte Ed25519 signing seed. */
-  recipientEd25519PrivateKey: Uint8Array;
+  /**
+   * This recipient's 32-byte **vault-envelope private key** (`vek_priv`, X25519),
+   * reconstructed locally per backing (see {@link vaultEnvelopeKeyFromSignature} /
+   * {@link vaultEnvelopeKeyFromPepper} / {@link vaultEnvelopeKeyFromSeed}).
+   */
+  recipientVaultEnvelopePrivateKey: Uint8Array;
 }
 
 /**
@@ -167,7 +184,7 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
  * ```
  *
  * @throws if `dkVault` is not exactly 32 bytes, there are zero recipients or
- *   more than 65535, or any recipient Ed25519 public key is not 32 bytes.
+ *   more than 65535, or any recipient vault-envelope public key is not 32 bytes.
  */
 export function sealVaultDk(params: SealVaultDkParams): Uint8Array {
   const { dkVault, multisigAddress, dealerOwnerAddress, recipients, randomness } = params;
@@ -205,16 +222,15 @@ export function sealVaultDk(params: SealVaultDkParams): Uint8Array {
 
   recipients.forEach((recipient, i) => {
     if (
-      !(recipient.ed25519PublicKey instanceof Uint8Array) ||
-      recipient.ed25519PublicKey.length !== ED25519_PUBKEY_LENGTH
+      !(recipient.vaultEnvelopePublicKey instanceof Uint8Array) ||
+      recipient.vaultEnvelopePublicKey.length !== X25519_KEY_LENGTH
     ) {
       throw new Error(
-        `sealVaultDk: recipient[${i}] ed25519PublicKey must be a ${ED25519_PUBKEY_LENGTH}-byte Uint8Array`,
+        `sealVaultDk: recipient[${i}] vaultEnvelopePublicKey must be a ${X25519_KEY_LENGTH}-byte Uint8Array`,
       );
     }
     const recipientBytes = AccountAddress.from(recipient.ownerAddress).toUint8Array();
-    const recipientX25519Pub = edwardsToMontgomeryPub(recipient.ed25519PublicKey);
-    const sharedSecret = x25519.getSharedSecret(ephemeralPriv, recipientX25519Pub);
+    const sharedSecret = x25519.getSharedSecret(ephemeralPriv, recipient.vaultEnvelopePublicKey);
     const aad = buildAad(multisigBytes, dealerBytes, recipientBytes, ephemeralPub);
     const aesKey = deriveAesKey(sharedSecret, aad);
 
@@ -255,16 +271,16 @@ export function sealVaultDk(params: SealVaultDkParams): Uint8Array {
  *   decryption fails.
  */
 export function openVaultDk(params: OpenVaultDkParams): Uint8Array {
-  const { envelope, multisigAddress, recipientOwnerAddress, recipientEd25519PrivateKey } = params;
+  const { envelope, multisigAddress, recipientOwnerAddress, recipientVaultEnvelopePrivateKey } = params;
 
   if (!(envelope instanceof Uint8Array) || envelope.length < ENVELOPE_HEADER_LENGTH) {
     throw new Error("openVaultDk: envelope is too short to contain a header");
   }
   if (
-    !(recipientEd25519PrivateKey instanceof Uint8Array) ||
-    recipientEd25519PrivateKey.length !== ED25519_SEED_LENGTH
+    !(recipientVaultEnvelopePrivateKey instanceof Uint8Array) ||
+    recipientVaultEnvelopePrivateKey.length !== X25519_KEY_LENGTH
   ) {
-    throw new Error(`openVaultDk: recipientEd25519PrivateKey must be a ${ED25519_SEED_LENGTH}-byte seed`);
+    throw new Error(`openVaultDk: recipientVaultEnvelopePrivateKey must be a ${X25519_KEY_LENGTH}-byte X25519 key`);
   }
 
   let o = 0;
@@ -306,15 +322,13 @@ export function openVaultDk(params: OpenVaultDkParams): Uint8Array {
     const nonce = envelope.subarray(base + ADDRESS_LENGTH, base + ADDRESS_LENGTH + NONCE_LENGTH);
     const ciphertextWithTag = envelope.subarray(base + ADDRESS_LENGTH + NONCE_LENGTH, base + RECIPIENT_RECORD_LENGTH);
 
-    const recipientX25519Priv = edwardsToMontgomeryPriv(recipientEd25519PrivateKey);
-    const sharedSecret = x25519.getSharedSecret(recipientX25519Priv, ephemeralPub);
+    const sharedSecret = x25519.getSharedSecret(recipientVaultEnvelopePrivateKey, ephemeralPub);
     const aad = buildAad(multisigBytes, dealerBytes, recipientBytes, ephemeralPub);
     const aesKey = deriveAesKey(sharedSecret, aad);
     try {
       const dkVault = gcm(aesKey, nonce, aad).decrypt(ciphertextWithTag);
       return dkVault;
     } finally {
-      recipientX25519Priv.fill(0);
       sharedSecret.fill(0);
       aesKey.fill(0);
     }
@@ -370,4 +384,158 @@ export function decodeVaultDkRaw(encoded: string): Uint8Array {
     throw new Error(`decodeVaultDkRaw: expected ${VAULT_DK_LENGTH} bytes, got ${bytes.length}`);
   }
   return bytes;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Vault-envelope key (`vek`) — MIP-001 §"Vault-envelope key".
+//
+// The recipient encryption key for the envelope. A per-owner X25519 keypair
+// whose private half every backing can reconstruct locally and whose public
+// half the owner publishes (ownership-authenticated) for dealers to seal to.
+// `vek` is per owner identity, not per vault — the per-share binding lives in
+// the envelope AAD/info, so one `vek` safely covers every vault the owner is in.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Salt + info prefix for the keyless `vek` HKDF; matches MIP §"Vault-envelope key". */
+const VEK_HKDF_SALT = new TextEncoder().encode("movement-ca-vek/v1");
+const VEK_INFO_PREFIX = new TextEncoder().encode("vek:");
+
+/**
+ * The fixed message a hardware device signs to derive its vault-envelope key.
+ * Distinct from `TwistedEd25519PrivateKey.decryptionKeyDerivationMessage` so the
+ * `vek` and the per-token `dk` come from independent device signatures.
+ */
+export const VAULT_ENVELOPE_KEY_DERIVATION_MESSAGE =
+  "Sign this message to derive your confidential-asset vault-envelope key";
+
+/** Ed25519 ownership-signature domain separator over `DST ‖ vekPub`. */
+export const VAULT_ENVELOPE_KEY_OWNERSHIP_DST = "MovementConfidentialAsset/VaultEnvelopeKey/v1";
+const VAULT_ENVELOPE_KEY_OWNERSHIP_DST_BYTES = new TextEncoder().encode(VAULT_ENVELOPE_KEY_OWNERSHIP_DST);
+
+/** BIP-44 branch for the vault-envelope key (0'=signing, 1'=per-asset dk, 2'=vek). */
+const VEK_BRANCH = 2;
+const APTOS_COIN_TYPE = 637;
+
+export interface VaultEnvelopeKeyPair {
+  /** 32-byte X25519 private key (`vek_priv`); clamped by X25519 on use. Never persist at rest for hardware. */
+  privateKey: Uint8Array;
+  /** 32-byte X25519 public key (`vek_pub`) — the value the owner publishes. */
+  publicKey: Uint8Array;
+}
+
+/**
+ * Core: reduce 32 bytes of uniform seed material to an X25519 vault-envelope
+ * keypair. `privateKey` is the raw 32-byte seed (X25519 clamps it on use);
+ * `publicKey = X25519_basepoint(privateKey)`.
+ *
+ * Software backings pass the 32-byte Ed25519 private key derived at
+ * {@link vaultEnvelopeKeyDerivationPath}; hardware and keyless use the dedicated
+ * helpers below.
+ */
+export function vaultEnvelopeKeyFromSeed(seed: Uint8Array): VaultEnvelopeKeyPair {
+  if (!(seed instanceof Uint8Array) || seed.length < X25519_KEY_LENGTH) {
+    throw new Error(`vaultEnvelopeKeyFromSeed: seed must be at least ${X25519_KEY_LENGTH} bytes`);
+  }
+  const privateKey = seed.slice(0, X25519_KEY_LENGTH);
+  const publicKey = x25519.getPublicKey(privateKey);
+  return { privateKey, publicKey };
+}
+
+/**
+ * Hardware backing: derive the vault-envelope keypair from the device's Ed25519
+ * signature over {@link VAULT_ENVELOPE_KEY_DERIVATION_MESSAGE}. `seed =
+ * SHA-512(signature)[0..32]`. Recomputed from a fresh device signature each
+ * session; the wallet must not persist `privateKey` at rest.
+ *
+ * @param signature the raw 64-byte Ed25519 device signature over the message
+ */
+export function vaultEnvelopeKeyFromSignature(signature: Uint8Array): VaultEnvelopeKeyPair {
+  if (!(signature instanceof Uint8Array) || signature.length !== ED25519_SIGNATURE_LENGTH) {
+    throw new Error(`vaultEnvelopeKeyFromSignature: signature must be ${ED25519_SIGNATURE_LENGTH} bytes`);
+  }
+  return vaultEnvelopeKeyFromSeed(sha512(signature));
+}
+
+/**
+ * Keyless backing: derive the vault-envelope keypair from the keyless pepper via
+ * `HKDF-SHA512(pepper, salt="movement-ca-vek/v1", info="vek:" ‖ accountAddress, L=32)`.
+ */
+export function vaultEnvelopeKeyFromPepper(
+  pepper: Uint8Array,
+  accountAddress: AccountAddressInput,
+): VaultEnvelopeKeyPair {
+  if (!(pepper instanceof Uint8Array) || pepper.length === 0) {
+    throw new Error("vaultEnvelopeKeyFromPepper: pepper must be a non-empty Uint8Array");
+  }
+  const acct = AccountAddress.from(accountAddress).toUint8Array();
+  const info = new Uint8Array(VEK_INFO_PREFIX.length + acct.length);
+  info.set(VEK_INFO_PREFIX, 0);
+  info.set(acct, VEK_INFO_PREFIX.length);
+  const seed = hkdf(sha512, pepper, VEK_HKDF_SALT, info, X25519_KEY_LENGTH);
+  return vaultEnvelopeKeyFromSeed(seed);
+}
+
+/**
+ * Software backing: the canonical BIP-32 path for the vault-envelope key,
+ * `m/44'/637'/{accountIndex}'/2'/0'`. The wallet derives the Ed25519 key at this
+ * path and passes its 32-byte private key to {@link vaultEnvelopeKeyFromSeed}.
+ */
+export function vaultEnvelopeKeyDerivationPath(accountIndex: number): string {
+  if (!Number.isInteger(accountIndex) || accountIndex < 0) {
+    throw new Error(`vaultEnvelopeKeyDerivationPath: accountIndex must be a non-negative integer, got ${accountIndex}`);
+  }
+  return `m/44'/${APTOS_COIN_TYPE}'/${accountIndex}'/${VEK_BRANCH}'/0'`;
+}
+
+/**
+ * The exact bytes an owner signs with their Ed25519 owner key to authenticate a
+ * published `vek_pub`: `utf8("MovementConfidentialAsset/VaultEnvelopeKey/v1") ‖ vekPub`.
+ * On hardware this is a device blind-sign; the wallet then publishes the signature.
+ */
+export function vaultEnvelopeKeyOwnershipMessage(vekPub: Uint8Array): Uint8Array {
+  if (!(vekPub instanceof Uint8Array) || vekPub.length !== X25519_KEY_LENGTH) {
+    throw new Error(`vaultEnvelopeKeyOwnershipMessage: vekPub must be ${X25519_KEY_LENGTH} bytes`);
+  }
+  const out = new Uint8Array(VAULT_ENVELOPE_KEY_OWNERSHIP_DST_BYTES.length + vekPub.length);
+  out.set(VAULT_ENVELOPE_KEY_OWNERSHIP_DST_BYTES, 0);
+  out.set(vekPub, VAULT_ENVELOPE_KEY_OWNERSHIP_DST_BYTES.length);
+  return out;
+}
+
+/**
+ * Software/test convenience: sign {@link vaultEnvelopeKeyOwnershipMessage} with the
+ * owner's 32-byte Ed25519 private-key seed. Hardware backings instead device-sign
+ * the message bytes and pass the resulting signature to the registry directly.
+ */
+export function signVaultEnvelopeKeyOwnership(vekPub: Uint8Array, ownerEd25519PrivateKey: Uint8Array): Uint8Array {
+  if (!(ownerEd25519PrivateKey instanceof Uint8Array) || ownerEd25519PrivateKey.length !== ED25519_SEED_LENGTH) {
+    throw new Error(`signVaultEnvelopeKeyOwnership: ownerEd25519PrivateKey must be a ${ED25519_SEED_LENGTH}-byte seed`);
+  }
+  return ed25519.sign(vaultEnvelopeKeyOwnershipMessage(vekPub), ownerEd25519PrivateKey);
+}
+
+/**
+ * Verify a published `vek_pub`'s ownership signature against the owner's on-chain
+ * Ed25519 public key. A dealer MUST call this before sealing to a published key;
+ * a false result means the key is unauthenticated and must not be used.
+ */
+export function verifyVaultEnvelopeKeyOwnership(args: {
+  vekPub: Uint8Array;
+  ownerEd25519PublicKey: Uint8Array;
+  signature: Uint8Array;
+}): boolean {
+  const { vekPub, ownerEd25519PublicKey, signature } = args;
+  if (
+    !(ownerEd25519PublicKey instanceof Uint8Array) ||
+    ownerEd25519PublicKey.length !== ED25519_PUBKEY_LENGTH ||
+    !(signature instanceof Uint8Array) ||
+    signature.length !== ED25519_SIGNATURE_LENGTH
+  ) {
+    return false;
+  }
+  try {
+    return ed25519.verify(signature, vaultEnvelopeKeyOwnershipMessage(vekPub), ownerEd25519PublicKey);
+  } catch {
+    return false;
+  }
 }
