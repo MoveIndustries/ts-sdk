@@ -2,6 +2,7 @@
 
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { platform } from "os";
+import { join } from "path";
 import kill from "tree-kill";
 
 import { sleep } from "../utils/helpers";
@@ -103,7 +104,8 @@ export class LocalNode {
     ];
 
     const spawnConfig = {
-      env: { ...process.env, ENABLE_KEYLESS_DEFAULT: "1" },
+      // Seed keyless from a checked-in VK rather than ENABLE_KEYLESS_DEFAULT, which fetches it from a live network at genesis.
+      env: { ...process.env, INSTALL_KEYLESS_GROTH16_VK_FROM_PATH: join(__dirname, "keylessGroth16Vk.json") },
       ...(currentPlatform === "win32" && { shell: true }),
     };
 

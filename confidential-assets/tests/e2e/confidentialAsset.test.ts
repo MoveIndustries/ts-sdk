@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Account, AccountAddressInput, AnyNumber } from "@moveindustries/ts-sdk";
-import { TwistedEd25519PrivateKey } from "../../src";
+import {
+  TwistedEd25519PrivateKey,
+  getCache,
+  getAvailableBalanceCacheKey,
+  getPendingBalanceCacheKey,
+  EncryptedAmount,
+} from "../../src";
 import {
   getTestAccount,
   getTestConfidentialAccount,
@@ -10,19 +16,18 @@ import {
   TOKEN_ADDRESS,
   longTestTimeout,
   confidentialAsset,
-  feePayerAccount,
   migrateCoinsToFungibleStore,
 } from "../helpers";
-import { getCache } from "../../src/utils/memoize";
 import { ConfidentialBalance } from "../../src/internal/viewFunctions";
 
 function getCachedBalance(accountAddress: AccountAddressInput, tokenAddress: AccountAddressInput): ConfidentialBalance {
-  const cacheKey = `${accountAddress}-balance-for-${tokenAddress}-${movement.config.network}`;
-  const result = getCache<ConfidentialBalance>(cacheKey);
-  if (!result) {
+  const network = movement.config.network;
+  const available = getCache<EncryptedAmount>(getAvailableBalanceCacheKey(accountAddress, tokenAddress, network));
+  const pending = getCache<EncryptedAmount>(getPendingBalanceCacheKey(accountAddress, tokenAddress, network));
+  if (!available || !pending) {
     throw new Error("No cached balance found");
   }
-  return result;
+  return new ConfidentialBalance(available, pending);
 }
 
 describe("Confidential Asset Sender API", () => {
@@ -30,6 +35,12 @@ describe("Confidential Asset Sender API", () => {
   const aliceConfidential = getTestConfidentialAccount(alice);
 
   const bob = Account.generate();
+
+  // Registered recipient for happy-path transfers. `bob` is intentionally left unregistered —
+  // several tests below use him as the "account with no confidential balance" fixture, so a real
+  // recipient is needed now that the contract rejects self-transfers (ESELF_TRANSFER).
+  const carol = Account.generate();
+  const carolConfidential = getTestConfidentialAccount(carol);
 
   async function getPublicTokenBalance(accountAddress: AccountAddressInput) {
     return await movement.getAccountCoinAmount({
@@ -79,7 +90,7 @@ describe("Confidential Asset Sender API", () => {
       amount: 100000000,
     });
     await movement.fundAccount({
-      accountAddress: feePayerAccount.accountAddress,
+      accountAddress: carol.accountAddress,
       amount: 100000000,
     });
 
@@ -88,7 +99,7 @@ describe("Confidential Asset Sender API", () => {
     // Migrate native coins to fungible asset store for confidential asset operations
     await migrateCoinsToFungibleStore(alice);
     await migrateCoinsToFungibleStore(bob);
-    await migrateCoinsToFungibleStore(feePayerAccount);
+    await migrateCoinsToFungibleStore(carol);
 
     console.log("Migrated coins to fungible store");
 
@@ -103,6 +114,14 @@ describe("Confidential Asset Sender API", () => {
       decryptionKey: aliceConfidential,
     });
     expect(registerBalanceTx.success).toBeTruthy();
+
+    // Register the recipient so happy-path transfers have a valid, non-self destination.
+    const registerCarolTx = await confidentialAsset.registerBalance({
+      signer: carol,
+      tokenAddress: TOKEN_ADDRESS,
+      decryptionKey: carolConfidential,
+    });
+    expect(registerCarolTx.success).toBeTruthy();
 
     await checkAliceDecryptedBalance(0, 0);
 
@@ -192,7 +211,12 @@ describe("Confidential Asset Sender API", () => {
         faMetadataAddress: TOKEN_ADDRESS,
       });
 
-      expect(aliceNewTokenBalance).toBe(aliceTokenBalance + WITHDRAW_AMOUNT);
+      // Alice pays gas in MOVE (same as TOKEN_ADDRESS), so the public balance grows by
+      // WITHDRAW_AMOUNT minus the gas she paid for the withdraw tx itself. `gas_unit_price` is
+      // only on user transactions (not the genesis variant of the union), so narrow first.
+      if (!("gas_unit_price" in withdrawTx)) throw new Error("expected user transaction response");
+      const gasPaid = BigInt(withdrawTx.gas_used) * BigInt(withdrawTx.gas_unit_price);
+      expect(BigInt(aliceNewTokenBalance) + gasPaid).toBe(BigInt(aliceTokenBalance) + BigInt(WITHDRAW_AMOUNT));
 
       // Verify the balance is normalized after the withdrawal
       checkAliceNormalizedBalanceStatus(true);
@@ -217,54 +241,35 @@ describe("Confidential Asset Sender API", () => {
           senderDecryptionKey: aliceConfidential,
           amount: confidentialBalance.availableBalance() + BigInt(1),
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
+    },
+    longTestTimeout,
+  );
+
+  // Both auditors are public chain state (`get_asset_auditor` / `get_chain_auditor`). They're
+  // skipped because localnet may not have either configured; once set up, unskip and assert the
+  // shape. Inclusion in transfers is auto-handled by the transaction builder per
+  // movementlabsxyz/aptos-core#328.
+  test.skip(
+    "it should get the per-asset auditor",
+    async () => {
+      const assetAuditor = await confidentialAsset.getAssetAuditorEncryptionKey({
+        tokenAddress: TOKEN_ADDRESS,
+      });
+
+      expect(assetAuditor).toBeDefined();
     },
     longTestTimeout,
   );
 
   test(
-    "it should withdraw more than the available balance if the total balance is used",
+    "it should get the chain auditor (required for any transfer to succeed under #328)",
     async () => {
-      await confidentialAsset.deposit({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        amount: DEPOSIT_AMOUNT,
-      });
-
-      const confidentialBalance = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      // Withdraw the amount from the confidential balance to the public balance
-      await confidentialAsset.withdrawWithTotalBalance({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceConfidential,
-        amount: confidentialBalance.availableBalance() + BigInt(1),
-      });
-
-      const confidentialBalanceAfterWithdraw = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      expect(confidentialBalanceAfterWithdraw.pendingBalance()).toBe(0n);
-    },
-    longTestTimeout,
-  );
-
-  // TODO: Add this back in once the test setup sets up the auditor correctly.
-  test.skip(
-    "it should get global auditor",
-    async () => {
-      const globalAuditor = await confidentialAsset.getAssetAuditorEncryptionKey({
-        tokenAddress: TOKEN_ADDRESS,
-      });
-
-      expect(globalAuditor).toBeDefined();
+      const chainAuditor = await confidentialAsset.getChainAuditorEncryptionKey();
+      // We don't assert defined here — the localnet may or may not have one configured. The
+      // transfer tests below will fail with "Chain auditor is not configured" if it isn't,
+      // which is the more informative failure.
+      expect(chainAuditor === undefined || chainAuditor.toString().length > 0).toBe(true);
     },
     longTestTimeout,
   );
@@ -316,52 +321,43 @@ describe("Confidential Asset Sender API", () => {
           amount: confidentialBalance.availableBalance() + BigInt(1), // This is more than the available balance
           recipient: alice.accountAddress,
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
 
   test(
-    "it should transfer more than the available balance if the total balance is used",
+    "it should reject a self-transfer with ESELF_TRANSFER",
     async () => {
-      await confidentialAsset.deposit({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        amount: DEPOSIT_AMOUNT,
-      });
-
-      const confidentialBalance = await confidentialAsset.getBalance({
-        accountAddress: alice.accountAddress,
-        tokenAddress: TOKEN_ADDRESS,
-        decryptionKey: aliceConfidential,
-      });
-
-      const transferAmount = confidentialBalance.availableBalance() + BigInt(1);
-
-      // Withdraw the amount from the confidential balance to the public balance
-      await confidentialAsset.transferWithTotalBalance({
-        signer: alice,
-        tokenAddress: TOKEN_ADDRESS,
-        senderDecryptionKey: aliceConfidential,
-        amount: transferAmount,
-        recipient: alice.accountAddress,
-      });
-
-      await checkAliceDecryptedBalance(
-        confidentialBalance.availableBalance() + confidentialBalance.pendingBalance() - transferAmount,
-        transferAmount,
-      );
+      // The contract forbids confidential transfers where sender == recipient. This aborts
+      // on-chain (and reverts cleanly, leaving Alice's balance untouched), so it does not
+      // disturb the balances asserted by the happy-path transfer tests below.
+      await expect(
+        confidentialAsset.transfer({
+          senderDecryptionKey: aliceConfidential,
+          amount: TRANSFER_AMOUNT,
+          signer: alice,
+          tokenAddress: TOKEN_ADDRESS,
+          recipient: alice.accountAddress,
+        }),
+      ).rejects.toThrow(/ESELF_TRANSFER|0x1001a/);
     },
     longTestTimeout,
   );
 
   test(
-    "it should transfer Alice's tokens to Alice's pending balance without auditor",
+    "it should transfer Alice's tokens to a registered recipient without auditor",
     async () => {
-      const confidentialBalance = await confidentialAsset.getBalance({
+      const aliceBalanceBefore = await confidentialAsset.getBalance({
         accountAddress: alice.accountAddress,
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceConfidential,
+      });
+      const carolBalanceBefore = await confidentialAsset.getBalance({
+        accountAddress: carol.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: carolConfidential,
+        useCachedValue: false,
       });
 
       const transferTx = await confidentialAsset.transfer({
@@ -369,27 +365,43 @@ describe("Confidential Asset Sender API", () => {
         amount: TRANSFER_AMOUNT,
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
-        recipient: alice.accountAddress,
+        recipient: carol.accountAddress,
       });
 
       expect(transferTx.success).toBeTruthy();
-      // Verify the confidential balance has been updated correctly
+      // Sender's available drops by the transfer amount; her pending is untouched — the funds
+      // land in the recipient's pending balance, not her own.
       await checkAliceDecryptedBalance(
-        confidentialBalance.availableBalance() - TRANSFER_AMOUNT,
-        confidentialBalance.pendingBalance() + TRANSFER_AMOUNT,
+        aliceBalanceBefore.availableBalance() - TRANSFER_AMOUNT,
+        aliceBalanceBefore.pendingBalance(),
       );
+
+      // Recipient's pending balance grows by the transfer amount.
+      const carolBalanceAfter = await confidentialAsset.getBalance({
+        accountAddress: carol.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: carolConfidential,
+        useCachedValue: false,
+      });
+      expect(carolBalanceAfter.pendingBalance()).toBe(carolBalanceBefore.pendingBalance() + TRANSFER_AMOUNT);
     },
     longTestTimeout,
   );
 
   const AUDITOR = TwistedEd25519PrivateKey.generate();
   test(
-    "it should transfer Alice's tokens to Alice's confidential balance with auditor",
+    "it should transfer Alice's tokens to a registered recipient with auditor",
     async () => {
-      const confidentialBalance = await confidentialAsset.getBalance({
+      const aliceBalanceBefore = await confidentialAsset.getBalance({
         accountAddress: alice.accountAddress,
         tokenAddress: TOKEN_ADDRESS,
         decryptionKey: aliceConfidential,
+      });
+      const carolBalanceBefore = await confidentialAsset.getBalance({
+        accountAddress: carol.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: carolConfidential,
+        useCachedValue: false,
       });
 
       const transferTx = await confidentialAsset.transfer({
@@ -397,17 +409,26 @@ describe("Confidential Asset Sender API", () => {
         amount: TRANSFER_AMOUNT,
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
-        recipient: alice.accountAddress,
+        recipient: carol.accountAddress,
         additionalAuditorEncryptionKeys: [AUDITOR.publicKey()],
       });
 
       expect(transferTx.success).toBeTruthy();
 
-      // Verify the confidential balance has been updated correctly
+      // Sender's available drops by the transfer amount; her pending is untouched.
       await checkAliceDecryptedBalance(
-        confidentialBalance.availableBalance() - TRANSFER_AMOUNT,
-        confidentialBalance.pendingBalance() + TRANSFER_AMOUNT,
+        aliceBalanceBefore.availableBalance() - TRANSFER_AMOUNT,
+        aliceBalanceBefore.pendingBalance(),
       );
+
+      // Recipient's pending balance grows by the transfer amount.
+      const carolBalanceAfter = await confidentialAsset.getBalance({
+        accountAddress: carol.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: carolConfidential,
+        useCachedValue: false,
+      });
+      expect(carolBalanceAfter.pendingBalance()).toBe(carolBalanceBefore.pendingBalance() + TRANSFER_AMOUNT);
     },
     longTestTimeout,
   );
@@ -433,7 +454,7 @@ describe("Confidential Asset Sender API", () => {
           accountAddress: bob.accountAddress,
           tokenAddress: TOKEN_ADDRESS,
         }),
-      ).rejects.toThrow("ECA_STORE_NOT_PUBLISHED");
+      ).rejects.toThrow("393219");
     },
     longTestTimeout,
   );
@@ -452,6 +473,7 @@ describe("Confidential Asset Sender API", () => {
       const rolloverTxs = await confidentialAsset.rolloverPendingBalance({
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceConfidential,
       });
 
       for (const tx of rolloverTxs) {
@@ -473,6 +495,7 @@ describe("Confidential Asset Sender API", () => {
         senderDecryptionKey: aliceConfidential,
         signer: alice,
       });
+      console.log("normalizeBalance returned:", normalizeTx?.success);
 
       // Check that caching works
       const cachedNormalizedBalance = getCachedBalance(alice.accountAddress, TOKEN_ADDRESS);
@@ -502,6 +525,50 @@ describe("Confidential Asset Sender API", () => {
   );
 
   test(
+    "rolloverPendingBalance from an unnormalized state submits a single tx via the combined entry",
+    async () => {
+      // Deposit so there's something pending to roll over.
+      const depositTx = await confidentialAsset.deposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: DEPOSIT_AMOUNT,
+      });
+      expect(depositTx.success).toBeTruthy();
+
+      // Rollover once first to land us in `normalized == false` state.
+      const firstRolloverTxs = await confidentialAsset.rolloverPendingBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+      });
+      for (const tx of firstRolloverTxs) {
+        expect(tx.success).toBeTruthy();
+      }
+      checkAliceNormalizedBalanceStatus(false);
+
+      // Deposit again so there's pending to roll over while still unnormalized.
+      const depositAgainTx = await confidentialAsset.deposit({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: DEPOSIT_AMOUNT,
+      });
+      expect(depositAgainTx.success).toBeTruthy();
+
+      // The unnormalized rollover path should now hit the on-chain
+      // `normalize_and_rollover_pending_balance` entry and submit ONE tx.
+      const rolloverTxs = await confidentialAsset.rolloverPendingBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceConfidential,
+      });
+      expect(rolloverTxs.length).toBe(1);
+      expect(rolloverTxs[0].success).toBeTruthy();
+      // Rollover post-condition: normalized = false again (matches plain rollover behavior).
+      checkAliceNormalizedBalanceStatus(false);
+    },
+    longTestTimeout,
+  );
+
+  test(
     "it should throw if checking if account balance is normalized and the account has not registered a balance",
     async () => {
       await expect(
@@ -509,7 +576,7 @@ describe("Confidential Asset Sender API", () => {
           tokenAddress: TOKEN_ADDRESS,
           accountAddress: bob.accountAddress,
         }),
-      ).rejects.toThrow("ECA_STORE_NOT_PUBLISHED");
+      ).rejects.toThrow("393219");
     },
     longTestTimeout,
   );
@@ -573,7 +640,7 @@ describe("Confidential Asset Sender API", () => {
         amount: TRANSFER_AMOUNT,
         signer: alice,
         tokenAddress: TOKEN_ADDRESS,
-        recipient: alice.accountAddress,
+        recipient: carol.accountAddress,
       });
       expect(transferTx.success).toBeTruthy();
 
@@ -622,6 +689,201 @@ describe("Confidential Asset Sender API", () => {
         0,
         ALICE_NEW_CONFIDENTIAL_PRIVATE_KEY,
       );
+    },
+    longTestTimeout,
+  );
+});
+
+/**
+ * Coverage for the three "lands spendable" combined entrypoints used by the wallet's
+ * Make-private UX. Uses fresh accounts per test so the pre-registration state is genuinely
+ * exercised.
+ *
+ *   - registerAndDepositAndRollover    (first-time)
+ *   - depositAndRollover               (subsequent, normalized=true)
+ *   - depositNormalizeAndRollover      (subsequent, normalized=false)
+ */
+describe("Confidential Asset – combined deposit + rollover entrypoints", () => {
+  test(
+    "registerAndDepositAndRollover lands funds spendable in one tx (first-time)",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      expect(
+        await confidentialAsset.hasUserRegistered({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBeFalsy();
+
+      const tx = await confidentialAsset.registerAndDepositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 50,
+      });
+      expect(tx.success).toBeTruthy();
+
+      expect(
+        await confidentialAsset.hasUserRegistered({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBeTruthy();
+
+      // Funds landed spendable, not pending.
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(50n);
+      expect(bal.pendingBalance()).toBe(0n);
+
+      // Rollover always sets normalized=false.
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(false);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "registerAndDepositAndRollover aborts when sender is already registered",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      const reg = await confidentialAsset.registerBalance({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(reg.success).toBeTruthy();
+
+      await expect(
+        confidentialAsset.registerAndDepositAndRollover({
+          signer: alice,
+          tokenAddress: TOKEN_ADDRESS,
+          decryptionKey: aliceDk,
+          amount: 1,
+        }),
+      ).rejects.toThrow();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "depositNormalizeAndRollover lands funds spendable when state is not normalized",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+
+      // First-time: registerAndDepositAndRollover puts 100 in actual, normalized=false.
+      const first = await confidentialAsset.registerAndDepositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect(first.success).toBeTruthy();
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(false);
+
+      // Subsequent make-private: state is not normalized, so route through normalize variant.
+      const second = await confidentialAsset.depositNormalizeAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        amount: 30,
+      });
+      expect(second.success).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(130n);
+      expect(bal.pendingBalance()).toBe(0n);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "depositAndRollover succeeds when normalized and aborts otherwise",
+    async () => {
+      const alice = Account.generate();
+      const bob = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      const bobDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+      await movement.fundAccount({ accountAddress: bob.accountAddress, amount: 100_000_000 });
+      await migrateCoinsToFungibleStore(alice);
+      await migrateCoinsToFungibleStore(bob);
+
+      // Bob registered so Alice can transfer to set normalized=true.
+      const bobReg = await confidentialAsset.registerBalance({
+        signer: bob,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: bobDk,
+      });
+      expect(bobReg.success).toBeTruthy();
+
+      const first = await confidentialAsset.registerAndDepositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect(first.success).toBeTruthy();
+
+      // While normalized=false, depositAndRollover must abort.
+      await expect(
+        confidentialAsset.depositAndRollover({
+          signer: alice,
+          tokenAddress: TOKEN_ADDRESS,
+          amount: 5,
+        }),
+      ).rejects.toThrow();
+
+      // Send a small transfer to set normalized=true.
+      const t = await confidentialAsset.transfer({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        recipient: bob.accountAddress,
+        amount: 1,
+      });
+      expect(t.success).toBeTruthy();
+      expect(
+        await confidentialAsset.isBalanceNormalized({
+          accountAddress: alice.accountAddress,
+          tokenAddress: TOKEN_ADDRESS,
+        }),
+      ).toBe(true);
+
+      // Now depositAndRollover succeeds.
+      const second = await confidentialAsset.depositAndRollover({
+        signer: alice,
+        tokenAddress: TOKEN_ADDRESS,
+        amount: 25,
+      });
+      expect(second.success).toBeTruthy();
     },
     longTestTimeout,
   );

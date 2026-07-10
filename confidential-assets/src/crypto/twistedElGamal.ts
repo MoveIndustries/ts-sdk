@@ -12,7 +12,7 @@ import { ed25519GenRandom, ed25519modN } from "../utils";
 import { H_RISTRETTO, RistPoint, TwistedEd25519PrivateKey, TwistedEd25519PublicKey } from "./twistedEd25519";
 
 const POLLARD_KANGAROO_WASM_URL =
-  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.3/pollard-kangaroo/movement_pollard_kangaroo_wasm_bg.wasm";
+  "https://unpkg.com/@moveindustries/confidential-asset-wasm-bindings@0.0.5/pollard-kangaroo/movement_pollard_kangaroo_wasm_bg.wasm";
 
 export async function createKangaroo(secret_size: number) {
   await initWasm({ module_or_path: POLLARD_KANGAROO_WASM_URL });

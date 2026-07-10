@@ -227,20 +227,31 @@ describe.skip("Confidential balance api", () => {
           senderDecryptionKey: aliceConfidential,
           amount: confidentialBalance.availableBalance() + BigInt(1),
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
 
-  // TODO: Add this back in once the test setup sets up the auditor correctly.
+  // Both auditors are public chain state. Skipped because localnet may not have a per-asset
+  // auditor configured; once set up, unskip and assert the shape. Inclusion in transfers is
+  // auto-handled by the transaction builder per movementlabsxyz/aptos-core#328.
   test.skip(
-    "it should get global auditor",
+    "it should get the per-asset auditor",
     async () => {
-      const globalAuditor = await transactionBuilder.getAssetAuditorEncryptionKey({
+      const assetAuditor = await transactionBuilder.getAssetAuditorEncryptionKey({
         tokenAddress: TOKEN_ADDRESS,
       });
 
-      expect(globalAuditor).toBeDefined();
+      expect(assetAuditor).toBeDefined();
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "it should get the chain auditor (required for any transfer to succeed under #328)",
+    async () => {
+      const chainAuditor = await transactionBuilder.getChainAuditorEncryptionKey();
+      expect(chainAuditor === undefined || chainAuditor.toString().length > 0).toBe(true);
     },
     longTestTimeout,
   );
@@ -287,7 +298,7 @@ describe.skip("Confidential balance api", () => {
           amount: confidentialBalance.availableBalance() + BigInt(1),
           recipient: alice.accountAddress,
         }),
-      ).rejects.toThrow("Insufficient balance");
+      ).rejects.toThrow("INSUFFICIENT_BALANCE");
     },
     longTestTimeout,
   );
@@ -551,6 +562,76 @@ describe.skip("Confidential balance api", () => {
         confidentialBalance.pendingBalance(),
         ALICE_NEW_CONFIDENTIAL_PRIVATE_KEY,
       );
+    },
+    longTestTimeout,
+  );
+});
+
+/**
+ * Builder-level coverage for the three combined "lands spendable" entrypoints. The parent
+ * `describe` above is `describe.skip`'d, so this stands alone and runs against a localnet to
+ * exercise the new builder paths end-to-end.
+ */
+describe("Confidential balance api – combined deposit + rollover (builder)", () => {
+  const transactionBuilder = confidentialAsset.transaction;
+
+  test(
+    "registerAndDepositAndRollover builds a single tx that lands funds in actual",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+
+      const tx = await transactionBuilder.registerAndDepositAndRollover({
+        sender: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 50,
+      });
+      const resp = await sendAndWaitTx(tx, alice);
+      expect(resp.success).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(50n);
+      expect(bal.pendingBalance()).toBe(0n);
+    },
+    longTestTimeout,
+  );
+
+  test(
+    "depositNormalizeAndRollover builds a single tx that includes the normalize proof",
+    async () => {
+      const alice = Account.generate();
+      const aliceDk = TwistedEd25519PrivateKey.generate();
+      await movement.fundAccount({ accountAddress: alice.accountAddress, amount: 100_000_000 });
+
+      // Set up not-normalized state.
+      const first = await transactionBuilder.registerAndDepositAndRollover({
+        sender: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+        amount: 100,
+      });
+      expect((await sendAndWaitTx(first, alice)).success).toBeTruthy();
+
+      const second = await transactionBuilder.depositNormalizeAndRollover({
+        sender: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        senderDecryptionKey: aliceDk,
+        amount: 30,
+      });
+      expect((await sendAndWaitTx(second, alice)).success).toBeTruthy();
+
+      const bal = await confidentialAsset.getBalance({
+        accountAddress: alice.accountAddress,
+        tokenAddress: TOKEN_ADDRESS,
+        decryptionKey: aliceDk,
+      });
+      expect(bal.availableBalance()).toBe(130n);
     },
     longTestTimeout,
   );

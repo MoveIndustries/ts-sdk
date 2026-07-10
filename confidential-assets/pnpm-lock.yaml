@@ -6,11 +6,14 @@ settings:
 
 dependencies:
   '@moveindustries/confidential-asset-wasm-bindings':
-    specifier: ^0.0.3
-    version: 0.0.3
+    specifier: ^0.0.5
+    version: 0.0.5
   '@moveindustries/ts-sdk':
     specifier: ^5.0.0
-    version: 5.1.4(got@11.8.6)
+    version: 5.1.7(got@11.8.6)
+  '@noble/ciphers':
+    specifier: ^1.3.0
+    version: 1.3.0
   '@noble/curves':
     specifier: ^1.6.0
     version: 1.9.7
@@ -961,8 +964,8 @@ packages:
       '@jridgewell/sourcemap-codec': 1.5.5
     dev: true
 
-  /@moveindustries/confidential-asset-wasm-bindings@0.0.3:
-    resolution: {integrity: sha512-u6rMRBv7xr3UkUVsXOZ24bdzVp0xqyuRgaPZYMYIyfdadV1XF6sQ2zML2xksGF5kun0C90f1vxTk3L16rR4YDg==}
+  /@moveindustries/confidential-asset-wasm-bindings@0.0.5:
+    resolution: {integrity: sha512-biCGDu7FNkt/yadD02ofbwZ0MFGvtc2zcSPMoFn4d15KPLFaU+Y1HBz9+sfY4+tEYinJaHWQCQc+IwUc6NKoEw==}
     dev: false
 
   /@moveindustries/movement-cli@1.1.0:
@@ -981,8 +984,8 @@ packages:
       got: 11.8.6
     dev: false
 
-  /@moveindustries/ts-sdk@5.1.4(got@11.8.6):
-    resolution: {integrity: sha512-NgZ6L0AKBI+x7nqMkgKXAgT1gm7GfVPhgLf8JOXjfw8exAl1iesk38OM+ImayJyigA6jkORQoIhrWaFjNVeFsA==}
+  /@moveindustries/ts-sdk@5.1.7(got@11.8.6):
+    resolution: {integrity: sha512-u/1ozDVDpRAUjdsLaZpopZAM5P4EeO03nkhQnCe+ScXhqOHc/A8BAdMZk5RIWObKWlQ0WQomKF1icRmAkRLO8A==}
     engines: {node: '>=20.0.0'}
     dependencies:
       '@moveindustries/movement-cli': 1.1.0
@@ -1186,6 +1189,11 @@ packages:
       '@tybys/wasm-util': 0.10.1
     dev: true
     optional: true
+
+  /@noble/ciphers@1.3.0:
+    resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
+    engines: {node: ^14.21.3 || >=16}
+    dev: false
 
   /@noble/curves@1.9.7:
     resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}

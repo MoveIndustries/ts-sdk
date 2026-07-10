@@ -178,6 +178,28 @@ export class TwistedEd25519PrivateKey extends Serializable {
   }
 
   /**
+   * Construct a private key from uniformly distributed bytes by reducing modulo
+   * the Ed25519 group order ℓ. Mirrors the reduction inside {@link fromSignature}
+   * but accepts an arbitrary-length input. The input must be at least 32 bytes;
+   * 64 bytes (≥ 512 bits) is recommended so the modular reduction yields a
+   * negligibly biased scalar.
+   *
+   * Used by {@link keylessDecryptionKey} for HKDF-derived keyless backings.
+   *
+   * @param bytes uniformly distributed bytes (e.g. HKDF output, ≥ 32 bytes)
+   * @returns TwistedEd25519PrivateKey
+   */
+  static fromUniformBytes(bytes: Uint8Array): TwistedEd25519PrivateKey {
+    if (bytes.length < 32) {
+      throw new Error(`fromUniformBytes requires at least 32 bytes of input, got ${bytes.length}`);
+    }
+    const scalarLE = bytesToNumberLE(bytes);
+    const reduced = ed25519modN(scalarLE);
+    const key = numberToBytesLE(reduced, 32);
+    return new TwistedEd25519PrivateKey(key);
+  }
+
+  /**
    * A private inner function so we can separate from the main fromDerivationPath() method
    * to add tests to verify we create the keys correctly.
    *

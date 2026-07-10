@@ -1,8 +1,8 @@
 import { RistrettoPoint } from "@noble/curves/ed25519";
 import { utf8ToBytes } from "@noble/hashes/utils";
 import { bytesToNumberLE, concatBytes, numberToBytesLE } from "@noble/curves/abstract/utils";
-import { MODULE_NAME, PROOF_CHUNK_SIZE, SIGMA_PROOF_NORMALIZATION_SIZE } from "../consts";
-import { genFiatShamirChallenge } from "../helpers";
+import { MODULE_NAME, PROOF_CHUNK_SIZE, SIGMA_PROOF_NORMALIZATION_SIZE, PROTOCOL_ID_NORMALIZATION } from "../consts";
+import { fiatShamirChallenge } from "./fiatShamir";
 import { RangeProofExecutor } from "./rangeProof";
 import { TwistedEd25519PrivateKey, H_RISTRETTO, TwistedEd25519PublicKey } from ".";
 import { ed25519GenListOfRandom, ed25519GenRandom, ed25519modN, ed25519InvertN } from "../utils";
@@ -29,6 +29,10 @@ export type ConfidentialNormalizationSigmaProof = {
 export type CreateConfidentialNormalizationOpArgs = {
   decryptionKey: TwistedEd25519PrivateKey;
   unnormalizedAvailableBalance: EncryptedAmount;
+  chainId: number;
+  senderAddress: Uint8Array;
+  contractAddress: Uint8Array;
+  tokenAddress: Uint8Array;
   randomness?: bigint[];
 };
 
@@ -41,14 +45,30 @@ export class ConfidentialNormalization {
 
   randomness: bigint[];
 
+  chainId: number;
+
+  senderAddress: Uint8Array;
+
+  contractAddress: Uint8Array;
+
+  tokenAddress: Uint8Array;
+
   constructor(args: {
     decryptionKey: TwistedEd25519PrivateKey;
     unnormalizedEncryptedAvailableBalance: EncryptedAmount;
     normalizedEncryptedAvailableBalance: EncryptedAmount;
+    chainId: number;
+    senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     this.decryptionKey = args.decryptionKey;
     this.unnormalizedEncryptedAvailableBalance = args.unnormalizedEncryptedAvailableBalance;
     this.normalizedEncryptedAvailableBalance = args.normalizedEncryptedAvailableBalance;
+    this.chainId = args.chainId;
+    this.senderAddress = args.senderAddress;
+    this.contractAddress = args.contractAddress;
+    this.tokenAddress = args.tokenAddress;
     const randomness = this.normalizedEncryptedAvailableBalance.getRandomness();
     if (!randomness) {
       throw new Error("Randomness is not set");
@@ -57,7 +77,14 @@ export class ConfidentialNormalization {
   }
 
   static async create(args: CreateConfidentialNormalizationOpArgs) {
-    const { decryptionKey, randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT) } = args;
+    const {
+      decryptionKey,
+      randomness = ed25519GenListOfRandom(AVAILABLE_BALANCE_CHUNK_COUNT),
+      chainId,
+      senderAddress,
+      contractAddress,
+      tokenAddress,
+    } = args;
 
     const unnormalizedEncryptedAvailableBalance = args.unnormalizedAvailableBalance;
 
@@ -70,10 +97,14 @@ export class ConfidentialNormalization {
       decryptionKey,
       unnormalizedEncryptedAvailableBalance,
       normalizedEncryptedAvailableBalance,
+      chainId,
+      senderAddress,
+      contractAddress,
+      tokenAddress,
     });
   }
 
-  static FIAT_SHAMIR_SIGMA_DST = "AptosConfidentialAsset/NormalizationProofFiatShamir";
+  static FIAT_SHAMIR_SIGMA_DST = "MovementConfidentialAsset/Normalization";
 
   static serializeSigmaProof(sigmaProof: ConfidentialNormalizationSigmaProof): Uint8Array {
     return concatBytes(
@@ -162,8 +193,12 @@ export class ConfidentialNormalization {
       RistrettoPoint.fromHex(this.decryptionKey.publicKey().toUint8Array()).multiply(el),
     );
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialNormalization.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_NORMALIZATION,
+      this.chainId,
+      this.senderAddress,
+      this.contractAddress,
+      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.decryptionKey.publicKey().toUint8Array(),
@@ -211,6 +246,10 @@ export class ConfidentialNormalization {
     sigmaProof: ConfidentialNormalizationSigmaProof;
     unnormalizedEncryptedBalance: EncryptedAmount;
     normalizedEncryptedBalance: EncryptedAmount;
+    chainId: number;
+    senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }): boolean {
     const publicKeyU8 = opts.publicKey.toUint8Array();
 
@@ -219,8 +258,12 @@ export class ConfidentialNormalization {
     const alpha3LE = bytesToNumberLE(opts.sigmaProof.alpha3);
     const alpha4LEList = opts.sigmaProof.alpha4List.map((a) => bytesToNumberLE(a));
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialNormalization.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_NORMALIZATION,
+      opts.chainId,
+      opts.senderAddress,
+      opts.contractAddress,
+      opts.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       publicKeyU8,
@@ -279,8 +322,8 @@ export class ConfidentialNormalization {
     );
   }
 
-  async genRangeProof(): Promise<Uint8Array[]> {
-    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
+  async genRangeProof(): Promise<Uint8Array> {
+    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
       v: this.normalizedEncryptedAvailableBalance.getAmountChunks(),
       rs: this.randomness.map((el) => numberToBytesLE(el, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -288,30 +331,24 @@ export class ConfidentialNormalization {
       num_bits: CHUNK_BITS,
     });
 
-    return proofs;
+    return rangeProof.proof;
   }
 
   static async verifyRangeProof(opts: {
-    rangeProof: Uint8Array[];
+    rangeProof: Uint8Array;
     normalizedEncryptedBalance: EncryptedAmount;
   }): Promise<boolean> {
-    const cipherTexts = opts.normalizedEncryptedBalance.getCipherText();
-    const results = await Promise.all(
-      opts.rangeProof.map((proof, index) =>
-        RangeProofExecutor.verifyRangeZKP({
-          proof,
-          commitment: cipherTexts[index].C.toRawBytes(),
-          valBase: RistrettoPoint.BASE.toRawBytes(),
-          randBase: H_RISTRETTO.toRawBytes(),
-          bits: CHUNK_BITS,
-        }),
-      ),
-    );
-    return results.every((result) => result);
+    return RangeProofExecutor.verifyBatchRangeZKP({
+      proof: opts.rangeProof,
+      comm: opts.normalizedEncryptedBalance.getCipherText().map((el) => el.C.toRawBytes()),
+      val_base: RistrettoPoint.BASE.toRawBytes(),
+      rand_base: H_RISTRETTO.toRawBytes(),
+      num_bits: CHUNK_BITS,
+    });
   }
 
   async authorizeNormalization(): Promise<
-    [{ sigmaProof: ConfidentialNormalizationSigmaProof; rangeProof: Uint8Array[] }, EncryptedAmount]
+    [{ sigmaProof: ConfidentialNormalizationSigmaProof; rangeProof: Uint8Array }, EncryptedAmount]
   > {
     const sigmaProof = await this.genSigmaProof();
     const rangeProof = await this.genRangeProof();
@@ -327,12 +364,41 @@ export class ConfidentialNormalization {
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
   }): Promise<SimpleTransaction> {
+    return this.buildEntry({ ...args, entryFunction: "normalize" });
+  }
+
+  /**
+   * Build a single tx that targets `normalize_and_rollover_pending_balance` — the on-chain
+   * wrapper that does normalize + rollover atomically. Used by the rollover flow when the
+   * available balance isn't already normalized, so the user only sees one wallet approval.
+   * The proof is identical to plain `normalize`'s proof.
+   */
+  async createNormalizeAndRolloverTransaction(args: {
+    client: Movement;
+    sender: AccountAddressInput;
+    confidentialAssetModuleAddress: string;
+    tokenAddress: AccountAddressInput;
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
+    return this.buildEntry({ ...args, entryFunction: "normalize_and_rollover_pending_balance" });
+  }
+
+  private async buildEntry(args: {
+    client: Movement;
+    sender: AccountAddressInput;
+    confidentialAssetModuleAddress: string;
+    tokenAddress: AccountAddressInput;
+    entryFunction: "normalize" | "normalize_and_rollover_pending_balance";
+    withFeePayer?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<SimpleTransaction> {
     const [{ sigmaProof, rangeProof }, normalizedCB] = await this.authorizeNormalization();
 
     return args.client.transaction.build.simple({
       ...args,
       data: {
-        function: `${args.confidentialAssetModuleAddress}::${MODULE_NAME}::normalize`,
+        function: `${args.confidentialAssetModuleAddress}::${MODULE_NAME}::${args.entryFunction}`,
         functionArguments: [
           args.tokenAddress,
           normalizedCB.getCipherTextBytes(),

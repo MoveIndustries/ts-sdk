@@ -1,7 +1,11 @@
-import { LedgerInfo, MovementConfig, getAptosFullNode } from "../../../src";
+import { LedgerInfo, MovementConfig, Network, getAptosFullNode } from "../../../src";
 import { getMovementClient } from "../helper";
 
 const partialConfig = new MovementConfig({
+  // Unreachable fullnode so the request fails fast locally instead of hitting a live network
+  // (the config default would otherwise send this to devnet, making the test flaky on devnet outages).
+  network: Network.CUSTOM,
+  fullnode: "http://127.0.0.1:9/v1",
   clientConfig: {
     HEADERS: { clientConfig: "clientConfig-header" },
     API_KEY: "api-key",
@@ -25,15 +29,15 @@ describe("get request", () => {
           path: "",
         });
       } catch (e: any) {
-        expect(e.request.overrides.API_KEY).toEqual("api-key");
-        expect(e.request.overrides.HEADERS).toHaveProperty("clientConfig");
-        expect(e.request.overrides.HEADERS.clientConfig).toEqual("clientConfig-header");
-        expect(e.request.overrides.HEADERS).toHaveProperty("fullnodeHeader");
-        expect(e.request.overrides.HEADERS.fullnodeHeader).toEqual("fullnode-header");
-        // Properties should not be included
-        expect(e.request.overrides.HEADERS).not.toHaveProperty("faucetConfig");
-        expect(e.request.overrides.HEADERS).not.toHaveProperty("AUTH_TOKEN");
-        expect(e.request.overrides.HEADERS).not.toHaveProperty("indexerHeader");
+        // The request fails (unreachable host), so we assert the configured overrides were
+        // applied to the outgoing request's headers. The client API key becomes the bearer token,
+        // and only the client + fullnode headers should be present (not faucet/indexer ones).
+        const headers = e?.request?.options?.headers ?? {};
+        expect(headers.authorization).toEqual("Bearer api-key");
+        expect(headers.clientconfig).toEqual("clientConfig-header");
+        expect(headers.fullnodeheader).toEqual("fullnode-header");
+        expect(headers).not.toHaveProperty("faucetheader");
+        expect(headers).not.toHaveProperty("indexerheader");
       }
     });
   });

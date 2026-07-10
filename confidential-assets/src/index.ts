@@ -6,6 +6,8 @@ export * from "./crypto/confidentialWithdraw";
 export * from "./consts";
 export * from "./crypto/encryptedAmount";
 export * from "./helpers";
+export { bcsSerializeMoveVectorU8 } from "./utils/moveBcs";
 export * from "./api/confidentialAsset";
 export * from "./crypto";
 export * from "./utils";
+export { getCache, getAvailableBalanceCacheKey, getPendingBalanceCacheKey } from "./utils/memoize";

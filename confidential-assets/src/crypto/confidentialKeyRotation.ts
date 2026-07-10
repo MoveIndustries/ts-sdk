@@ -1,7 +1,7 @@
 import { bytesToNumberLE, concatBytes, numberToBytesLE } from "@noble/curves/abstract/utils";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import { PROOF_CHUNK_SIZE, SIGMA_PROOF_KEY_ROTATION_SIZE } from "../consts";
-import { genFiatShamirChallenge } from "../helpers";
+import { PROOF_CHUNK_SIZE, SIGMA_PROOF_KEY_ROTATION_SIZE, PROTOCOL_ID_ROTATION } from "../consts";
+import { fiatShamirChallenge } from "./fiatShamir";
 import { RangeProofExecutor } from "./rangeProof";
 import { TwistedEd25519PrivateKey, RistrettoPoint, H_RISTRETTO, TwistedEd25519PublicKey } from ".";
 import { TwistedElGamalCiphertext } from "./twistedElGamal";
@@ -26,6 +26,10 @@ export type CreateConfidentialKeyRotationOpArgs = {
   senderDecryptionKey: TwistedEd25519PrivateKey;
   newSenderDecryptionKey: TwistedEd25519PrivateKey;
   currentEncryptedAvailableBalance: EncryptedAmount;
+  chainId: number;
+  senderAddress: Uint8Array;
+  contractAddress: Uint8Array;
+  tokenAddress: Uint8Array;
   randomness?: bigint[];
 };
 
@@ -40,21 +44,37 @@ export class ConfidentialKeyRotation {
 
   newEncryptedAvailableBalance: EncryptedAmount;
 
+  chainId: number;
+
+  senderAddress: Uint8Array;
+
+  contractAddress: Uint8Array;
+
+  tokenAddress: Uint8Array;
+
   constructor(args: {
     randomness: bigint[];
     currentDecryptionKey: TwistedEd25519PrivateKey;
     newDecryptionKey: TwistedEd25519PrivateKey;
     currentEncryptedAvailableBalance: EncryptedAmount;
     newEncryptedAvailableBalance: EncryptedAmount;
+    chainId: number;
+    senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     this.randomness = args.randomness;
     this.currentDecryptionKey = args.currentDecryptionKey;
     this.newDecryptionKey = args.newDecryptionKey;
     this.currentEncryptedAvailableBalance = args.currentEncryptedAvailableBalance;
     this.newEncryptedAvailableBalance = args.newEncryptedAvailableBalance;
+    this.chainId = args.chainId;
+    this.senderAddress = args.senderAddress;
+    this.contractAddress = args.contractAddress;
+    this.tokenAddress = args.tokenAddress;
   }
 
-  static FIAT_SHAMIR_SIGMA_DST = "AptosConfidentialAsset/RotationProofFiatShamir";
+  static FIAT_SHAMIR_SIGMA_DST = "MovementConfidentialAsset/Rotation";
 
   static async create(args: CreateConfidentialKeyRotationOpArgs) {
     const {
@@ -62,6 +82,10 @@ export class ConfidentialKeyRotation {
       currentEncryptedAvailableBalance,
       senderDecryptionKey,
       newSenderDecryptionKey,
+      chainId,
+      senderAddress,
+      contractAddress,
+      tokenAddress,
     } = args;
 
     const newEncryptedAvailableBalance = EncryptedAmount.fromAmountAndPublicKey({
@@ -76,6 +100,10 @@ export class ConfidentialKeyRotation {
       currentEncryptedAvailableBalance,
       newEncryptedAvailableBalance,
       randomness,
+      chainId,
+      senderAddress,
+      contractAddress,
+      tokenAddress,
     });
   }
 
@@ -171,8 +199,12 @@ export class ConfidentialKeyRotation {
       return Pnew.multiply(el);
     });
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialKeyRotation.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_ROTATION,
+      this.chainId,
+      this.senderAddress,
+      this.contractAddress,
+      this.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       this.currentEncryptedAvailableBalance.publicKey.toUint8Array(),
@@ -225,6 +257,10 @@ export class ConfidentialKeyRotation {
     newPublicKey: TwistedEd25519PublicKey;
     currEncryptedBalance: TwistedElGamalCiphertext[];
     newEncryptedBalance: TwistedElGamalCiphertext[];
+    chainId: number;
+    senderAddress: Uint8Array;
+    contractAddress: Uint8Array;
+    tokenAddress: Uint8Array;
   }) {
     const alpha1LEList = opts.sigmaProof.alpha1List.map(bytesToNumberLE);
     const alpha2LE = bytesToNumberLE(opts.sigmaProof.alpha2);
@@ -232,8 +268,12 @@ export class ConfidentialKeyRotation {
     const alpha4LE = bytesToNumberLE(opts.sigmaProof.alpha4);
     const alpha5LEList = opts.sigmaProof.alpha5List.map(bytesToNumberLE);
 
-    const p = genFiatShamirChallenge(
-      utf8ToBytes(ConfidentialKeyRotation.FIAT_SHAMIR_SIGMA_DST),
+    const p = fiatShamirChallenge(
+      PROTOCOL_ID_ROTATION,
+      opts.chainId,
+      opts.senderAddress,
+      opts.contractAddress,
+      opts.tokenAddress,
       RistrettoPoint.BASE.toRawBytes(),
       H_RISTRETTO.toRawBytes(),
       opts.currPublicKey.toUint8Array(),
@@ -297,8 +337,8 @@ export class ConfidentialKeyRotation {
     );
   }
 
-  async genRangeProof(): Promise<Uint8Array[]> {
-    const { proofs } = await RangeProofExecutor.genIndividualRangeProofs({
+  async genRangeProof(): Promise<Uint8Array> {
+    const rangeProof = await RangeProofExecutor.genBatchRangeZKP({
       v: this.currentEncryptedAvailableBalance.getAmountChunks(),
       rs: this.randomness.map((chunk) => numberToBytesLE(chunk, 32)),
       val_base: RistrettoPoint.BASE.toRawBytes(),
@@ -306,14 +346,14 @@ export class ConfidentialKeyRotation {
       num_bits: CHUNK_BITS,
     });
 
-    return proofs;
+    return rangeProof.proof;
   }
 
   async authorizeKeyRotation(): Promise<
     [
       {
         sigmaProof: ConfidentialKeyRotationSigmaProof;
-        rangeProof: Uint8Array[];
+        rangeProof: Uint8Array;
       },
       EncryptedAmount,
     ]
@@ -331,18 +371,13 @@ export class ConfidentialKeyRotation {
     ];
   }
 
-  static async verifyRangeProof(opts: { rangeProof: Uint8Array[]; newEncryptedBalance: TwistedElGamalCiphertext[] }) {
-    const results = await Promise.all(
-      opts.rangeProof.map((proof, index) =>
-        RangeProofExecutor.verifyRangeZKP({
-          proof,
-          commitment: opts.newEncryptedBalance[index].C.toRawBytes(),
-          valBase: RistrettoPoint.BASE.toRawBytes(),
-          randBase: H_RISTRETTO.toRawBytes(),
-          bits: CHUNK_BITS,
-        }),
-      ),
-    );
-    return results.every((result) => result);
+  static async verifyRangeProof(opts: { rangeProof: Uint8Array; newEncryptedBalance: TwistedElGamalCiphertext[] }) {
+    return RangeProofExecutor.verifyBatchRangeZKP({
+      proof: opts.rangeProof,
+      comm: opts.newEncryptedBalance.map((el) => el.C.toRawBytes()),
+      val_base: RistrettoPoint.BASE.toRawBytes(),
+      rand_base: H_RISTRETTO.toRawBytes(),
+      num_bits: CHUNK_BITS,
+    });
   }
 }

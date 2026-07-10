@@ -32,13 +32,14 @@ export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000
 const networkRaw = process.env.MOVEMENT_NETWORK;
 const MOVEMENT_NETWORK: Network = networkRaw ? NetworkToNetworkName[networkRaw] : Network.LOCAL;
 
-// Use CONFIDENTIAL_MODULE_ADDRESS env var if set, otherwise use testnet default
-const CONFIDENTIAL_MODULE_ADDRESS =
-  process.env.CONFIDENTIAL_MODULE_ADDRESS || "0xd38fc33916098866c4f18e6c80e75dd6b5af0d397acd063214bf3e78673ce25f";
+// Address of the module that contains `confidential_asset`. It now lives in the framework at 0x1.
+// Override with CONFIDENTIAL_MODULE_ADDRESS only if testing against a chain that publishes it elsewhere.
+const CONFIDENTIAL_MODULE_ADDRESS = process.env.CONFIDENTIAL_MODULE_ADDRESS || "0x1";
 
 export const feePayerAccount = Account.generate();
 
-// Create a custom transaction submitter that implements the TransactionSubmitter interface
+// Submitter that signs as fee payer only when the transaction was actually built with one.
+// Default flow is sender-pays; tests opt into sponsored mode by passing `withFeePayer: true`.
 class CustomTransactionSubmitter implements TransactionSubmitter {
   async submitTransaction(
     args: {
@@ -49,11 +50,17 @@ class CustomTransactionSubmitter implements TransactionSubmitter {
       ...args.movementConfig,
     });
     const movement = new Movement(newConfig);
-    const feePayerAuthenticator = movement.signAsFeePayer({ signer: feePayerAccount, transaction: args.transaction });
+    if (args.transaction.feePayerAddress !== undefined) {
+      const feePayerAuthenticator = movement.signAsFeePayer({ signer: feePayerAccount, transaction: args.transaction });
+      return movement.transaction.submit.simple({
+        transaction: args.transaction,
+        senderAuthenticator: args.senderAuthenticator,
+        feePayerAuthenticator,
+      });
+    }
     return movement.transaction.submit.simple({
       transaction: args.transaction,
       senderAuthenticator: args.senderAuthenticator,
-      feePayerAuthenticator,
     });
   }
 }
@@ -67,7 +74,6 @@ const config = new MovementConfig({
 export const confidentialAsset = new ConfidentialAsset({
   config,
   confidentialAssetModuleAddress: CONFIDENTIAL_MODULE_ADDRESS,
-  withFeePayer: true,
 });
 export const movement = new Movement(config);
 
@@ -101,7 +107,6 @@ export const getBalances = async (
 export const migrateCoinsToFungibleStore = async (account: Account): Promise<CommittedTransactionResponse> => {
   const transaction = await movement.transaction.build.simple({
     sender: account.accountAddress,
-    withFeePayer: true,
     data: {
       function: "0x1::coin::migrate_to_fungible_store",
       typeArguments: ["0x1::aptos_coin::AptosCoin"],

@@ -3,21 +3,34 @@
 
 import {
   Account,
+  AccountAddress,
   AccountAddressInput,
   AnyNumber,
   MovementConfig,
   CommittedTransactionResponse,
   InputGenerateTransactionOptions,
   LedgerVersionArg,
+  Serializer,
   SimpleTransaction,
+  TransactionPayloadEntryFunction,
 } from "@moveindustries/ts-sdk";
 import { TwistedEd25519PublicKey, TwistedEd25519PrivateKey, ConfidentialNormalization } from "../crypto";
-import { clearBalanceCache, clearEncryptionKeyCache, getEncryptionKeyCacheKey, setCache } from "../utils/memoize";
+import {
+  clearBalanceCache,
+  clearEncryptionKeyCache,
+  getEncryptionKeyCacheKey,
+  getAvailableBalanceCacheKey,
+  getPendingBalanceCacheKey,
+  setCache,
+} from "../utils/memoize";
 import {
   ConfidentialAssetTransactionBuilder,
   ConfidentialBalance,
   getBalance,
+  getChainIdByteForProofs,
   getEncryptionKey,
+  getAssetAuditorEncryptionKey,
+  getChainAuditorEncryptionKey,
   isBalanceNormalized,
   isPendingBalanceFrozen,
 } from "../internal";
@@ -42,6 +55,11 @@ type DepositParams = ConfidentialAssetSubmissionParams & {
   recipient?: AccountAddressInput;
 };
 
+type RegisterAndDepositParams = ConfidentialAssetSubmissionParams & {
+  amount: AnyNumber;
+  decryptionKey: TwistedEd25519PrivateKey;
+};
+
 type WithdrawParams = ConfidentialAssetSubmissionParams & {
   senderDecryptionKey: TwistedEd25519PrivateKey;
   amount: AnyNumber;
@@ -50,6 +68,8 @@ type WithdrawParams = ConfidentialAssetSubmissionParams & {
 
 type TransferParams = WithdrawParams & {
   additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+  /** Opaque hint bound into the transfer proof and emitted on `Transferred` (max 256 bytes). */
+  senderAuditorHint?: Uint8Array;
 };
 
 type RolloverParams = ConfidentialAssetSubmissionParams & {
@@ -65,6 +85,23 @@ type RotateKeyParams = ConfidentialAssetSubmissionParams & {
 type NormalizeBalanceParams = ConfidentialAssetSubmissionParams & {
   senderDecryptionKey: TwistedEd25519PrivateKey;
 };
+
+/**
+ * Extracts the BCS-encoded `EntryFunction` bytes from a `SimpleTransaction`
+ * built by {@link ConfidentialAssetTransactionBuilder}. Used by the
+ * `build*` methods on {@link ConfidentialAsset} to return raw entry-function
+ * bytes that callers can wrap in `MultiSigTransactionPayload` for the
+ * multisig proposal flow.
+ */
+function extractEntryFunctionBcs(tx: SimpleTransaction): Uint8Array {
+  const payload = tx.rawTransaction.payload;
+  if (!(payload instanceof TransactionPayloadEntryFunction)) {
+    throw new Error("Expected an entry-function transaction payload; got a different payload variant.");
+  }
+  const serializer = new Serializer();
+  payload.entryFunction.serialize(serializer);
+  return serializer.toUint8Array();
+}
 
 /**
  * A class to handle confidential balance operations
@@ -134,8 +171,78 @@ export class ConfidentialAsset {
    * @returns A SimpleTransaction to deposit the amount
    */
   async deposit(args: DepositParams): Promise<CommittedTransactionResponse> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
     const tx = await this.transaction.deposit({ ...rest, sender: signer.accountAddress, withFeePayer });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * First-time atomic register + deposit + rollover. Maps to the on-chain
+   * `register_and_deposit_and_rollover_pending_balance` entrypoint. Use this for the first-time
+   * "Make private" path: one wallet approval, one on-chain entry function call, funds land in
+   * `actual_balance` (spendable), not pending.
+   *
+   * After this call the store's `normalized` flag is `false`. Subsequent deposit-then-rollover
+   * flows must therefore route through {@link depositNormalizeAndRollover} until something
+   * re-normalizes (`confidential_transfer`, `withdraw`, or a standalone `normalize`).
+   *
+   * See {@link ConfidentialAssetTransactionBuilder.registerAndDepositAndRollover} for why no
+   * recipient ≠ sender variant exists, and why no normalize is required on this path.
+   */
+  async registerAndDepositAndRollover(args: RegisterAndDepositParams): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.registerAndDepositAndRollover({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Subsequent atomic deposit + rollover on a *currently-normalized* store. Maps to
+   * `deposit_and_rollover_pending_balance`. Funds land spendable.
+   *
+   * Aborts with `ENORMALIZATION_REQUIRED` (3 << 16 | 10 = 196618) if the store is not normalized.
+   * Callers that want a one-method "always lands spendable" entry should branch on the
+   * `is_normalized` view and route to {@link depositNormalizeAndRollover} when needed.
+   */
+  async depositAndRollover(args: DepositParams): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.depositAndRollover({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
+    const result = await this.submitTxn({ signer, transaction: tx });
+    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
+    return result;
+  }
+
+  /**
+   * Subsequent atomic deposit + normalize + rollover on a *not-currently-normalized* store. Maps
+   * to `deposit_and_normalize_and_rollover_pending_balance`. Funds land spendable.
+   *
+   * The signer's `senderDecryptionKey` is required to construct the normalize proof off-chain.
+   * Aborts with `EALREADY_NORMALIZED` (3 << 16 | 11 = 196619) if the store is already
+   * normalized — callers should route to {@link depositAndRollover} for that case.
+   */
+  async depositNormalizeAndRollover(
+    args: ConfidentialAssetSubmissionParams & {
+      amount: AnyNumber;
+      senderDecryptionKey: TwistedEd25519PrivateKey;
+    },
+  ): Promise<CommittedTransactionResponse> {
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
+    const tx = await this.transaction.depositNormalizeAndRollover({
+      ...rest,
+      sender: signer.accountAddress,
+      withFeePayer,
+    });
     const result = await this.submitTxn({ signer, transaction: tx });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
@@ -163,7 +270,7 @@ export class ConfidentialAsset {
       recipient?: AccountAddressInput;
     },
   ): Promise<CommittedTransactionResponse> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
 
     const transaction = await this.transaction.withdraw({ ...rest, sender: signer.accountAddress, withFeePayer });
     const result = await this.submitTxn({
@@ -172,33 +279,6 @@ export class ConfidentialAsset {
     });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
-  }
-
-  async withdrawWithTotalBalance(
-    args: ConfidentialAssetSubmissionParams & {
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-      amount: AnyNumber;
-      recipient?: AccountAddressInput;
-    },
-  ): Promise<CommittedTransactionResponse[]> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
-
-    const results: CommittedTransactionResponse[] = [];
-
-    const committedRolloverTxs = await this.checkSufficientBalanceAndRolloverIfNeeded({
-      ...args,
-    });
-    results.push(...committedRolloverTxs);
-
-    const tx = await this.transaction.withdraw({ ...rest, sender: signer.accountAddress, withFeePayer });
-    results.push(
-      await this.submitTxn({
-        signer,
-        transaction: tx,
-      }),
-    );
-    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    return results;
   }
 
   /**
@@ -213,60 +293,78 @@ export class ConfidentialAsset {
    * @throws {Error} If the balance is not normalized before rolling over, unless checkNormalized is false.
    */
   async rolloverPendingBalance(args: RolloverParams): Promise<CommittedTransactionResponse[]> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
-    const results: CommittedTransactionResponse[] = [];
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
     const isNormalized = await this.isBalanceNormalized({
       accountAddress: signer.accountAddress,
       tokenAddress: args.tokenAddress,
     });
-    if (!isNormalized) {
+
+    let transaction;
+    if (isNormalized) {
+      transaction = await this.transaction.rolloverPendingBalance({
+        ...rest,
+        sender: signer.accountAddress,
+        withFeePayer,
+      });
+    } else {
       if (!args.senderDecryptionKey) {
         throw new Error(
           "Rollover failed. Available balance is not normalized and no sender decryption key was provided.",
         );
       }
-      const commitedNormalizeTx = await this.normalizeBalance({
+      // Single-tx path: on-chain `normalize_and_rollover_pending_balance` does both steps,
+      // so the user only sees one wallet approval.
+      transaction = await this.transaction.normalizeAndRolloverPendingBalance({
+        sender: signer.accountAddress,
         senderDecryptionKey: args.senderDecryptionKey,
-        ...args,
+        tokenAddress: args.tokenAddress,
+        withFeePayer,
+        options: args.options,
       });
-      results.push(commitedNormalizeTx);
     }
-    const transaction = await this.transaction.rolloverPendingBalance({
-      ...rest,
-      sender: signer.accountAddress,
-      withFeePayer,
-    });
-    const committedRolloverTx = await this.submitTxn({
-      signer,
-      transaction,
-    });
+
+    const committed = await this.submitTxn({ signer, transaction });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    results.push(committedRolloverTx);
-    return results;
+    return [committed];
   }
 
   /**
-   * Get the encryption key for the asset auditor for a given token address.
+   * Get the per-asset auditor encryption key for a given token address (slot [1] of `auditor_eks`).
+   * Inclusion in transfers is handled automatically by the transaction builder; this method exists
+   * for callers that want to display the configured auditor independently of any pending transfer.
    *
    * @param args.tokenAddress - The token address of the asset to get the auditor for
    * @param args.options.ledgerVersion - The ledger version to use for the view call
-   * @returns The encryption key for the asset auditor or undefined if no auditor is set
+   * @returns The encryption key for the per-asset auditor, or `undefined` if no auditor is set
    */
   async getAssetAuditorEncryptionKey(args: {
     tokenAddress: AccountAddressInput;
     options?: LedgerVersionArg;
   }): Promise<TwistedEd25519PublicKey | undefined> {
-    const [{ vec: globalAuditorPubKey }] = await this.client().view<[{ vec: Uint8Array }]>({
+    return getAssetAuditorEncryptionKey({
+      client: this.client(),
+      moduleAddress: this.moduleAddress(),
+      tokenAddress: args.tokenAddress,
       options: args.options,
-      payload: {
-        function: `${this.moduleAddress()}::${MODULE_NAME}::get_auditor`,
-        functionArguments: [args.tokenAddress],
-      },
     });
-    if (globalAuditorPubKey.length === 0) {
-      return undefined;
-    }
-    return new TwistedEd25519PublicKey(globalAuditorPubKey);
+  }
+
+  /**
+   * Get the chain-level auditor encryption key (slot [0] of every transfer's `auditor_eks`).
+   * Inclusion in transfers is handled automatically by the transaction builder; this method exists
+   * so callers can display the active chain auditor independently of any pending transfer.
+   *
+   * @param args.options.ledgerVersion - The ledger version to use for the view call
+   * @returns The chain auditor's encryption key, or `undefined` when no chain auditor is configured
+   */
+  async getChainAuditorEncryptionKey(args?: {
+    options?: LedgerVersionArg;
+  }): Promise<TwistedEd25519PublicKey | undefined> {
+    return getChainAuditorEncryptionKey({
+      client: this.client(),
+      moduleAddress: this.moduleAddress(),
+      options: args?.options,
+    });
   }
 
   /**
@@ -280,6 +378,7 @@ export class ConfidentialAsset {
    * @param args.amount - The amount to transfer
    * @param args.senderDecryptionKey - The decryption key of the sender
    * @param args.additionalAuditorEncryptionKeys - Optional additional auditor encryption keys
+   * @param args.senderAuditorHint - Optional opaque bytes for the on-chain `sender_auditor_hint` argument
    * @param args.withFeePayer - Whether to use the fee payer for the transaction
    * @param args.options - Optional transaction options
    * @param args.signAndSubmitCallback - Optional callback for custom transaction submission
@@ -293,9 +392,10 @@ export class ConfidentialAsset {
       amount: AnyNumber;
       senderDecryptionKey: TwistedEd25519PrivateKey;
       additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+      senderAuditorHint?: Uint8Array;
     },
   ): Promise<CommittedTransactionResponse> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
+    const { signer, withFeePayer = this.withFeePayer, ...rest } = args;
 
     const transaction = await this.transaction.transfer({ ...rest, sender: signer.accountAddress, withFeePayer });
     const result = await this.submitTxn({
@@ -304,33 +404,6 @@ export class ConfidentialAsset {
     });
     clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
     return result;
-  }
-
-  async transferWithTotalBalance(
-    args: ConfidentialAssetSubmissionParams & {
-      recipient: AccountAddressInput;
-      amount: AnyNumber;
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-      additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
-    },
-  ): Promise<CommittedTransactionResponse[]> {
-    const { signer, withFeePayer = this.withFeePayer !== undefined, ...rest } = args;
-    const results: CommittedTransactionResponse[] = [];
-
-    const committedRolloverTxs = await this.checkSufficientBalanceAndRolloverIfNeeded({
-      ...args,
-    });
-    results.push(...committedRolloverTxs);
-    const transaction = await this.transaction.transfer({ ...rest, sender: signer.accountAddress, withFeePayer });
-
-    results.push(
-      await this.submitTxn({
-        signer,
-        transaction,
-      }),
-    );
-    clearBalanceCache(signer.accountAddress, args.tokenAddress, this.client().config.network);
-    return results;
   }
 
   /**
@@ -379,7 +452,7 @@ export class ConfidentialAsset {
       senderDecryptionKey,
       newSenderDecryptionKey,
       tokenAddress,
-      withFeePayer = this.withFeePayer !== undefined,
+      withFeePayer = this.withFeePayer,
       options,
     } = args;
     const results: CommittedTransactionResponse[] = [];
@@ -498,17 +571,27 @@ export class ConfidentialAsset {
    * @throws {Error} If normalization fails
    */
   async normalizeBalance(args: NormalizeBalanceParams): Promise<CommittedTransactionResponse> {
-    const { signer, senderDecryptionKey, tokenAddress, withFeePayer = this.withFeePayer !== undefined, options } = args;
+    const { signer, senderDecryptionKey, tokenAddress, withFeePayer = this.withFeePayer, options } = args;
     const { available, pending } = await this.getBalance({
       accountAddress: signer.accountAddress,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
-      useCachedValue: true,
+      // Always read the latest ciphertext from chain; cached balances must not drive normalization proofs.
+      useCachedValue: false,
     });
+
+    const chainId = await getChainIdByteForProofs({ client: this.client() });
+    const senderAddressBytes = AccountAddress.from(signer.accountAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(this.transaction.confidentialAssetModuleAddress).toUint8Array();
+    const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialNormalization = await ConfidentialNormalization.create({
       decryptionKey: senderDecryptionKey,
       unnormalizedAvailableBalance: available,
+      chainId,
+      senderAddress: senderAddressBytes,
+      contractAddress: contractAddressBytes,
+      tokenAddress: tokenAddressBytes,
     });
 
     const transaction = await confidentialNormalization.createTransaction({
@@ -523,9 +606,252 @@ export class ConfidentialAsset {
       signer,
       transaction,
     });
-    const newBalance = new ConfidentialBalance(confidentialNormalization.normalizedEncryptedAvailableBalance, pending);
-    setCache(`${signer.accountAddress}-balance-for-${tokenAddress}-${this.client().config.network}`, newBalance);
+    const network = this.client().config.network;
+    setCache(
+      getAvailableBalanceCacheKey(signer.accountAddress, tokenAddress, network),
+      confidentialNormalization.normalizedEncryptedAvailableBalance,
+    );
+    setCache(getPendingBalanceCacheKey(signer.accountAddress, tokenAddress, network), pending);
     return committedTransaction;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Build-only API
+  //
+  // Each `build*` method below constructs the same proofs and the same
+  // entry-function call that its submitting counterpart constructs, but
+  // returns the BCS-encoded `EntryFunction` bytes instead of submitting a
+  // transaction. The dApp / wallet wraps those bytes in a
+  // `MultiSigTransactionPayload` and proposes the transaction through
+  // `multisig_account::create_transaction`, so the multisig flow approves and
+  // executes the same exact entry-function call the single-signer path would
+  // have run.
+  //
+  // The `sender` is bound into every proof's Fiat–Shamir transcript and must
+  // match the executor at chain-verification time. For multisig CA, callers
+  // pass the multisig account's address as `sender`.
+  // ────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Build a `register` entry-function payload for the given `(sender, token)`
+   * pair without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * The `sender` must be the on-chain account whose `ek` slot is being
+   * registered — typically a multisig account address.
+   */
+  async buildRegister(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    decryptionKey: TwistedEd25519PrivateKey;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.registerBalance(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_to` entry-function payload without submitting it.
+   * Returns BCS-encoded `EntryFunction` bytes. Use {@link buildRegisterAndDeposit}
+   * for the first-time path, or one of {@link buildDepositAndRollover} /
+   * {@link buildDepositNormalizeAndRollover} when the caller wants funds to
+   * land spendable.
+   */
+  async buildDeposit(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    recipient?: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.deposit(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `register_and_deposit_and_rollover_pending_balance` entry-function
+   * payload without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   */
+  async buildRegisterAndDeposit(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    decryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.registerAndDepositAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_and_rollover_pending_balance` entry-function payload
+   * (currently-normalized store) without submitting it. Returns BCS-encoded
+   * `EntryFunction` bytes.
+   */
+  async buildDepositAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.depositAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `deposit_and_normalize_and_rollover_pending_balance` entry-function
+   * payload (not-currently-normalized store) without submitting it. Returns
+   * BCS-encoded `EntryFunction` bytes.
+   */
+  async buildDepositNormalizeAndRollover(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    amount: AnyNumber;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.depositNormalizeAndRollover(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `withdraw_to` entry-function payload without submitting it.
+   * Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Operates on the sender's actual (spendable) balance only. If the encrypted
+   * actual balance fetched from chain decrypts to less than `amount`,
+   * proof construction throws {@link InsufficientBalanceError} (code
+   * `INSUFFICIENT_BALANCE`); the caller must accept incoming pending funds via a
+   * separate `rolloverPendingBalance` proposal first.
+   */
+  async buildWithdraw(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    recipient?: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.withdraw(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `confidential_transfer` entry-function payload without submitting
+   * it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Operates on the sender's actual (spendable) balance only, on the same
+   * principle as {@link buildWithdraw}.
+   */
+  async buildConfidentialTransfer(args: {
+    sender: AccountAddressInput;
+    recipient: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    amount: AnyNumber;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    additionalAuditorEncryptionKeys?: TwistedEd25519PublicKey[];
+    senderAuditorHint?: Uint8Array;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.transfer(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `rollover_pending_balance` (or
+   * `normalize_and_rollover_pending_balance` if needed) entry-function payload
+   * without submitting it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Accepting incoming confidential transfers is a discrete user-authorized
+   * action and must not be bundled with spends. Use this when the user has
+   * explicitly chosen to accept pending funds.
+   */
+  async buildRolloverPending(args: {
+    sender: AccountAddressInput;
+    tokenAddress: AccountAddressInput;
+    senderDecryptionKey?: TwistedEd25519PrivateKey;
+    withFreezeBalance?: boolean;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const isNormalized = await this.isBalanceNormalized({
+      accountAddress: args.sender,
+      tokenAddress: args.tokenAddress,
+    });
+    let tx: SimpleTransaction;
+    if (isNormalized) {
+      tx = await this.transaction.rolloverPendingBalance(args);
+    } else {
+      if (!args.senderDecryptionKey) {
+        throw new Error(
+          "buildRolloverPending: actual balance is not normalized and no senderDecryptionKey was provided to construct the normalize proof.",
+        );
+      }
+      tx = await this.transaction.normalizeAndRolloverPendingBalance({
+        sender: args.sender,
+        senderDecryptionKey: args.senderDecryptionKey,
+        tokenAddress: args.tokenAddress,
+        options: args.options,
+      });
+    }
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `normalize` entry-function payload without submitting it. Returns
+   * BCS-encoded `EntryFunction` bytes.
+   *
+   * Normalization is a protocol implementation detail of "accept incoming
+   * funds." Most callers should prefer {@link buildRolloverPending}, which
+   * chains normalize automatically when required.
+   */
+  async buildNormalize(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const tx = await this.transaction.normalizeBalance(args);
+    return extractEntryFunctionBcs(tx);
+  }
+
+  /**
+   * Build a `rotate_encryption_key` entry-function payload without submitting
+   * it. Returns BCS-encoded `EntryFunction` bytes.
+   *
+   * Preconditions are sender-address-driven (not signer-driven): the caller
+   * supplies the multisig account address as `sender`, the current
+   * `dk[multisig, token]` as `senderDecryptionKey`, and the freshly generated
+   * `dk'` as `newSenderDecryptionKey`. The builder reads the multisig's
+   * current encrypted balance with `senderDecryptionKey` and emits the sigma
+   * + range proofs that re-encrypt it under `ek' = newSenderDecryptionKey.publicKey()`.
+   *
+   * Refuses if the multisig's pending balance is non-empty; the caller must
+   * propose `rolloverPendingBalance` first via {@link buildRolloverPending}
+   * and wait for it to be approved and executed before constructing the
+   * rotation proposal. (`rotate_encryption_key` aborts on chain when pending
+   * is non-empty, but failing fast off-chain avoids burning a multisig
+   * proposal slot.)
+   */
+  async buildRotateEncryptionKey(args: {
+    sender: AccountAddressInput;
+    senderDecryptionKey: TwistedEd25519PrivateKey;
+    newSenderDecryptionKey: TwistedEd25519PrivateKey;
+    tokenAddress: AccountAddressInput;
+    options?: InputGenerateTransactionOptions;
+  }): Promise<Uint8Array> {
+    const balance = await this.getBalance({
+      accountAddress: args.sender,
+      tokenAddress: args.tokenAddress,
+      decryptionKey: args.senderDecryptionKey,
+      useCachedValue: false,
+    });
+    if (balance.pendingBalance() > 0n) {
+      throw new Error(
+        "buildRotateEncryptionKey: sender's pending balance is non-empty. Propose rolloverPendingBalance " +
+          "via buildRolloverPending and wait for it to execute before proposing rotation.",
+      );
+    }
+    const tx = await this.transaction.rotateEncryptionKey(args);
+    return extractEntryFunctionBcs(tx);
   }
 
   private async submitTxn(args: { signer: Account; transaction: SimpleTransaction }) {
@@ -549,31 +875,5 @@ export class ConfidentialAsset {
       },
     });
     return committedTx;
-  }
-
-  private async checkSufficientBalanceAndRolloverIfNeeded(
-    args: ConfidentialAssetSubmissionParams & {
-      amount: AnyNumber;
-      senderDecryptionKey: TwistedEd25519PrivateKey;
-    },
-  ): Promise<CommittedTransactionResponse[]> {
-    const results: CommittedTransactionResponse[] = [];
-    const balance = await this.getBalance({
-      accountAddress: args.signer.accountAddress,
-      tokenAddress: args.tokenAddress,
-      decryptionKey: args.senderDecryptionKey,
-    });
-    if (balance.availableBalance() < BigInt(args.amount)) {
-      if (balance.availableBalance() + balance.pendingBalance() < BigInt(args.amount)) {
-        throw new Error(
-          `Insufficient balance. Pending balance - ${balance.pendingBalance().toString()}, Available balance - ${balance.availableBalance().toString()}`,
-        );
-      }
-      const committedRolloverTx = await this.rolloverPendingBalance({
-        ...args,
-      });
-      results.push(...committedRolloverTx);
-    }
-    return results;
   }
 }
