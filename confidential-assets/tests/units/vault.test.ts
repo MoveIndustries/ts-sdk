@@ -78,9 +78,7 @@ describe("vaultDecryptionKey (HKDF-SHA512, salt movement-ca-vault/v1)", () => {
 describe("vault-envelope key (vek) derivation", () => {
   it("fromSeed is deterministic and pins a fixed vector (seed 0xaa)", () => {
     // Independent X25519 keypair from the 32-byte seed (NOT the Ed25519 birational map).
-    expect(bytesToHex(RECIP_VEK.publicKey)).toBe(
-      "14ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e24070",
-    );
+    expect(bytesToHex(RECIP_VEK.publicKey)).toBe("14ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e24070");
     expect(bytesToHex(vaultEnvelopeKeyFromSeed(new Uint8Array(32).fill(0xaa)).publicKey)).toBe(
       bytesToHex(RECIP_VEK.publicKey),
     );
@@ -131,30 +129,42 @@ describe("vault-envelope key ownership signature", () => {
 
   it("sign then verify round-trips against the owner's Ed25519 pubkey", () => {
     const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
-    expect(verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: OWNER_PUB, signature: sig })).toBe(
-      true,
-    );
+    expect(
+      verifyVaultEnvelopeKeyOwnership({
+        vekPub: RECIP_VEK.publicKey,
+        ownerEd25519PublicKey: OWNER_PUB,
+        signature: sig,
+      }),
+    ).toBe(true);
   });
 
   it("rejects a signature over a different vekPub (key substitution)", () => {
     const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
     const otherVek = freshVek(0xbb).publicKey;
-    expect(verifyVaultEnvelopeKeyOwnership({ vekPub: otherVek, ownerEd25519PublicKey: OWNER_PUB, signature: sig })).toBe(
-      false,
-    );
+    expect(
+      verifyVaultEnvelopeKeyOwnership({ vekPub: otherVek, ownerEd25519PublicKey: OWNER_PUB, signature: sig }),
+    ).toBe(false);
   });
 
   it("rejects a signature from a different owner key", () => {
     const sig = signVaultEnvelopeKeyOwnership(RECIP_VEK.publicKey, OWNER_SEED);
     const otherOwnerPub = ed25519.getPublicKey(new Uint8Array(32).fill(0x22));
     expect(
-      verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: otherOwnerPub, signature: sig }),
+      verifyVaultEnvelopeKeyOwnership({
+        vekPub: RECIP_VEK.publicKey,
+        ownerEd25519PublicKey: otherOwnerPub,
+        signature: sig,
+      }),
     ).toBe(false);
   });
 
   it("returns false (not throw) on malformed inputs", () => {
     expect(
-      verifyVaultEnvelopeKeyOwnership({ vekPub: RECIP_VEK.publicKey, ownerEd25519PublicKey: new Uint8Array(31), signature: new Uint8Array(64) }),
+      verifyVaultEnvelopeKeyOwnership({
+        vekPub: RECIP_VEK.publicKey,
+        ownerEd25519PublicKey: new Uint8Array(31),
+        signature: new Uint8Array(64),
+      }),
     ).toBe(false);
   });
 });
