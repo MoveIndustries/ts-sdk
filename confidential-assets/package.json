@@ -7,7 +7,7 @@
     "node": ">=20.0.0"
   },
   "bugs": {
-    "url": "https://github.com/movementlabsxyz/ts-sdk/issues"
+    "url": "https://github.com/MoveIndustries/ts-sdk/issues"
   },
   "homepage": "https://docs.movementnetwork.xyz/",
   "version": "0.6.0",

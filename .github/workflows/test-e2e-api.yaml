@@ -28,7 +28,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - name: Install Movement CLI
         run: |
-          curl -fsSL -o movement-cli.tar.gz https://github.com/movementlabsxyz/homebrew-movement-cli/releases/download/bypass-homebrew/movement-cli-l1-linux-x86_64.tar.gz
+          curl -fsSL -o movement-cli.tar.gz https://github.com/movement-network/homebrew-movement-cli/releases/download/bypass-homebrew/movement-cli-l1-linux-x86_64.tar.gz
           tar -xzf movement-cli.tar.gz
           chmod +x movement
           sudo mv movement /usr/local/bin/movement
