@@ -2,6 +2,10 @@
 
 All notable changes to the Movement TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# Unreleased
+
+- Report an expired transaction as expired. `waitForTransaction` retries a 404, so once a node drops an expired transaction from its mempool the wait kept polling a hash that no longer existed and ended with "timed out in pending state", which points at `timeoutSecs` when no amount of waiting can help. It now compares the transaction's `expiration_timestamp_secs` against the ledger timestamp and says the transaction expired, naming `options.expireTimestamp` and `transactionGenerationConfig.defaultTxnExpirySecFromNow` as the ways to widen the window.
+
 # 5.1.7 (2026-03-25)
 
 - Add mainnet Movement Name Service (MNS) router contract address to `NetworkToMnsContract`, enabling `movement.mns` on `Network.MAINNET`.
