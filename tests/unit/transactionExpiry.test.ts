@@ -55,20 +55,12 @@ describe("hasTransactionExpired", () => {
   });
 
   it("accepts numbers and bigints as well as the strings the API returns", () => {
-    expect(
-      hasTransactionExpired({ expirationTimestampSecs: 100, ledgerTimestampMicros: 200_000_000 }),
-    ).toBe(true);
-    expect(
-      hasTransactionExpired({ expirationTimestampSecs: 100n, ledgerTimestampMicros: 50_000_000n }),
-    ).toBe(false);
+    expect(hasTransactionExpired({ expirationTimestampSecs: 100, ledgerTimestampMicros: 200_000_000 })).toBe(true);
+    expect(hasTransactionExpired({ expirationTimestampSecs: 100n, ledgerTimestampMicros: 50_000_000n })).toBe(false);
   });
 
   it("reports not expired on unparseable input, so a bad value cannot invent an expiry", () => {
-    expect(
-      hasTransactionExpired({ expirationTimestampSecs: "not-a-number", ledgerTimestampMicros: "1" }),
-    ).toBe(false);
-    expect(
-      hasTransactionExpired({ expirationTimestampSecs: "1", ledgerTimestampMicros: "not-a-number" }),
-    ).toBe(false);
+    expect(hasTransactionExpired({ expirationTimestampSecs: "not-a-number", ledgerTimestampMicros: "1" })).toBe(false);
+    expect(hasTransactionExpired({ expirationTimestampSecs: "1", ledgerTimestampMicros: "not-a-number" })).toBe(false);
   });
 });
