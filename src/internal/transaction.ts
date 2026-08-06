@@ -26,7 +26,7 @@ import {
 import { DEFAULT_TXN_TIMEOUT_SEC, ProcessorType } from "../utils/const";
 import { sleep } from "../utils/helpers";
 import { memoizeAsync } from "../utils/memoize";
-import { getIndexerLastSuccessVersion, getProcessorStatus } from "./general";
+import { getIndexerLastSuccessVersion, getLedgerInfo, getProcessorStatus } from "./general";
 
 /**
  * Retrieve a list of transactions based on the specified options.
@@ -148,6 +148,30 @@ export async function isTransactionPending(args: {
 }
 
 /**
+ * Whether a transaction's expiry has already passed on chain.
+ *
+ * `expiration_timestamp_secs` is in seconds and `ledger_timestamp` is in
+ * microseconds, so the two need converting before they can be compared.
+ *
+ * Chain time rather than local time on purpose: the node decides what has
+ * expired, and a caller with a skewed clock would otherwise be told the wrong
+ * thing about a transaction that is still perfectly valid.
+ *
+ * @group Implementation
+ */
+export function hasTransactionExpired(args: {
+  expirationTimestampSecs: string | number | bigint;
+  ledgerTimestampMicros: string | number | bigint;
+}): boolean {
+  const expirySecs = Number(args.expirationTimestampSecs);
+  const ledgerSecs = Number(args.ledgerTimestampMicros) / 1_000_000;
+  if (!Number.isFinite(expirySecs) || !Number.isFinite(ledgerSecs)) {
+    return false;
+  }
+  return ledgerSecs > expirySecs;
+}
+
+/**
  * Waits for a transaction to be confirmed by its hash.
  * This function allows you to monitor the status of a transaction until it is finalized.
  *
@@ -180,7 +204,7 @@ export async function longWaitForTransaction(args: {
  * @param args.options.timeoutSecs - The maximum time to wait for the transaction in seconds. Defaults to a predefined value.
  * @param args.options.checkSuccess - A flag indicating whether to check the success status of the transaction. Defaults to true.
  * @returns A promise that resolves to the transaction response once the transaction is confirmed.
- * @throws WaitForTransactionError if the transaction times out or remains pending.
+ * @throws WaitForTransactionError if the transaction expires on chain, or times out while still pending.
  * @throws FailedTransactionError if the transaction fails.
  * @group Implementation
  */
@@ -276,6 +300,31 @@ export async function waitForTransaction(args: {
   }
 
   if (lastTxn.type === TransactionResponseType.Pending) {
+    // A dropped transaction and a slow one are indistinguishable from the poll
+    // alone: once the node garbage-collects an expired transaction the hash
+    // 404s, which is retried as if it were merely not visible yet, and the wait
+    // ends reporting a timeout. That points at timeoutSecs, when no amount of
+    // waiting can help. Ask the chain what time it is and say which one it was.
+    let expired = false;
+    try {
+      const ledgerInfo = await getLedgerInfo({ movementConfig });
+      expired = hasTransactionExpired({
+        expirationTimestampSecs: lastTxn.expiration_timestamp_secs,
+        ledgerTimestampMicros: ledgerInfo.ledger_timestamp,
+      });
+    } catch {
+      // Best effort. If the node cannot be reached for the timestamp, fall back
+      // to the original message rather than replacing one unclear failure with
+      // another.
+    }
+    if (expired) {
+      throw new WaitForTransactionError(
+        `Transaction ${transactionHash} expired at ${lastTxn.expiration_timestamp_secs} and was dropped from the mempool. ` +
+          `It will never commit. Resubmit with a longer expiry: pass options.expireTimestamp, or raise ` +
+          `transactionGenerationConfig.defaultTxnExpirySecFromNow on MovementConfig.`,
+        lastTxn,
+      );
+    }
     throw new WaitForTransactionError(
       `Transaction ${transactionHash} timed out in pending state after ${timeoutSecs} seconds`,
       lastTxn,
