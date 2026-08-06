@@ -31,12 +31,18 @@ export const DEFAULT_MAX_GAS_AMOUNT = 200000;
  *
  * This time is how long until the blockchain nodes will reject the transaction.
  *
+ * Two minutes covers the flows where signing is not instant. A hardware wallet needs a device
+ * chooser plus an on-device confirmation, which routinely takes 15 to 60 seconds; a browser
+ * extension adds a user approval prompt on top of that. With a shorter window the node accepts
+ * the transaction into its mempool and then drops it once expiry passes, so the caller holds a
+ * hash for a transaction that never confirms.
+ *
  * Note that the transaction expiration time varies based on network connection and network load.  It may need to be
  * increased for the transaction to be processed.
  * @group Implementation
  * @category Utils
  */
-export const DEFAULT_TXN_EXP_SEC_FROM_NOW = 20;
+export const DEFAULT_TXN_EXP_SEC_FROM_NOW = 120;
 
 /**
  * The default number of seconds to wait for a transaction to be processed.

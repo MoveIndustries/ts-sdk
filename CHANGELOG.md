@@ -2,6 +2,10 @@
 
 All notable changes to the Movement TypeScript SDK will be captured in this file. This changelog is written by hand for now. It adheres to the format set out by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# Unreleased
+
+- Raise `DEFAULT_TXN_EXP_SEC_FROM_NOW` from 20 to 120 seconds. A hardware wallet needs a device chooser plus an on-device confirmation, routinely 15 to 60 seconds, and a browser extension adds an approval prompt on top. At 20 seconds the node accepted such a transaction into its mempool and then dropped it once expiry passed, leaving the caller with a hash for a transaction that never confirmed. Callers that want the old window can still pass `options.expireTimestamp`, or set `transactionGenerationConfig.defaultTxnExpirySecFromNow` on `MovementConfig`.
+
 # 5.1.7 (2026-03-25)
 
 - Add mainnet Movement Name Service (MNS) router contract address to `NetworkToMnsContract`, enabling `movement.mns` on `Network.MAINNET`.
