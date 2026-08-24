@@ -1,7 +1,13 @@
 import { RistrettoPoint } from "@noble/curves/ed25519";
 import { utf8ToBytes } from "@noble/hashes/utils";
 import { bytesToNumberLE, concatBytes, numberToBytesLE } from "@noble/curves/abstract/utils";
-import { MODULE_NAME, PROOF_CHUNK_SIZE, SIGMA_PROOF_NORMALIZATION_SIZE, PROTOCOL_ID_NORMALIZATION } from "../consts";
+import {
+  CONFIDENTIAL_ASSET_MODULE_ADDRESS,
+  MODULE_NAME,
+  PROOF_CHUNK_SIZE,
+  SIGMA_PROOF_NORMALIZATION_SIZE,
+  PROTOCOL_ID_NORMALIZATION,
+} from "../consts";
 import { fiatShamirChallenge } from "./fiatShamir";
 import { RangeProofExecutor } from "./rangeProof";
 import { TwistedEd25519PrivateKey, H_RISTRETTO, TwistedEd25519PublicKey } from ".";
@@ -359,7 +365,6 @@ export class ConfidentialNormalization {
   async createTransaction(args: {
     client: Movement;
     sender: AccountAddressInput;
-    confidentialAssetModuleAddress: string;
     tokenAddress: AccountAddressInput;
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
@@ -376,7 +381,6 @@ export class ConfidentialNormalization {
   async createNormalizeAndRolloverTransaction(args: {
     client: Movement;
     sender: AccountAddressInput;
-    confidentialAssetModuleAddress: string;
     tokenAddress: AccountAddressInput;
     withFeePayer?: boolean;
     options?: InputGenerateTransactionOptions;
@@ -387,7 +391,6 @@ export class ConfidentialNormalization {
   private async buildEntry(args: {
     client: Movement;
     sender: AccountAddressInput;
-    confidentialAssetModuleAddress: string;
     tokenAddress: AccountAddressInput;
     entryFunction: "normalize" | "normalize_and_rollover_pending_balance";
     withFeePayer?: boolean;
@@ -398,7 +401,7 @@ export class ConfidentialNormalization {
     return args.client.transaction.build.simple({
       ...args,
       data: {
-        function: `${args.confidentialAssetModuleAddress}::${MODULE_NAME}::${args.entryFunction}`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::${args.entryFunction}`,
         functionArguments: [
           args.tokenAddress,
           normalizedCB.getCipherTextBytes(),

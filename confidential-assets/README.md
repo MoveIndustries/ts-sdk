@@ -5,10 +5,13 @@ Confidential Assets SDK for Movement Network. Enables privacy-preserving token t
 ## Network Support
 
 
-| Network                         | Module Address                                                       | Status       |
-| ------------------------------- | -------------------------------------------------------------------- | ------------ |
-| Movement Testnet (experimental) | `0x8dae5044bef3b2d33004490c486894fee52ac62bb8070234dc965ab1cdfdae04` | Live         |
-| Movement Mainnet                | -                                                                    | Coming soon? |
+`confidential_asset` ships in the Movement framework, so it is always at `0x1`. There is no
+module address to configure.
+
+| Network          | Status       |
+| ---------------- | ------------ |
+| Movement Testnet | Live         |
+| Movement Mainnet | Coming soon  |
 
 
 ## Installation
@@ -145,17 +148,6 @@ await confidentialAsset.transfer({
   amount: 500_000_000n,
   senderDecryptionKey: decryptionKey,
   additionalAuditorEncryptionKeys: [auditorPublicKey],
-});
-```
-
-## Custom Module Address
-
-If deploying your own confidential asset module:
-
-```typescript
-const confidentialAsset = new ConfidentialAsset({
-  config,
-  confidentialAssetModuleAddress: "0xyour_module_address",
 });
 ```
 

@@ -32,10 +32,6 @@ export const TOKEN_ADDRESS = "0x000000000000000000000000000000000000000000000000
 const networkRaw = process.env.MOVEMENT_NETWORK;
 const MOVEMENT_NETWORK: Network = networkRaw ? NetworkToNetworkName[networkRaw] : Network.LOCAL;
 
-// Address of the module that contains `confidential_asset`. It now lives in the framework at 0x1.
-// Override with CONFIDENTIAL_MODULE_ADDRESS only if testing against a chain that publishes it elsewhere.
-const CONFIDENTIAL_MODULE_ADDRESS = process.env.CONFIDENTIAL_MODULE_ADDRESS || "0x1";
-
 export const feePayerAccount = Account.generate();
 
 // Submitter that signs as fee payer only when the transaction was actually built with one.
@@ -71,10 +67,7 @@ const config = new MovementConfig({
     TRANSACTION_SUBMITTER: new CustomTransactionSubmitter(),
   },
 });
-export const confidentialAsset = new ConfidentialAsset({
-  config,
-  confidentialAssetModuleAddress: CONFIDENTIAL_MODULE_ADDRESS,
-});
+export const confidentialAsset = new ConfidentialAsset({ config });
 export const movement = new Movement(config);
 
 const rootDir = path.resolve(__dirname, "../../../");

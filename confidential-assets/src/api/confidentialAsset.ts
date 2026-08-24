@@ -36,7 +36,7 @@ import {
 } from "../internal";
 
 // Constants
-import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MODULE_NAME } from "../consts";
+import { CONFIDENTIAL_ASSET_MODULE_ADDRESS, MODULE_NAME } from "../consts";
 
 // Base param types
 type ConfidentialAssetSubmissionParams = {
@@ -111,19 +111,13 @@ function extractEntryFunctionBcs(tx: SimpleTransaction): Uint8Array {
 export class ConfidentialAsset {
   transaction: ConfidentialAssetTransactionBuilder;
   withFeePayer: boolean;
-  constructor(args: { config: MovementConfig; confidentialAssetModuleAddress?: string; withFeePayer?: boolean }) {
-    const { confidentialAssetModuleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS } = args;
-    let config = args.config;
-    this.transaction = new ConfidentialAssetTransactionBuilder(config, confidentialAssetModuleAddress);
+  constructor(args: { config: MovementConfig; withFeePayer?: boolean }) {
+    this.transaction = new ConfidentialAssetTransactionBuilder(args.config);
     this.withFeePayer = args.withFeePayer ?? false;
   }
 
   private client() {
     return this.transaction.client;
-  }
-
-  private moduleAddress() {
-    return this.transaction.confidentialAssetModuleAddress;
   }
 
   async getBalance(args: {
@@ -135,7 +129,6 @@ export class ConfidentialAsset {
   }): Promise<ConfidentialBalance> {
     return getBalance({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       ...args,
     });
   }
@@ -343,7 +336,6 @@ export class ConfidentialAsset {
   }): Promise<TwistedEd25519PublicKey | undefined> {
     return getAssetAuditorEncryptionKey({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       tokenAddress: args.tokenAddress,
       options: args.options,
     });
@@ -362,7 +354,6 @@ export class ConfidentialAsset {
   }): Promise<TwistedEd25519PublicKey | undefined> {
     return getChainAuditorEncryptionKey({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       options: args?.options,
     });
   }
@@ -426,7 +417,6 @@ export class ConfidentialAsset {
   }): Promise<boolean> {
     return isPendingBalanceFrozen({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       ...args,
     });
   }
@@ -503,7 +493,7 @@ export class ConfidentialAsset {
   }): Promise<boolean> {
     const [isRegistered] = await this.client().view<[boolean]>({
       payload: {
-        function: `${this.moduleAddress()}::${MODULE_NAME}::has_confidential_asset_store`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::has_confidential_asset_store`,
         typeArguments: [],
         functionArguments: [args.accountAddress, args.tokenAddress],
       },
@@ -531,7 +521,6 @@ export class ConfidentialAsset {
   }): Promise<boolean> {
     return isBalanceNormalized({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       ...args,
     });
   }
@@ -552,7 +541,6 @@ export class ConfidentialAsset {
   }): Promise<TwistedEd25519PublicKey> {
     return getEncryptionKey({
       client: this.client(),
-      moduleAddress: this.moduleAddress(),
       ...args,
     });
   }
@@ -582,7 +570,7 @@ export class ConfidentialAsset {
 
     const chainId = await getChainIdByteForProofs({ client: this.client() });
     const senderAddressBytes = AccountAddress.from(signer.accountAddress).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.transaction.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialNormalization = await ConfidentialNormalization.create({
@@ -597,7 +585,6 @@ export class ConfidentialAsset {
     const transaction = await confidentialNormalization.createTransaction({
       client: this.client(),
       sender: signer.accountAddress,
-      confidentialAssetModuleAddress: this.transaction.confidentialAssetModuleAddress,
       tokenAddress,
       withFeePayer,
       options,

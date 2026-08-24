@@ -14,8 +14,12 @@ export const SIGMA_PROOF_NORMALIZATION_SIZE = PROOF_CHUNK_SIZE * 21; // bytes
 
 export const SIGMA_PROOF_REGISTRATION_SIZE = PROOF_CHUNK_SIZE * 2; // 1 point + 1 scalar = 64 bytes
 
-/** Confidential asset module deployed at the framework address. */
-export const DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS = "0x1";
+/**
+ * `confidential_asset` ships in the Aptos framework, so it is always at `0x1`. The on-chain
+ * Fiat-Shamir transcript binds `@aptos_framework` as `contract_address`, so proofs generated
+ * against any other address cannot verify.
+ */
+export const CONFIDENTIAL_ASSET_MODULE_ADDRESS = "0x1";
 export const MODULE_NAME = "confidential_asset";
 
 /** Fiat-Shamir protocol identifiers (used as DST suffix: "MovementConfidentialAsset/" + id). */

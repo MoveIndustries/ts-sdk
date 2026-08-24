@@ -23,7 +23,7 @@ import {
   TwistedEd25519PrivateKey,
 } from "../crypto";
 import { genRegistrationProof } from "../crypto/confidentialRegistration";
-import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MAX_SENDER_AUDITOR_HINT_BYTES, MODULE_NAME } from "../consts";
+import { CONFIDENTIAL_ASSET_MODULE_ADDRESS, MAX_SENDER_AUDITOR_HINT_BYTES, MODULE_NAME } from "../consts";
 import {
   getBalance,
   getChainIdByteForProofs,
@@ -58,11 +58,9 @@ export function assembleAuditorEks(args: {
  */
 export class ConfidentialAssetTransactionBuilder {
   readonly client: Movement;
-  readonly confidentialAssetModuleAddress: string;
 
-  constructor(config: MovementConfig, confidentialAssetModuleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS) {
+  constructor(config: MovementConfig) {
     this.client = new Movement(config);
-    this.confidentialAssetModuleAddress = confidentialAssetModuleAddress;
     TwistedElGamal.initializeKangaroos();
   }
 
@@ -86,7 +84,7 @@ export class ConfidentialAssetTransactionBuilder {
     const { tokenAddress, decryptionKey } = args;
     const chainId = await getChainIdByteForProofs({ client: this.client });
     const senderAddress = AccountAddress.from(args.sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const proof = genRegistrationProof(decryptionKey, chainId, senderAddress, contractAddressBytes, tokenAddressBytes);
@@ -95,7 +93,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::register`,
         functionArguments: [tokenAddress, decryptionKey.publicKey().toUint8Array(), proof.commitment, proof.response],
       },
     });
@@ -132,7 +130,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_to`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::deposit_to`,
         functionArguments: [tokenAddress, recipient, amountString],
       },
     });
@@ -175,7 +173,7 @@ export class ConfidentialAssetTransactionBuilder {
 
     const chainId = await getChainIdByteForProofs({ client: this.client });
     const senderAddressBytes = AccountAddress.from(args.sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
     const proof = genRegistrationProof(
       decryptionKey,
@@ -189,7 +187,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::register_and_deposit_and_rollover_pending_balance`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::register_and_deposit_and_rollover_pending_balance`,
         functionArguments: [
           tokenAddress,
           String(amount),
@@ -225,7 +223,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_and_rollover_pending_balance`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::deposit_and_rollover_pending_balance`,
         functionArguments: [tokenAddress, String(amount)],
       },
     });
@@ -268,7 +266,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::deposit_and_normalize_and_rollover_pending_balance`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::deposit_and_normalize_and_rollover_pending_balance`,
         functionArguments: [
           tokenAddress,
           String(amount),
@@ -310,7 +308,6 @@ export class ConfidentialAssetTransactionBuilder {
     // Get the sender's available balance from the chain (latest state; see transfer() comment on ledger pinning)
     const { available: senderEncryptedAvailableBalance } = await getBalance({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       accountAddress: sender,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
@@ -318,7 +315,7 @@ export class ConfidentialAssetTransactionBuilder {
 
     const chainId = await getChainIdByteForProofs({ client: this.client });
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     const confidentialWithdraw = await ConfidentialWithdraw.create({
@@ -337,7 +334,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::withdraw_to`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::withdraw_to`,
         functionArguments: [
           tokenAddress,
           recipient,
@@ -373,7 +370,6 @@ export class ConfidentialAssetTransactionBuilder {
     if (checkNormalized) {
       const isNormalized = await isBalanceNormalized({
         client: this.client,
-        moduleAddress: this.confidentialAssetModuleAddress,
         accountAddress: args.sender,
         tokenAddress: args.tokenAddress,
       });
@@ -388,7 +384,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::${functionName}`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::${functionName}`,
         functionArguments: [args.tokenAddress],
       },
     });
@@ -407,7 +403,6 @@ export class ConfidentialAssetTransactionBuilder {
   }): Promise<TwistedEd25519PublicKey | undefined> {
     return getAssetAuditorEncryptionKey({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       tokenAddress: args.tokenAddress,
       options: args.options,
     });
@@ -424,7 +419,6 @@ export class ConfidentialAssetTransactionBuilder {
   }): Promise<TwistedEd25519PublicKey | undefined> {
     return getChainAuditorEncryptionKey({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       options: args?.options,
     });
   }
@@ -518,7 +512,6 @@ export class ConfidentialAssetTransactionBuilder {
       try {
         recipientEncryptionKey = await getEncryptionKey({
           client: this.client,
-          moduleAddress: this.confidentialAssetModuleAddress,
           accountAddress: recipient,
           tokenAddress,
         });
@@ -528,7 +521,6 @@ export class ConfidentialAssetTransactionBuilder {
     }
     const isFrozen = await isPendingBalanceFrozen({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       accountAddress: recipient,
       tokenAddress,
     });
@@ -538,13 +530,12 @@ export class ConfidentialAssetTransactionBuilder {
     // Get the sender's available balance from the chain (latest committed state; matches execution-time views)
     const { available: senderEncryptedAvailableBalance } = await getBalance({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       accountAddress: args.sender,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
     });
     const senderAddressBytes = AccountAddress.from(args.sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     // Create the confidential transfer object
@@ -582,7 +573,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::confidential_transfer`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::confidential_transfer`,
         functionArguments: [
           tokenAddress,
           recipient,
@@ -637,7 +628,6 @@ export class ConfidentialAssetTransactionBuilder {
       args.withUnfreezePendingBalance ??
       (await isPendingBalanceFrozen({
         client: this.client,
-        moduleAddress: this.confidentialAssetModuleAddress,
         accountAddress: sender,
         tokenAddress,
       }));
@@ -645,7 +635,6 @@ export class ConfidentialAssetTransactionBuilder {
     // Get the sender's balance from the chain
     const { available: currentEncryptedAvailableBalance, pending: currentEncryptedPendingBalance } = await getBalance({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       accountAddress: sender,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
@@ -657,7 +646,7 @@ export class ConfidentialAssetTransactionBuilder {
       }
     }
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     // Create the confidential key rotation object
@@ -683,7 +672,7 @@ export class ConfidentialAssetTransactionBuilder {
       sender: args.sender,
       ...feePayerBuildOpts(args),
       data: {
-        function: `${this.confidentialAssetModuleAddress}::${MODULE_NAME}::${method}`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::${method}`,
         functionArguments: [
           args.tokenAddress,
           newPublicKeyBytes,
@@ -717,7 +706,6 @@ export class ConfidentialAssetTransactionBuilder {
     return confidentialNormalization.createTransaction({
       client: this.client,
       sender: args.sender,
-      confidentialAssetModuleAddress: this.confidentialAssetModuleAddress,
       tokenAddress: args.tokenAddress,
       withFeePayer: args.withFeePayer,
       options: args.options,
@@ -741,7 +729,6 @@ export class ConfidentialAssetTransactionBuilder {
     return confidentialNormalization.createNormalizeAndRolloverTransaction({
       client: this.client,
       sender: args.sender,
-      confidentialAssetModuleAddress: this.confidentialAssetModuleAddress,
       tokenAddress: args.tokenAddress,
       withFeePayer: args.withFeePayer,
       options: args.options,
@@ -758,13 +745,12 @@ export class ConfidentialAssetTransactionBuilder {
 
     const { available } = await getBalance({
       client: this.client,
-      moduleAddress: this.confidentialAssetModuleAddress,
       accountAddress: sender,
       tokenAddress,
       decryptionKey: senderDecryptionKey,
     });
     const senderAddressBytes = AccountAddress.from(sender).toUint8Array();
-    const contractAddressBytes = AccountAddress.from(this.confidentialAssetModuleAddress).toUint8Array();
+    const contractAddressBytes = AccountAddress.from(CONFIDENTIAL_ASSET_MODULE_ADDRESS).toUint8Array();
     const tokenAddressBytes = AccountAddress.from(tokenAddress).toUint8Array();
 
     return ConfidentialNormalization.create({

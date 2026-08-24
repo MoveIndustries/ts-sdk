@@ -15,14 +15,13 @@ import {
   memoizeAsync,
   setCache,
 } from "../utils/memoize";
-import { DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS, MODULE_NAME } from "../consts";
+import { CONFIDENTIAL_ASSET_MODULE_ADDRESS, MODULE_NAME } from "../consts";
 
 type ViewFunctionParams = {
   client: Movement;
   accountAddress: AccountAddressInput;
   tokenAddress: AccountAddressInput;
   options?: LedgerVersionArg;
-  moduleAddress?: string;
 };
 
 /** Normalize view hex (with or without `0x`) to bytes for Ristretto encodings. */
@@ -105,7 +104,6 @@ export class ConfidentialBalance {
  * @param args.decryptionKey - The decryption key to decrypt the balance
  * @param args.useCachedValue - Whether to use cached balance values (defaults to false)
  * @param args.options - Optional ledger version for the view call
- * @param args.moduleAddress - Optional module address (defaults to DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS)
  * @returns The confidential balance containing available and pending amounts
  * @throws {Error} If the balance cannot be retrieved or decrypted
  */
@@ -149,7 +147,6 @@ export async function getBalance(
  * @param args.tokenAddress - The token address of the asset
  * @param args.decryptionKey - The decryption key to decrypt the balance
  * @param args.options - Optional ledger version for the view call
- * @param args.moduleAddress - Optional module address
  * @returns The decrypted confidential balance
  */
 async function getBalanceInternal(
@@ -176,17 +173,11 @@ async function getBalanceCipherText(args: ViewFunctionParams): Promise<{
   pending: TwistedElGamalCiphertext[];
   available: TwistedElGamalCiphertext[];
 }> {
-  const {
-    client,
-    accountAddress,
-    tokenAddress,
-    options,
-    moduleAddress = DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS,
-  } = args;
+  const { client, accountAddress, tokenAddress, options } = args;
   const [[chunkedPendingBalance], [chunkedActualBalances]] = await Promise.all([
     client.view<[ConfidentialBalanceResponse]>({
       payload: {
-        function: `${moduleAddress}::${MODULE_NAME}::pending_balance`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::pending_balance`,
         typeArguments: [],
         functionArguments: [accountAddress, tokenAddress],
       },
@@ -194,7 +185,7 @@ async function getBalanceCipherText(args: ViewFunctionParams): Promise<{
     }),
     client.view<[ConfidentialBalanceResponse]>({
       payload: {
-        function: `${moduleAddress}::${MODULE_NAME}::actual_balance`,
+        function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::actual_balance`,
         typeArguments: [],
         functionArguments: [accountAddress, tokenAddress],
       },
@@ -215,7 +206,7 @@ async function getBalanceCipherText(args: ViewFunctionParams): Promise<{
 export async function isBalanceNormalized(args: ViewFunctionParams): Promise<boolean> {
   const [isNormalized] = await args.client.view<[boolean]>({
     payload: {
-      function: `${args.moduleAddress}::${MODULE_NAME}::is_normalized`,
+      function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::is_normalized`,
       typeArguments: [],
       functionArguments: [args.accountAddress, args.tokenAddress],
     },
@@ -229,7 +220,7 @@ export async function isPendingBalanceFrozen(args: ViewFunctionParams): Promise<
   const [isFrozen] = await args.client.view<[boolean]>({
     options: args.options,
     payload: {
-      function: `${args.moduleAddress}::${MODULE_NAME}::is_frozen`,
+      function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::is_frozen`,
       typeArguments: [],
       functionArguments: [args.accountAddress, args.tokenAddress],
     },
@@ -245,13 +236,12 @@ export async function isPendingBalanceFrozen(args: ViewFunctionParams): Promise<
  * @param args.accountAddress - The account address to check
  * @param args.tokenAddress - The token address of the asset
  * @param args.options - Optional ledger version for the view call
- * @param args.moduleAddress - Optional module address
  * @returns A boolean indicating if the user has registered
  */
 export async function hasUserRegistered(args: ViewFunctionParams): Promise<boolean> {
   const [isRegistered] = await args.client.view<[boolean]>({
     payload: {
-      function: `${args.moduleAddress}::${MODULE_NAME}::has_confidential_asset_store`,
+      function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::has_confidential_asset_store`,
       typeArguments: [],
       functionArguments: [args.accountAddress, args.tokenAddress],
     },
@@ -269,7 +259,6 @@ export async function hasUserRegistered(args: ViewFunctionParams): Promise<boole
  * @param args.tokenAddress - The token address of the asset
  * @param args.useCachedValue - Whether to use cached key value (defaults to false)
  * @param args.options - Optional ledger version for the view call
- * @param args.moduleAddress - Optional module address
  * @returns The encryption key as a TwistedEd25519PublicKey
  * @throws {Error} If the encryption key cannot be retrieved
  */
@@ -326,13 +315,11 @@ export async function getAssetAuditorEncryptionKey(args: {
   client: Movement;
   tokenAddress: AccountAddressInput;
   options?: LedgerVersionArg;
-  moduleAddress?: string;
 }): Promise<TwistedEd25519PublicKey | undefined> {
-  const moduleAddress = args.moduleAddress ?? DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS;
   const [raw] = await args.client.view<[unknown]>({
     options: args.options,
     payload: {
-      function: `${moduleAddress}::${MODULE_NAME}::get_asset_auditor`,
+      function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::get_asset_auditor`,
       functionArguments: [args.tokenAddress],
     },
   });
@@ -353,13 +340,11 @@ export async function getAssetAuditorEncryptionKey(args: {
 export async function getChainAuditorEncryptionKey(args: {
   client: Movement;
   options?: LedgerVersionArg;
-  moduleAddress?: string;
 }): Promise<TwistedEd25519PublicKey | undefined> {
-  const moduleAddress = args.moduleAddress ?? DEFAULT_CONFIDENTIAL_COIN_MODULE_ADDRESS;
   const [raw] = await args.client.view<[unknown]>({
     options: args.options,
     payload: {
-      function: `${moduleAddress}::${MODULE_NAME}::get_chain_auditor`,
+      function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::get_chain_auditor`,
       functionArguments: [],
     },
   });
@@ -386,7 +371,7 @@ export async function getEncryptionKey(
         const [{ point }] = await args.client.view<[{ point: { data: string } }]>({
           options,
           payload: {
-            function: `${args.moduleAddress}::${MODULE_NAME}::encryption_key`,
+            function: `${CONFIDENTIAL_ASSET_MODULE_ADDRESS}::${MODULE_NAME}::encryption_key`,
             functionArguments: [accountAddress, tokenAddress],
           },
         });
